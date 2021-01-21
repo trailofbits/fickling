@@ -29,7 +29,7 @@ class Opcode:
         raise NotImplementedError(f"TODO: Add support for Pickle opcode {self.info.name}")
 
     def __init_subclass__(cls, **kwargs):
-        if cls.__name__ != "NoOp":
+        if cls.__name__ not in ("NoOp", "StackSliceOpcode", "ConstantOpcode"):
             if not hasattr(cls, "name") or cls.name is None:
                 raise TypeError("Opcode subclasses must define a name")
             elif cls.name in OPCODES_BY_NAME:
@@ -48,6 +48,37 @@ class Opcode:
 class NoOp(Opcode):
     def run(self, interpreter: "Interpreter"):
         pass
+
+
+class ConstantOpcode(Opcode):
+    def run(self, interpreter: "Interpreter"):
+        interpreter.stack.append(ast.Constant(self.arg))
+
+
+class StackSliceOpcode(Opcode):
+    def run(self, interpreter: "Interpreter", stack_slice: List[ast.expr]):
+        raise NotImplementedError(f"{self.__class__.__name__} must implement run()")
+
+    def __init_subclass__(cls, **kwargs):
+        ret = super().__init_subclass__(**kwargs)
+        orig_run = cls.run
+
+        def run_wrapper(self, interpreter: "Interpreter"):
+            args = []
+            while True:
+                if not interpreter.stack:
+                    raise ValueError("Exhausted the stack while searching for a MarkObject!")
+                obj = interpreter.stack.pop()
+                if isinstance(obj, MarkObject):
+                    break
+                else:
+                    args.append(obj)
+            args = list(reversed(args))
+            return orig_run(self, interpreter, args)
+
+        setattr(cls, "run", run_wrapper)
+
+        return ret
 
 
 class Pickled:
@@ -92,6 +123,9 @@ class Interpreter:
         if self._module is None:
             for opcode in self.pickled:
                 opcode.run(self)
+            for i, stmt in enumerate(self.module_body):
+                setattr(stmt, "lineno", i + 1)
+                setattr(stmt, "col_offset", 0)
             self._module = ast.Module(list(self.module_body))
         return self._module
 
@@ -160,11 +194,12 @@ class Mark(Opcode):
         interpreter.stack.append(MarkObject())
 
 
-class BinUnicode(Opcode):
+class BinUnicode(ConstantOpcode):
     name = "BINUNICODE"
 
-    def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(self.arg))
+
+class ShortBinUnicode(BinUnicode):
+    name = "SHORT_BINUNICODE"
 
 
 class NewObj(Opcode):
@@ -210,20 +245,11 @@ class NewFalse(Opcode):
         interpreter.stack.append(ast.Constant(False))
 
 
-class Tuple(Opcode):
+class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
-    def run(self, interpreter: Interpreter):
-        args = []
-        while True:
-            if not interpreter.stack:
-                raise ValueError("Exhausted the stack while searching for a MarkObject!")
-            obj = interpreter.stack.pop()
-            if isinstance(obj, MarkObject):
-                break
-            else:
-                args.append(obj)
-        interpreter.stack.append(ast.Tuple(tuple(reversed(args))))
+    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+        interpreter.stack.append(ast.Tuple(tuple(stack_slice)))
 
 
 class Build(Opcode):
@@ -246,32 +272,26 @@ class BinGet(Opcode):
         interpreter.stack.append(interpreter.memory[self.arg])
 
 
-class SetItems(Opcode):
+class SetItems(StackSliceOpcode):
     name = "SETITEMS"
 
-    def run(self, interpreter: Interpreter):
-        args = []
-        while True:
-            if not interpreter.stack:
-                raise ValueError("Exhausted the stack while searching for a MarkObject!")
-            obj = interpreter.stack.pop()
-            if isinstance(obj, MarkObject):
-                break
-            else:
-                args.append(obj)
+    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
         pydict = interpreter.stack.pop()
-        dict_name = interpreter.new_variable(pydict)
-        args = list(reversed(args))
         update_dict_keys = []
         update_dict_values = []
-        for key, value in zip(args, args[1:]):
+        for key, value in zip(stack_slice[::2], stack_slice[1::2]):
             update_dict_keys.append(key)
             update_dict_values.append(value)
-        update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
-        interpreter.module_body.append(ast.Expr(
-            ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), args=[update_dict], keywords=[])
-        ))
-        interpreter.stack.append(ast.Name(dict_name, ast.Load()))
+        if isinstance(pydict, ast.Dict) and not pydict.keys:
+            # the dict is empty, so add a new one
+            interpreter.stack.append(ast.Dict(keys=update_dict_keys, values=update_dict_values))
+        else:
+            dict_name = interpreter.new_variable(pydict)
+            update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
+            interpreter.module_body.append(ast.Expr(
+                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), args=[update_dict], keywords=[])
+            ))
+            interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
 
 class Stop(Opcode):
@@ -279,3 +299,55 @@ class Stop(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.new_variable(interpreter.stack.pop(), name="result")
+
+
+class Frame(NoOp):
+    name = "FRAME"
+
+
+class BinInt1(ConstantOpcode):
+    name = "BININT1"
+
+
+class BinInt2(BinInt1):
+    name = "BININT2"
+
+
+class EmptyList(Opcode):
+    name = "EMPTY_LIST"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(ast.List([], ast.Load()))
+
+
+class EmptyDict(Opcode):
+    name = "EMPTY_DICT"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(ast.Dict(keys=[], values=[]))
+
+
+class Memoize(Opcode):
+    name = "MEMOIZE"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.memory[len(interpreter.memory)] = interpreter.stack[-1]
+
+
+class Appends(StackSliceOpcode):
+    name = "APPENDS"
+
+    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+        list_obj = interpreter.stack[-1]
+        if isinstance(list_obj, ast.List):
+            list_obj.elts.extend(stack_slice)
+        else:
+            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+
+
+class BinBytes(ConstantOpcode):
+    name = "BINBYTES"
+
+
+class ShortBinBytes(BinBytes):
+    name = "SHORT_BINBYTES"

@@ -8,7 +8,7 @@ setup(
     url="https://github.com/trailofbits/fickling",
     author="Trail of Bits",
     version="0.0.1",
-    packages=find_packages(),
+    packages=find_packages(exclude=["test"]),
     python_requires=">=3.6",
     install_requires=[
         "astunparse~=1.6.3"
