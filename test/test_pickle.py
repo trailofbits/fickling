@@ -1,4 +1,3 @@
-from ast import parse
 from functools import wraps
 from io import BytesIO
 from pickle import dump
