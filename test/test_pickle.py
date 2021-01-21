@@ -48,3 +48,8 @@ class TestInterpreter(TestCase):
     @correctness_test(b"abcdefg")
     def test_bytes(self):
         pass
+
+    def test_dumps(self):
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        self.assertEqual(pickled, loaded.dumps())

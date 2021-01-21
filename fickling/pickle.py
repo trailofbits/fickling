@@ -1,8 +1,8 @@
 import ast
+from collections.abc import MutableSequence
 from io import BytesIO
 from pickletools import genops, OpcodeInfo
 from typing import Any, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
-
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 
@@ -14,10 +14,30 @@ class MarkObject:
 class Opcode:
     name: str
 
-    def __init__(self, info: OpcodeInfo, argument: Any, position: Optional[int] = None):
+    def __init__(self, info: OpcodeInfo, argument: Any, position: Optional[int] = None, data: Optional[bytes] = None):
         self.info: OpcodeInfo = info
         self.arg: Any = argument
         self.pos: Optional[int] = position
+        self._data: Optional[bytes] = data
+
+    def has_data(self) -> bool:
+        return self._data is not None
+
+    @property
+    def data(self) -> bytes:
+        if self._data is None:
+            return self.encode()
+        else:
+            return self._data
+
+    @data.setter
+    def data(self, value: bytes):
+        self._data = value
+
+    def encode(self) -> bytes:
+        if self.info.arg is None or self.info.arg.n == 0:
+            return self.info.code
+        raise NotImplementedError(f"encode() is not yet implemented for opcode {self.__class__.__name__}")
 
     def __new__(cls, info: OpcodeInfo, *args, **kwargs):
         if cls is Opcode and info.name in OPCODES_BY_NAME:
@@ -42,7 +62,11 @@ class Opcode:
             p = ""
         else:
             p = f", position={self.pos!r}"
-        return f"{self.__class__.__name__}(info={self.info!r}, argument={self.arg!r}{p})"
+        if self.has_data():
+            d = f", data={self.data!r}"
+        else:
+            d = ""
+        return f"{self.__class__.__name__}(info={self.info!r}, argument={self.arg!r}{d}{p})"
 
 
 class NoOp(Opcode):
@@ -81,7 +105,7 @@ class StackSliceOpcode(Opcode):
         return ret
 
 
-class Pickled:
+class Pickled(MutableSequence[Opcode]):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
         self._ast: Optional[ast.Module] = None
@@ -95,13 +119,53 @@ class Pickled:
     def __getitem__(self, index: int) -> Opcode:
         return self._opcodes[index]
 
+    def insert(self, index: int, opcode: Opcode):
+        self._opcodes.insert(index, opcode)
+        self._ast = None
+
+    def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
+        self._opcodes[index] = item
+        self._ast = None
+
+    def __delitem__(self, index: int):
+        del self._opcodes[index]
+        self._ast = None
+
+    def dumps(self) -> bytes:
+        b = bytearray()
+        for opcode in self:
+            b.extend(opcode.data)
+        return bytes(b)
+
+    def dump(self, file: BytesIO):
+        for opcode in self:
+            file.write(opcode.data)
+
     @property
     def opcodes(self) -> Iterator[Opcode]:
         return iter(self)
 
     @staticmethod
     def load(pickled: Union[ByteString, BytesIO]) -> "Pickled":
-        return Pickled(Opcode(*args) for args in genops(pickled))
+        if not isinstance(pickled, (bytes, bytearray)) and hasattr(pickled, "read"):
+            pickled = pickled.read()
+        opcodes: List[Opcode] = []
+        for info, arg, pos in genops(pickled):
+            if info.arg is None or info.arg.n == 0:
+                if pos is not None:
+                    data = pickled[pos:pos+1]
+                else:
+                    data = info.code
+            elif info.arg.n > 0 and pos is not None:
+                data = pickled[pos:pos+1+info.arg.n]
+            else:
+                data = None
+            if pos is not None and opcodes and opcodes[-1].pos is not None and not opcodes[-1].has_data():
+                opcodes[-1].data = pickled[opcodes[-1].pos:pos]
+            opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
+        if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
+            opcodes[-1].data = pickled[opcodes[-1].pos:]
+        return Pickled(opcodes)
 
     @property
     def ast(self) -> ast.Module:
