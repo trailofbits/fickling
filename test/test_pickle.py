@@ -1,6 +1,5 @@
 from functools import wraps
-from io import BytesIO
-from pickle import dump
+from pickle import dumps
 from unittest import TestCase
 
 from astunparse import unparse
@@ -12,9 +11,7 @@ def correctness_test(to_pickle):
     def decorator(func):
         @wraps(func)
         def wrapper(self: TestCase):
-            b = BytesIO()
-            dump(to_pickle, b)
-            pickled = b.getvalue()
+            pickled = dumps(to_pickle)
             ast = Pickled.load(pickled).ast
             global_vars = {}
             local_vars = {}
