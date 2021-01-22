@@ -36,13 +36,13 @@ def main() -> int:
             if not isinstance(pickled[-1], pickle.Stop):
                 sys.stderr.write("Error: The last opcode of the input file was expected to be STOP, but was in fact "
                                  f"{pickled[-1].info.name}")
-            pickled.insert(-2, pickle.Global.create("__builtin__", "eval"))
-            pickled.insert(-2, pickle.Mark())
-            pickled.insert(-2, pickle.Unicode(args.inject.encode("utf-8")))
-            pickled.insert(-2, pickle.Tuple())
-            pickled.insert(-2, pickle.Reduce())
+            pickled.insert(-1, pickle.Global.create("__builtin__", "eval"))
+            pickled.insert(-1, pickle.Mark())
+            pickled.insert(-1, pickle.Unicode(args.inject.encode("utf-8")))
+            pickled.insert(-1, pickle.Tuple())
+            pickled.insert(-1, pickle.Reduce())
             # pop the stack to remove the result of calling eval
-            pickled.insert(-2, pickle.Pop())
+            pickled.insert(-1, pickle.Pop())
             print(pickled.dumps())
         else:
             print(unparse(pickled.ast))
