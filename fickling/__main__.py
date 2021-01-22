@@ -33,6 +33,9 @@ def main() -> int:
             file.close()
 
         if args.inject is not None:
+            if not isinstance(pickled[-1], pickle.Stop):
+                sys.stderr.write("Error: The last opcode of the input file was expected to be STOP, but was in fact "
+                                 f"{pickled[-1].info.name}")
             pickled.insert(-2, pickle.Global.create("__builtin__", "eval"))
             pickled.insert(-2, pickle.Mark())
             pickled.insert(-2, pickle.Unicode(args.inject.encode("utf-8")))
