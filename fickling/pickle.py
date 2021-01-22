@@ -168,16 +168,39 @@ class Pickled(MutableSequence[Opcode]):
     def insert_python_eval(self, eval_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        # we need to add the call to GLOBAL before the preexisting code, because the following code can sometimes
+        # mess up module look (somehow? I, Evan, don't fully understand why yet).
+        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call to it,
+        # and then either immediately call the `eval` with a `Reduce` opcode (the default)
+        # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
+        # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         self.insert(0, Global.create("__builtin__", "eval"))
         self.insert(1, Mark())
         self.insert(2, Unicode(eval_cmd.encode("utf-8")))
         self.insert(3, Tuple())
         if run_first:
             self.insert(4, Reduce())
-        if use_output_as_unpickle_result:
-            self.insert(-1, Pop())
+            if use_output_as_unpickle_result:
+                self.insert(-1, Pop())
         if not run_first:
-            self.insert(-1, Reduce())
+            if use_output_as_unpickle_result:
+                # the top of the stack should be the original unpickled value, but we can throw that away because
+                # we are replacing it with the result of calling eval:
+                self.insert(-1, Pop())
+                # now the top of the stack should be our original Global, Mark, Unicode, Tuple setup, ready for Reduce:
+                self.insert(-1, Reduce())
+            else:
+                # we need to preserve the "real" output of the preexisting unpickling, which should be at the top
+                # of the stack, directly above our Tuple, Unicode, Mark, and Global stack items we added above.
+                # So, we have to save the original result to the memo. First, interpret the existing code to see which
+                # memo location it would be saved to:
+                interpreter = Interpreter(self)
+                interpreter.run()
+                memo_id = len(interpreter.memory)
+                self.insert(-1, Memoize())
+                self.insert(-1, Pop())
+                self.insert(-1, Reduce())
+                self.insert(-1, Get.create(memo_id))
 
     def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
         self._opcodes[index] = item
@@ -248,6 +271,9 @@ class Interpreter:
                 setattr(stmt, "col_offset", 0)
             self._module = ast.Module(list(self.module_body))
         return self._module
+
+    def run(self):
+        _ = self.to_ast()
 
     def new_variable(self, value: ast.expr, name: Optional[str] = None) -> str:
         if name is None:
@@ -425,6 +451,24 @@ class BinGet(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.stack.append(interpreter.memory[self.arg])
+
+
+class Get(Opcode):
+    name = "GET"
+
+    @property
+    def memo_id(self) -> int:
+        return int(self.arg)
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(interpreter.memory[self.memo_id])
+
+    def encode(self) -> bytes:
+        return self.info.code.encode("latin-1") + f"{self.memo_id}\n".encode("utf-8")
+
+    @staticmethod
+    def create(memo_id: int) -> "Get":
+        return Get(f"{memo_id}\n".encode("utf-8"))
 
 
 class SetItems(StackSliceOpcode):

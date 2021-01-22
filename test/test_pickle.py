@@ -59,6 +59,24 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
+        loaded.insert_python_eval("[5, 6, 7, 8]", use_output_as_unpickle_result=True)
+        self.assertIsInstance(loaded[-1], fpickle.Stop)
+        evaluated = loads(loaded.dumps())
+        self.assertEqual([5, 6, 7, 8], evaluated)
+
+    def test_insert_run_last(self):
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        self.assertIsInstance(loaded[-1], fpickle.Stop)
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False)
+        self.assertIsInstance(loaded[-1], fpickle.Stop)
+        evaluated = loads(loaded.dumps())
+        self.assertEqual([1, 2, 3, 4], evaluated)
+
+    def test_insert_run_last_replace_output(self):
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        self.assertIsInstance(loaded[-1], fpickle.Stop)
         loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
         evaluated = loads(loaded.dumps())
