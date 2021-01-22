@@ -60,9 +60,11 @@ class Opcode:
                 raise ValueError(f"You must provide an `info` argument to construct {cls.__name__}")
             else:
                 info = kwargs["info"]
-                del kwargs["info"]
             if info.name in OPCODES_BY_NAME:
+                del kwargs["info"]
                 return OPCODES_BY_NAME[info.name](*args, **kwargs)
+            else:
+                raise NotImplementedError(f"TODO: Add support for Opcode {info.name}")
         return super().__new__(cls)
 
     def run(self, interpreter: "Interpreter"):
