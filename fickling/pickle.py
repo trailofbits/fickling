@@ -1,10 +1,13 @@
 import ast
 from collections.abc import MutableSequence
 from io import BytesIO
-from pickletools import genops, OpcodeInfo
+from pickletools import genops, opcodes, OpcodeInfo
 from typing import Any, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
+OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
+    opcode.name: opcode for opcode in opcodes
+}
 
 
 class MarkObject:
@@ -13,9 +16,22 @@ class MarkObject:
 
 class Opcode:
     name: str
+    info: OpcodeInfo
 
-    def __init__(self, info: OpcodeInfo, argument: Any, position: Optional[int] = None, data: Optional[bytes] = None):
-        self.info: OpcodeInfo = info
+    def __init__(
+            self,
+            argument: Optional[Any] = None,
+            position: Optional[int] = None,
+            data: Optional[bytes] = None,
+            *,
+            info: Optional[OpcodeInfo] = None
+    ):
+        if self.__class__ is Opcode:
+            if info is None:
+                raise TypeError(f"The Opcode class must be constructed with the `info` argument")
+        elif info is not None and info != self.info:
+            raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
+                             f"{info!r}")
         self.arg: Any = argument
         self.pos: Optional[int] = position
         self._data: Optional[bytes] = data
@@ -36,14 +52,19 @@ class Opcode:
 
     def encode(self) -> bytes:
         if self.info.arg is None or self.info.arg.n == 0:
-            return self.info.code
+            return self.info.code.encode("latin-1")
         raise NotImplementedError(f"encode() is not yet implemented for opcode {self.__class__.__name__}")
 
-    def __new__(cls, info: OpcodeInfo, *args, **kwargs):
-        if cls is Opcode and info.name in OPCODES_BY_NAME:
-            return OPCODES_BY_NAME[info.name](info, *args, **kwargs)
-        else:
-            return super().__new__(cls)
+    def __new__(cls, *args, **kwargs):
+        if cls is Opcode:
+            if "info" not in kwargs:
+                raise ValueError(f"You must provide an `info` argument to construct {cls.__name__}")
+            else:
+                info = kwargs["info"]
+                del kwargs["info"]
+            if info.name in OPCODES_BY_NAME:
+                return OPCODES_BY_NAME[info.name](*args, **kwargs)
+        return super().__new__(cls)
 
     def run(self, interpreter: "Interpreter"):
         raise NotImplementedError(f"TODO: Add support for Pickle opcode {self.info.name}")
@@ -54,7 +75,11 @@ class Opcode:
                 raise TypeError("Opcode subclasses must define a name")
             elif cls.name in OPCODES_BY_NAME:
                 raise TypeError(f"An Opcode named {cls.name} is already defined")
+            elif cls.name not in OPCODE_INFO_BY_NAME:
+                raise TypeError(f"An Opcode named {cls.name} is not defined in `pickletools`")
             OPCODES_BY_NAME[cls.name] = cls
+            setattr(cls, "info", OPCODE_INFO_BY_NAME[cls.name])
+            # find the associated `pickletools` OpcodeInfo:
         return super().__init_subclass__(**kwargs)
 
     def __repr__(self):
@@ -72,6 +97,24 @@ class Opcode:
 class NoOp(Opcode):
     def run(self, interpreter: "Interpreter"):
         pass
+
+
+def raw_unicode_escape(byte_string: bytes) -> str:
+    s = []
+    for b in byte_string:
+        if 32 <= b <= 128:
+            # this is printable ASCII
+            s.append(chr(b))
+        elif b == ord("\n"):
+            s.append("\\n")
+        elif b == ord("\r"):
+            s.append("\\r")
+        elif b == ord("\\"):
+            s.append("\\\\")
+        else:
+            s.append(f"\\u{b:04x}")
+    s.append("\n")
+    return "".join(s)
 
 
 class ConstantOpcode(Opcode):
@@ -215,10 +258,26 @@ class Proto(NoOp):
 class Global(Opcode):
     name = "GLOBAL"
 
+    @staticmethod
+    def create(module: str, attr: str) -> "Global":
+        return Global(f"{module} {attr}")
+
+    @property
+    def module(self) -> str:
+        return next(iter(self.arg.split(" ")))
+
+    @property
+    def attr(self) -> str:
+        _, attribute, *_ = self.arg.split(" ")
+        return attribute
+
     def run(self, interpreter: Interpreter):
-        module, attr, *_ = self.arg.split(" ")
+        module, attr = self.module, self.attr
         interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
+
+    def encode(self) -> bytes:
+        return f"c{self.module}\n{self.attr}\n".encode("utf-8")
 
 
 class BinPut(Opcode):
@@ -256,6 +315,13 @@ class Mark(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.stack.append(MarkObject())
+
+
+class Unicode(ConstantOpcode):
+    name = "UNICODE"
+
+    def encode(self) -> bytes:
+        return self.info.code.encode("latin-1") + raw_unicode_escape(self.arg).encode("utf-8")
 
 
 class BinUnicode(ConstantOpcode):
