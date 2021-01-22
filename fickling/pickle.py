@@ -318,9 +318,14 @@ class Reduce(Opcode):
         args = interpreter.stack.pop()
         func = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(func, args=list(args.elts), keywords=[]))
+            call = ast.Call(func, args=list(args.elts), keywords=[])
         else:
-            interpreter.stack.append(ast.Call(func, args=[ast.Starred(args)], keywords=[]))
+            call = ast.Call(func, args=[ast.Starred(args)], keywords=[])
+        # Any call to reduce can have global side effects, since it runs arbitrary Python code.
+        # However, if we just save it to the stack, then it might not make it to the final AST unless the stack
+        # value is actually used. So save the result to a temp variable, and then put that on the stack:
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class Mark(Opcode):
