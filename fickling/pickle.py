@@ -325,6 +325,13 @@ class Global(Opcode):
         return f"c{self.module}\n{self.attr}\n".encode("utf-8")
 
 
+class Put(Opcode):
+    name = "PUT"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.memory[self.arg] = interpreter.stack[-1]
+
+
 class BinPut(Opcode):
     name = "BINPUT"
 
