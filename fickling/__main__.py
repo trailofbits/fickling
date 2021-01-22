@@ -49,7 +49,10 @@ def main() -> int:
                 run_first=not args.run_last,
                 use_output_as_unpickle_result=args.replace_result
             )
-            print(pickled.dumps())
+            if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+                pickled.dump(sys.stdout.buffer)
+            else:
+                pickled.dump(sys.stdout)
         else:
             print(unparse(pickled.ast))
     else:
