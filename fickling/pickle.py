@@ -2,7 +2,7 @@ import ast
 from collections.abc import MutableSequence
 from io import BytesIO
 from pickletools import genops, opcodes, OpcodeInfo
-from typing import Any, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
+from typing import Any, BinaryIO, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
@@ -180,7 +180,7 @@ class Pickled(MutableSequence[Opcode]):
             b.extend(opcode.data)
         return bytes(b)
 
-    def dump(self, file: BytesIO):
+    def dump(self, file: BinaryIO):
         for opcode in self:
             file.write(opcode.data)
 
@@ -189,7 +189,7 @@ class Pickled(MutableSequence[Opcode]):
         return iter(self)
 
     @staticmethod
-    def load(pickled: Union[ByteString, BytesIO]) -> "Pickled":
+    def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
         if not isinstance(pickled, (bytes, bytearray)) and hasattr(pickled, "read"):
             pickled = pickled.read()
         opcodes: List[Opcode] = []
