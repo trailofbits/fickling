@@ -317,6 +317,13 @@ class Mark(Opcode):
         interpreter.stack.append(MarkObject())
 
 
+class Pop(Opcode):
+    name = "POP"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.pop()
+
+
 class Unicode(ConstantOpcode):
     name = "UNICODE"
 

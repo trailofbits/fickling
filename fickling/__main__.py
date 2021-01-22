@@ -38,6 +38,8 @@ def main() -> int:
             pickled.insert(-2, pickle.Unicode(args.inject.encode("utf-8")))
             pickled.insert(-2, pickle.Tuple())
             pickled.insert(-2, pickle.Reduce())
+            # pop the stack to remove the result of calling eval
+            pickled.insert(-2, pickle.Pop())
             print(pickled.dumps())
         else:
             print(unparse(pickled.ast))
