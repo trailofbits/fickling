@@ -232,11 +232,11 @@ class Pickled(MutableSequence[Opcode]):
         for info, arg, pos in genops(pickled):
             if info.arg is None or info.arg.n == 0:
                 if pos is not None:
-                    data = pickled[pos:pos+1]
+                    data = pickled[pos:pos + 1]
                 else:
                     data = info.code
             elif info.arg.n > 0 and pos is not None:
-                data = pickled[pos:pos+1+info.arg.n]
+                data = pickled[pos:pos + 1 + info.arg.n]
             else:
                 data = None
             if pos is not None and opcodes and opcodes[-1].pos is not None and not opcodes[-1].has_data():
@@ -397,6 +397,19 @@ class NewObj(Opcode):
             interpreter.stack.append(ast.Call(class_type, args=list(args.elts), keywords=[]))
         else:
             interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], keywords=[]))
+
+
+class NewObjEx(Opcode):
+    name = "NEWOBJ_EX"
+
+    def run(self, interpreter: Interpreter):
+        kwargs = interpreter.stack.pop()
+        args = interpreter.stack.pop()
+        class_type = interpreter.stack.pop()
+        if isinstance(args, ast.Tuple):
+            interpreter.stack.append(ast.Call(class_type, args=list(args.elts), kwargs=kwargs))
+        else:
+            interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], kwargs=kwargs))
 
 
 class BinPersId(Opcode):
