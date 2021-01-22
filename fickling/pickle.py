@@ -1,6 +1,5 @@
 import ast
 from collections.abc import MutableSequence
-from io import BytesIO
 from pickletools import genops, opcodes, OpcodeInfo
 from typing import Any, BinaryIO, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
 
@@ -165,6 +164,20 @@ class Pickled(MutableSequence[Opcode]):
     def insert(self, index: int, opcode: Opcode):
         self._opcodes.insert(index, opcode)
         self._ast = None
+
+    def insert_python_eval(self, eval_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
+        if not isinstance(self[-1], Stop):
+            raise ValueError("Expected the last opcode to be STOP")
+        self.insert(0, Global.create("__builtin__", "eval"))
+        self.insert(1, Mark())
+        self.insert(2, Unicode(eval_cmd.encode("utf-8")))
+        self.insert(3, Tuple())
+        if run_first:
+            self.insert(4, Reduce())
+        if use_output_as_unpickle_result:
+            self.insert(-1, Pop())
+        if not run_first:
+            self.insert(-1, Reduce())
 
     def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
         self._opcodes[index] = item

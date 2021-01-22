@@ -16,6 +16,14 @@ def main() -> int:
                                                                         "the end of depickling, and output the "
                                                                         "resulting pickle data")
     options.add_argument("--create", "-c", type=str, default=None)
+    parser.add_argument("--run-last", "-l", action="store_true", help="used with --inject to have the injected code "
+                                                                      "run after the existing pickling code in "
+                                                                      "PICKLE_FILE (default is for the injected code "
+                                                                      "to be run before the existing code)")
+    parser.add_argument("--replace-result", "-r", action="store_true",
+                        help="used with --inject to replace the unpickling result of the code in PICKLE_FILE with the "
+                             "return value of the injected code. Either way, the preexisting pickling code is still "
+                             "executed.")
 
     args = parser.parse_args()
 
@@ -36,13 +44,11 @@ def main() -> int:
             if not isinstance(pickled[-1], pickle.Stop):
                 sys.stderr.write("Error: The last opcode of the input file was expected to be STOP, but was in fact "
                                  f"{pickled[-1].info.name}")
-            pickled.insert(-1, pickle.Global.create("__builtin__", "eval"))
-            pickled.insert(-1, pickle.Mark())
-            pickled.insert(-1, pickle.Unicode(args.inject.encode("utf-8")))
-            pickled.insert(-1, pickle.Tuple())
-            pickled.insert(-1, pickle.Reduce())
-            # pop the stack to remove the result of calling eval
-            pickled.insert(-1, pickle.Pop())
+            pickled.insert_python_eval(
+                args.inject,
+                run_first=not args.run_last,
+                use_output_as_unpickle_result=args.replace_result
+            )
             print(pickled.dumps())
         else:
             print(unparse(pickled.ast))
