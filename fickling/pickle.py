@@ -312,7 +312,11 @@ class Global(Opcode):
 
     def run(self, interpreter: Interpreter):
         module, attr = self.module, self.attr
-        interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
+        if module == "__builtin__":
+            # no need to emit an import for builtins!
+            pass
+        else:
+            interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
