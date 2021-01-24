@@ -325,6 +325,24 @@ class Global(Opcode):
         return f"c{self.module}\n{self.attr}\n".encode("utf-8")
 
 
+class StackGlobal(NoOp):
+    name = "STACK_GLOBAL"
+
+    def run(self, interpreter: Interpreter):
+        attr = interpreter.stack.pop()
+        module = interpreter.stack.pop()
+        if isinstance(module, ast.Constant):
+            module = module.value
+        if isinstance(attr, ast.Constant):
+            attr = attr.value
+        if module == "__builtin__":
+            # no need to emit an import for builtins!
+            pass
+        else:
+            interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
+        interpreter.stack.append(ast.Name(attr, ast.Load()))
+
+
 class Put(Opcode):
     name = "PUT"
 
