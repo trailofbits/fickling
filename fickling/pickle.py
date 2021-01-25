@@ -368,6 +368,32 @@ class EmptyTuple(Opcode):
         interpreter.stack.append(ast.Tuple(()))
 
 
+class TupleOne(Opcode):
+    name = "TUPLE1"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack[-1] = ast.Tuple((interpreter.stack[-1],))
+
+
+class TupleTwo(Opcode):
+    name = "TUPLE2"
+
+    def run(self, interpreter: Interpreter):
+        arg2 = interpreter.stack.pop()
+        arg1 = interpreter.stack.pop()
+        interpreter.stack.append(ast.Tuple((arg1, arg2)))
+
+
+class TupleThree(Opcode):
+    name = "TUPLE3"
+
+    def run(self, interpreter: Interpreter):
+        top = interpreter.stack.pop()
+        mid = interpreter.stack.pop()
+        bot = interpreter.stack.pop()
+        interpreter.stack.append(ast.Tuple((bot, mid, top)))
+
+
 class Reduce(Opcode):
     name = "REDUCE"
 
