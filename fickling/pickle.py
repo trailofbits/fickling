@@ -354,17 +354,17 @@ class TupleOne(Opcode):
     name = "TUPLE1"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack[-1] = tuple(interpreter.stack[-1])
+        interpreter.stack[-1] = ast.Tuple((interpreter.stack[-1],))
+
 
 class TupleTwo(Opcode):
     name = "TUPLE2"
 
     def run(self, interpreter: Interpreter):
-        arg1 = interpreter.stack.pop()
         arg2 = interpreter.stack.pop()
-        # Trying to preserve the order, arg2 was lower on the stack, so its earlier in the tuple.
-        # inspired by the NewObj* which needs to pass the right function args
-        interpreter.stack.append((arg2, arg1))
+        arg1 = interpreter.stack.pop()
+        interpreter.stack.append(ast.Tuple((arg1, arg2)))
+
 
 class TupleThree(Opcode):
     name = "TUPLE3"
@@ -373,7 +373,8 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append((bot, mid, top))
+        interpreter.stack.append(ast.Tuple((bot, mid, top)))
+
 
 class Reduce(Opcode):
     name = "REDUCE"
