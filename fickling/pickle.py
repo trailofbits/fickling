@@ -413,6 +413,14 @@ class BinUnicode(ConstantOpcode):
 class ShortBinUnicode(BinUnicode):
     name = "SHORT_BINUNICODE"
 
+    def encode(self) -> bytes:
+        text = self.arg
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+        if len(text) > 0xFF:
+            raise ValueError(f"{self.arg!r} is too long for a {self.name}")
+        return self.info.code.encode("latin-1") + bytes([len(text)]) + text
+
 
 class NewObj(Opcode):
     name = "NEWOBJ"
@@ -535,6 +543,16 @@ class SetItems(StackSliceOpcode):
                 ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), args=[update_dict], keywords=[])
             ))
             interpreter.stack.append(ast.Name(dict_name, ast.Load()))
+
+
+class SetItem(Opcode):
+    name = "SETITEM"
+
+    def run(self, interpreter: Interpreter):
+        value = interpreter.stack.pop()
+        key = interpreter.stack.pop()
+        pydict = interpreter.stack.pop()
+        # TODO
 
 
 class Stop(Opcode):
