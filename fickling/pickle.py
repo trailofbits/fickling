@@ -202,6 +202,37 @@ class Pickled(MutableSequence[Opcode]):
         self._ast = None
         self._properties = None
 
+    def insert_python_exec(self, exec_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
+        if not isinstance(self[-1], Stop):
+            raise ValueError("Expected the last opcode to be STOP")
+        """
+        Similar to what Evan did down below, this imports the builtin exec function
+        Exec works on statements, while eval works on expressions
+        """
+        self.insert(0, Global.create("__builtin__", "exec"))
+        self.insert(1, Mark())
+        # This might be a multiline exec, so lets just insert the payload one by one.
+        self.insert(2, Unicode(exec_cmd.encode("utf-8")))
+        self.insert(3, Tuple())
+        if run_first:
+            self.insert(4, Reduce())
+            if use_output_as_unpickle_result:
+                self.insert(-1, Pop())
+        if not run_first:
+            if use_output_as_unpickle_result:
+                self.insert(-1, Pop())
+                self.insert(-1, Reduce())
+            else:
+                interpreter = Interpreter(self)
+                interpreter.run()
+                memo_id = len(interpreter.memory)
+                self.insert(-1, Memoize())
+                self.insert(-1, Pop())
+                self.insert(-1, Reduce())
+                self.insert(-1, Get.create(memo_id))
+
+        pass
+
     def insert_python_eval(self, eval_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
@@ -448,6 +479,32 @@ class EmptyTuple(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.stack.append(ast.Tuple(()))
+
+
+class TupleOne(Opcode):
+    name = "TUPLE1"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack[-1] = ast.Tuple((interpreter.stack[-1],))
+
+
+class TupleTwo(Opcode):
+    name = "TUPLE2"
+
+    def run(self, interpreter: Interpreter):
+        arg2 = interpreter.stack.pop()
+        arg1 = interpreter.stack.pop()
+        interpreter.stack.append(ast.Tuple((arg1, arg2)))
+
+
+class TupleThree(Opcode):
+    name = "TUPLE3"
+
+    def run(self, interpreter: Interpreter):
+        top = interpreter.stack.pop()
+        mid = interpreter.stack.pop()
+        bot = interpreter.stack.pop()
+        interpreter.stack.append(ast.Tuple((bot, mid, top)))
 
 
 class Reduce(Opcode):
