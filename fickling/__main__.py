@@ -92,7 +92,7 @@ def main() -> int:
                     continue
                 likely_safe = False
                 shortened, already_reported = shorten_code(node)
-                if shortened.startswith("eval(") or shortened.startswith("exec("):
+                if shortened.startswith("eval(") or shortened.startswith("exec(") or shortened.startswith("compile("):
                     # this is overtly bad, so record it and print it at the end
                     overtly_bad_evals.append(shortened)
                 elif not already_reported:
