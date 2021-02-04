@@ -1,12 +1,21 @@
 import ast
+import distutils.sysconfig as sysconfig
 from collections.abc import MutableSequence
+from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
-from typing import Any, BinaryIO, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
+from typing import Any, BinaryIO, ByteString, Dict, FrozenSet, Iterable, Iterator, List, Optional, Type, Union
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
     opcode.name: opcode for opcode in opcodes
 }
+
+STD_LIB = sysconfig.get_python_lib(standard_lib=True)
+
+
+def is_std_module(module_name: str) -> bool:
+    base_path = Path(STD_LIB).joinpath(*module_name.split("."))
+    return base_path.is_dir() or base_path.with_suffix(".py").is_file()
 
 
 class MarkObject:
@@ -149,10 +158,35 @@ class StackSliceOpcode(Opcode):
         return ret
 
 
+class ASTProperties(ast.NodeVisitor):
+    def __init__(self):
+        self.imports: List[Union[ast.Import, ast.ImportFrom]] = []
+        self.calls: List[ast.Call] = []
+        self.non_setstate_calls: List[ast.Call] = []
+        self.likely_safe_imports: Set[str] = set()
+
+    def _process_import(self, node: Union[ast.Import, ast.ImportFrom]):
+        self.imports.append(node)
+        if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
+            self.likely_safe_imports |= {name.name for name in node.names}
+
+    def visit_Import(self, node: ast.Import):
+        self._process_import(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom):
+        self._process_import(node)
+
+    def visit_Call(self, node: ast.Call):
+        self.calls.append(node)
+        if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
+            self.non_setstate_calls.append(node)
+
+
 class Pickled(MutableSequence[Opcode]):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
         self._ast: Optional[ast.Module] = None
+        self._properties: Optional[ASTProperties] = None
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -166,6 +200,7 @@ class Pickled(MutableSequence[Opcode]):
     def insert(self, index: int, opcode: Opcode):
         self._opcodes.insert(index, opcode)
         self._ast = None
+        self._properties = None
 
     def insert_python_eval(self, eval_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
         if not isinstance(self[-1], Stop):
@@ -207,10 +242,12 @@ class Pickled(MutableSequence[Opcode]):
     def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
         self._opcodes[index] = item
         self._ast = None
+        self._properties = None
 
     def __delitem__(self, index: int):
         del self._opcodes[index]
         self._ast = None
+        self._properties = None
 
     def dumps(self) -> bytes:
         b = bytearray()
@@ -247,6 +284,51 @@ class Pickled(MutableSequence[Opcode]):
         if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
             opcodes[-1].data = pickled[opcodes[-1].pos:]
         return Pickled(opcodes)
+
+    @property
+    def properties(self) -> ASTProperties:
+        if self._properties is None:
+            self._properties = ASTProperties()
+            self._properties.visit(self.ast)
+        return self._properties
+
+    @property
+    def has_import(self) -> bool:
+        """Checks whether unpickling would cause an import to be run"""
+        return bool(self.properties.imports)
+
+    @property
+    def has_call(self) -> bool:
+        """Checks whether unpickling would cause a function call"""
+        return bool(self.properties.calls)
+
+    @property
+    def has_non_setstate_call(self) -> bool:
+        """Checks whether unpickling would cause a call to a function other than object.__setstate__"""
+        return bool(self.properties.non_setstate_calls)
+
+    @property
+    def is_likely_safe(self) -> bool:
+        # `self.has_call` is probably safe as long as `not self.has_import`
+        return not self.has_import and not self.has_non_setstate_call
+
+    def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
+        for node in self.properties.imports:
+            if node.module in ("__builtin__", "os", "subprocess"):
+                yield node
+            elif "eval" in (n.name for n in node.names):
+                yield node
+
+    def non_standard_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
+        for node in self.properties.imports:
+            if not is_std_module(node.module):
+                yield node
+
+    @property
+    def is_overtly_unsafe(self) -> bool:
+        """Checks whether the AST does anything overtly unsafe"""
+        for node in self.unsafe_imports():
+            pass
 
     @property
     def ast(self) -> ast.Module:
