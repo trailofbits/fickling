@@ -5,8 +5,13 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
 from typing import (
-    Any, BinaryIO, ByteString, Dict, Generic, Iterable, Iterator, List, Optional, overload, Type, TypeVar, Union
+    Any, BinaryIO, ByteString, Dict, FrozenSet, Generic, Iterable,
+    Iterator, List, Optional, overload, Type, TypeVar, Union
 )
+
+import sys
+BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
+del sys
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
@@ -18,7 +23,7 @@ STD_LIB = sysconfig.get_python_lib(standard_lib=True)
 
 def is_std_module(module_name: str) -> bool:
     base_path = Path(STD_LIB).joinpath(*module_name.split("."))
-    return base_path.is_dir() or base_path.with_suffix(".py").is_file()
+    return base_path.is_dir() or base_path.with_suffix(".py").is_file() or module_name in BUILTIN_MODULE_NAMES
 
 
 class MarkObject:
@@ -348,7 +353,7 @@ class Pickled(MutableSequence[Opcode]):
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
-            if node.module in ("__builtin__", "os", "subprocess", "sys"):
+            if node.module in ("__builtin__", "os", "subprocess", "sys", "builtins"):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
