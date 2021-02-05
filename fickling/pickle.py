@@ -376,19 +376,38 @@ class Interpreter:
         self.module_body: List[ast.stmt] = []
         self._module: Optional[ast.Module] = None
         self._var_counter: int = 0
+        self._opcodes: Iterator[Opcode] = iter(pickled)
 
     def to_ast(self) -> ast.Module:
         if self._module is None:
-            for opcode in self.pickled:
-                opcode.run(self)
+            self.run()
+        return self._module
+
+    def stop(self):
+        self._opcodes = iter(())
+
+    def run(self):
+        while True:
+            try:
+                self.step()
+            except StopIteration:
+                break
+
+    def step(self) -> Opcode:
+        try:
+            opcode = next(self._opcodes)
+            finished = False
+        except StopIteration:
+            # we finished running the program
+            finished = True
+        if finished:
             for i, stmt in enumerate(self.module_body):
                 setattr(stmt, "lineno", i + 1)
                 setattr(stmt, "col_offset", 0)
             self._module = ast.Module(list(self.module_body))
-        return self._module
-
-    def run(self):
-        _ = self.to_ast()
+            raise StopIteration()
+        opcode.run(self)
+        return opcode
 
     def new_variable(self, value: ast.expr, name: Optional[str] = None) -> str:
         if name is None:
@@ -703,6 +722,7 @@ class Stop(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.new_variable(interpreter.stack.pop(), name="result")
+        interpreter.stop()
 
 
 class Frame(NoOp):
