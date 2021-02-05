@@ -3,7 +3,7 @@ import distutils.sysconfig as sysconfig
 from collections.abc import MutableSequence
 from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
-from typing import Any, BinaryIO, ByteString, Dict, FrozenSet, Iterable, Iterator, List, Optional, Type, Union
+from typing import Any, BinaryIO, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
@@ -559,6 +559,10 @@ class ShortBinUnicode(BinUnicode):
         if len(text) > 0xFF:
             raise ValueError(f"{self.arg!r} is too long for a {self.name}")
         return self.info.code.encode("latin-1") + bytes([len(text)]) + text
+
+
+class String(ConstantOpcode):
+    name = "STRING"
 
 
 class NewObj(Opcode):
