@@ -348,7 +348,7 @@ class Pickled(MutableSequence[Opcode]):
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
-            if node.module in ("__builtin__", "os", "subprocess"):
+            if node.module in ("__builtin__", "os", "subprocess", "sys"):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
@@ -357,12 +357,6 @@ class Pickled(MutableSequence[Opcode]):
         for node in self.properties.imports:
             if not is_std_module(node.module):
                 yield node
-
-    @property
-    def is_overtly_unsafe(self) -> bool:
-        """Checks whether the AST does anything overtly unsafe"""
-        for node in self.unsafe_imports():
-            pass
 
     @property
     def ast(self) -> ast.Module:
