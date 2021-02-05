@@ -1,9 +1,12 @@
 import ast
 import distutils.sysconfig as sysconfig
-from collections.abc import MutableSequence
+from abc import abstractmethod
+from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
-from typing import Any, BinaryIO, ByteString, Dict, Iterable, Iterator, List, Optional, Type, Union
+from typing import (
+    Any, BinaryIO, ByteString, Dict, Generic, Iterable, Iterator, List, Optional, overload, Type, TypeVar, Union
+)
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
@@ -368,11 +371,54 @@ class Pickled(MutableSequence[Opcode]):
         return self._ast
 
 
+T = TypeVar("T")
+
+
+class Stack(Sequence[Generic[T]]):
+    def __init__(self, initial_value: Iterable[T] = ()):
+        self._stack: List[T] = list(initial_value)
+        self.opcode: Optional[Opcode] = None
+
+    @overload
+    @abstractmethod
+    def __getitem__(self, i: int) -> T: ...
+
+    @overload
+    @abstractmethod
+    def __getitem__(self, s: slice) -> Sequence[T]: ...
+
+    def __getitem__(self, i: int) -> T:
+        return self._stack[i]
+
+    def __len__(self) -> int:
+        return len(self._stack)
+
+    def pop(self):
+        if not self._stack:
+            if self.opcode is None:
+                raise IndexError("Stack is empty")
+            else:
+                raise IndexError(f"Opcode {self.opcode!s} attempted to pop from an empty stack")
+        else:
+            return self._stack.pop()
+
+    def push(self, obj: T):
+        self._stack.append(obj)
+
+    append = push
+
+    def __str__(self):
+        return str(self._stack)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(initial_value={self._stack!r})"
+
+
 class Interpreter:
     def __init__(self, pickled: Pickled):
         self.pickled: Pickled = pickled
         self.memory: Dict[int, ast.expr] = {}
-        self.stack: List[Union[ast.expr, MarkObject]] = []
+        self.stack: Stack[Union[ast.expr, MarkObject]] = Stack()
         self.module_body: List[ast.stmt] = []
         self._module: Optional[ast.Module] = None
         self._var_counter: int = 0
@@ -406,6 +452,7 @@ class Interpreter:
                 setattr(stmt, "col_offset", 0)
             self._module = ast.Module(list(self.module_body))
             raise StopIteration()
+        self.stack.opcode = opcode
         opcode.run(self)
         return opcode
 
@@ -714,7 +761,14 @@ class SetItem(Opcode):
         value = interpreter.stack.pop()
         key = interpreter.stack.pop()
         pydict = interpreter.stack.pop()
-        # TODO
+        if isinstance(pydict, ast.Dict) and not pydict.keys:
+            # the dict is empty, so add a new one
+            interpreter.stack.append(ast.Dict(keys=[key], values=[value]))
+        else:
+            dict_name = interpreter.new_variable(pydict)
+            assignment = ast.Assign([ast.Subscript(ast.Name(dict_name, ast.Load()), key, ast.Store())], value)
+            interpreter.module_body.append(assignment)
+            interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
 
 class Stop(Opcode):

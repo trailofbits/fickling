@@ -1,12 +1,10 @@
-import ast
 from argparse import ArgumentParser
-import itertools
 import sys
 from typing import Tuple
 
 from astunparse import unparse
 
-from . import pickle
+from . import pickle, tracing
 
 
 def main() -> int:
@@ -28,9 +26,11 @@ def main() -> int:
                              "return value of the injected code. Either way, the preexisting pickling code is still "
                              "executed.")
     options.add_argument("--check-safety", "-s", action="store_true",
-                         help="Test if the given pickle file is known to be unsafe. If so, exit with non-zero status. "
+                         help="test if the given pickle file is known to be unsafe. If so, exit with non-zero status. "
                               "This test is not guaranteed correct; the pickle file may still be unsafe even if this "
                               "check exits with code zero.")
+    parser.add_argument("--trace", "-t", action="store_true",
+                        help="print a runtime trace while interpreting the input pickle file")
 
     args = parser.parse_args()
 
@@ -114,6 +114,9 @@ def main() -> int:
                 return 0
             else:
                 return 1
+        elif args.trace:
+            trace = tracing.Trace(pickle.Interpreter(pickled))
+            print(unparse(trace.run()))
         else:
             print(unparse(pickled.ast))
     else:
