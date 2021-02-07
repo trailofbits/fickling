@@ -96,7 +96,9 @@ def main() -> int:
                         shortened.startswith("eval(") or
                         shortened.startswith("exec(") or
                         shortened.startswith("compile(") or
-                        shortened.startswith("open(")
+                        shortened.startswith("open(") or
+                        shortened.startswith("os.system") or     # this callable allows the attacker to make system calls
+                        shortened.startswith("subprocess.Popen") # this callable allows the attacker to execute a child program in a new process
                 ):
                     # this is overtly bad, so record it and print it at the end
                     overtly_bad_evals.append(shortened)
