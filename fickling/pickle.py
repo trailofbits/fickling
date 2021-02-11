@@ -550,7 +550,8 @@ class TupleOne(Opcode):
     name = "TUPLE1"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack[-1] = ast.Tuple((interpreter.stack[-1],))
+        stack_top = interpreter.stack.pop()
+        interpreter.stack.push(ast.Tuple((stack_top,)))
 
 
 class TupleTwo(Opcode):
