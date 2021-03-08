@@ -1,8 +1,12 @@
 from functools import wraps
 from pickle import dumps, loads
+from sys import version_info
 from unittest import TestCase
 
-from astunparse import unparse
+if version_info >= (3, 9):
+    from ast import unparse
+else:
+    from astunparse import unparse
 
 from fickling import pickle as fpickle
 from fickling.pickle import Pickled
