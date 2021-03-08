@@ -11,12 +11,15 @@ from typing import (
 
 import sys
 
+T = TypeVar("T")
+
 if sys.version_info < (3, 9):
     # abstract collections were not subscriptable until Python 3.9
     OpcodeSequence = MutableSequence
+    GenericSequence = Sequence
 else:
     OpcodeSequence = MutableSequence["Opcode"]
-
+    GenericSequence = Sequence[T]
 
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 del sys
@@ -378,10 +381,7 @@ class Pickled(OpcodeSequence):
         return self._ast
 
 
-T = TypeVar("T")
-
-
-class Stack(Sequence[Generic[T]]):
+class Stack(GenericSequence, Generic[T]):
     def __init__(self, initial_value: Iterable[T] = ()):
         self._stack: List[T] = list(initial_value)
         self.opcode: Optional[Opcode] = None
