@@ -2,7 +2,10 @@ from argparse import ArgumentParser
 import sys
 from typing import List, Optional, Tuple
 
-from astunparse import unparse
+if sys.version_info >= (3, 9):
+    from ast import unparse
+else:
+    from astunparse import unparse
 
 from . import pickle, tracing, version
 

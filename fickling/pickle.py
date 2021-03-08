@@ -10,6 +10,27 @@ from typing import (
 )
 
 import sys
+
+T = TypeVar("T")
+
+if sys.version_info < (3, 9):
+    # abstract collections were not subscriptable until Python 3.9
+    OpcodeSequence = MutableSequence
+    GenericSequence = Sequence
+
+    def make_constant(*args, **kwargs) -> ast.Constant:
+        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
+        # expects that!
+        ret = ast.Constant(*args, **kwargs)
+        if not hasattr(ret, "kind"):
+            setattr(ret, "kind", None)
+        return ret
+
+else:
+    OpcodeSequence = MutableSequence["Opcode"]
+    GenericSequence = Sequence[T]
+    make_constant = ast.Constant
+
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 del sys
 
@@ -137,7 +158,7 @@ def raw_unicode_escape(byte_string: bytes) -> str:
 
 class ConstantOpcode(Opcode):
     def run(self, interpreter: "Interpreter"):
-        interpreter.stack.append(ast.Constant(self.arg))
+        interpreter.stack.append(make_constant(self.arg))
 
 
 class StackSliceOpcode(Opcode):
@@ -190,7 +211,7 @@ class ASTProperties(ast.NodeVisitor):
             self.non_setstate_calls.append(node)
 
 
-class Pickled(MutableSequence[Opcode]):
+class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
         self._ast: Optional[ast.Module] = None
@@ -370,10 +391,7 @@ class Pickled(MutableSequence[Opcode]):
         return self._ast
 
 
-T = TypeVar("T")
-
-
-class Stack(Sequence[Generic[T]]):
+class Stack(GenericSequence, Generic[T]):
     def __init__(self, initial_value: Iterable[T] = ()):
         self._stack: List[T] = list(initial_value)
         self.opcode: Optional[Opcode] = None
@@ -384,7 +402,7 @@ class Stack(Sequence[Generic[T]]):
 
     @overload
     @abstractmethod
-    def __getitem__(self, s: slice) -> Sequence[T]: ...
+    def __getitem__(self, s: slice) -> GenericSequence: ...
 
     def __getitem__(self, i: int) -> T:
         return self._stack[i]
@@ -449,7 +467,7 @@ class Interpreter:
             for i, stmt in enumerate(self.module_body):
                 setattr(stmt, "lineno", i + 1)
                 setattr(stmt, "col_offset", 0)
-            self._module = ast.Module(list(self.module_body))
+            self._module = ast.Module(list(self.module_body), type_ignores=[])
             raise StopIteration()
         self.stack.opcode = opcode
         opcode.run(self)
@@ -543,7 +561,7 @@ class EmptyTuple(Opcode):
     name = "EMPTY_TUPLE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Tuple(()))
+        interpreter.stack.append(ast.Tuple((), ast.Load()))
 
 
 class TupleOne(Opcode):
@@ -551,7 +569,7 @@ class TupleOne(Opcode):
 
     def run(self, interpreter: Interpreter):
         stack_top = interpreter.stack.pop()
-        interpreter.stack.push(ast.Tuple((stack_top,)))
+        interpreter.stack.push(ast.Tuple((stack_top,), ast.Load()))
 
 
 class TupleTwo(Opcode):
@@ -560,7 +578,7 @@ class TupleTwo(Opcode):
     def run(self, interpreter: Interpreter):
         arg2 = interpreter.stack.pop()
         arg1 = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((arg1, arg2)))
+        interpreter.stack.append(ast.Tuple((arg1, arg2), ast.Load()))
 
 
 class TupleThree(Opcode):
@@ -570,7 +588,7 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((bot, mid, top)))
+        interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
 
 
 class Reduce(Opcode):
@@ -580,9 +598,9 @@ class Reduce(Opcode):
         args = interpreter.stack.pop()
         func = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            call = ast.Call(func, args=list(args.elts), keywords=[])
+            call = ast.Call(func, list(args.elts), [])
         else:
-            call = ast.Call(func, args=[ast.Starred(args)], keywords=[])
+            call = ast.Call(func, [ast.Starred(args)], [])
         # Any call to reduce can have global side effects, since it runs arbitrary Python code.
         # However, if we just save it to the stack, then it might not make it to the final AST unless the stack
         # value is actually used. So save the result to a temp variable, and then put that on the stack:
@@ -638,9 +656,9 @@ class NewObj(Opcode):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, args=list(args.elts), keywords=[]))
+            interpreter.stack.append(ast.Call(class_type, list(args.elts), []))
         else:
-            interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], keywords=[]))
+            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], []))
 
 
 class NewObjEx(Opcode):
@@ -651,9 +669,9 @@ class NewObjEx(Opcode):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, args=list(args.elts), kwargs=kwargs))
+            interpreter.stack.append(ast.Call(class_type, list(args.elts), kwargs))
         else:
-            interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], kwargs=kwargs))
+            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], kwargs))
 
 
 class BinPersId(Opcode):
@@ -662,7 +680,7 @@ class BinPersId(Opcode):
     def run(self, interpreter: Interpreter):
         pid = interpreter.stack.pop()
         interpreter.stack.append(
-            ast.Call(ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"), args=[pid], keywords=[])
+            ast.Call(ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"), [pid], [])
         )
 
 
@@ -670,28 +688,28 @@ class NoneOpcode(Opcode):
     name = "NONE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(None))
+        interpreter.stack.append(make_constant(None))
 
 
 class NewTrue(Opcode):
     name = "NEWTRUE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(True))
+        interpreter.stack.append(make_constant(True))
 
 
 class NewFalse(Opcode):
     name = "NEWFALSE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(False))
+        interpreter.stack.append(make_constant(False))
 
 
 class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        interpreter.stack.append(ast.Tuple(tuple(stack_slice)))
+        interpreter.stack.append(ast.Tuple(tuple(stack_slice), ast.Load()))
 
 
 class Build(Opcode):
@@ -702,7 +720,7 @@ class Build(Opcode):
         obj = interpreter.stack.pop()
         obj_name = interpreter.new_variable(obj)
         interpreter.module_body.append(ast.Expr(
-            ast.Call(ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"), args=[argument], keywords=[])
+            ast.Call(ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"), [argument], [])
         ))
         interpreter.stack.append(ast.Name(obj_name, ast.Load()))
 
@@ -749,7 +767,7 @@ class SetItems(StackSliceOpcode):
             dict_name = interpreter.new_variable(pydict)
             update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
             interpreter.module_body.append(ast.Expr(
-                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), args=[update_dict], keywords=[])
+                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), [update_dict], [])
             ))
             interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
