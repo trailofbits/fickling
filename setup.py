@@ -13,6 +13,9 @@ setup(
     install_requires=[
         "astunparse~=1.6.3"
     ],
+    extras_require={
+        "dev": ["flake8", "pytest", "twine"]
+    },
     entry_points={
         "console_scripts": [
             "fickling = fickling.__main__:main"

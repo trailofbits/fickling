@@ -6,7 +6,7 @@ from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
 from typing import (
     Any, BinaryIO, ByteString, Dict, FrozenSet, Generic, Iterable,
-    Iterator, List, Optional, overload, Type, TypeVar, Union
+    Iterator, List, Optional, overload, Set, Type, TypeVar, Union
 )
 
 import sys
@@ -44,7 +44,7 @@ class Opcode:
     ):
         if self.__class__ is Opcode:
             if info is None:
-                raise TypeError(f"The Opcode class must be constructed with the `info` argument")
+                raise TypeError("The Opcode class must be constructed with the `info` argument")
         elif info is not None and info != self.info:
             raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
                              f"{info!r}")
@@ -550,7 +550,8 @@ class TupleOne(Opcode):
     name = "TUPLE1"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack[-1] = ast.Tuple((interpreter.stack[-1],))
+        stack_top = interpreter.stack.pop()
+        interpreter.stack.push(ast.Tuple((stack_top,)))
 
 
 class TupleTwo(Opcode):
