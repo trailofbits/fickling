@@ -392,7 +392,7 @@ class Stack(GenericSequence, Generic[T]):
 
     @overload
     @abstractmethod
-    def __getitem__(self, s: slice) -> Sequence[T]: ...
+    def __getitem__(self, s: slice) -> GenericSequence: ...
 
     def __getitem__(self, i: int) -> T:
         return self._stack[i]
