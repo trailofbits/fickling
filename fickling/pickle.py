@@ -551,7 +551,7 @@ class EmptyTuple(Opcode):
     name = "EMPTY_TUPLE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Tuple(()))
+        interpreter.stack.append(ast.Tuple((), ast.Load()))
 
 
 class TupleOne(Opcode):
@@ -559,7 +559,7 @@ class TupleOne(Opcode):
 
     def run(self, interpreter: Interpreter):
         stack_top = interpreter.stack.pop()
-        interpreter.stack.push(ast.Tuple((stack_top,)))
+        interpreter.stack.push(ast.Tuple((stack_top,), ast.Load()))
 
 
 class TupleTwo(Opcode):
@@ -568,7 +568,7 @@ class TupleTwo(Opcode):
     def run(self, interpreter: Interpreter):
         arg2 = interpreter.stack.pop()
         arg1 = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((arg1, arg2)))
+        interpreter.stack.append(ast.Tuple((arg1, arg2), ast.Load()))
 
 
 class TupleThree(Opcode):
@@ -578,7 +578,7 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((bot, mid, top)))
+        interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
 
 
 class Reduce(Opcode):
@@ -699,7 +699,7 @@ class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        interpreter.stack.append(ast.Tuple(tuple(stack_slice)))
+        interpreter.stack.append(ast.Tuple(tuple(stack_slice), ast.Load()))
 
 
 class Build(Opcode):
