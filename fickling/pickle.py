@@ -10,6 +10,14 @@ from typing import (
 )
 
 import sys
+
+if sys.version_info < (3, 9):
+    # abstract collections were not subscriptable until Python 3.9
+    OpcodeSequence = MutableSequence
+else:
+    OpcodeSequence = MutableSequence["Opcode"]
+
+
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 del sys
 
@@ -190,7 +198,7 @@ class ASTProperties(ast.NodeVisitor):
             self.non_setstate_calls.append(node)
 
 
-class Pickled(MutableSequence[Opcode]):
+class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
         self._ast: Optional[ast.Module] = None
