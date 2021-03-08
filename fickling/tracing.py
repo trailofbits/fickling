@@ -1,9 +1,13 @@
 import ast
+from sys import version_info
 from typing import Union
 
-from .pickle import Interpreter, MarkObject, Opcode, Stack
+if version_info >= (3, 9):
+    from ast import unparse
+else:
+    from astunparse import unparse
 
-from astunparse import unparse
+from .pickle import Interpreter, MarkObject, Opcode, Stack
 
 
 class Trace:

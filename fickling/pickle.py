@@ -457,7 +457,7 @@ class Interpreter:
             for i, stmt in enumerate(self.module_body):
                 setattr(stmt, "lineno", i + 1)
                 setattr(stmt, "col_offset", 0)
-            self._module = ast.Module(list(self.module_body))
+            self._module = ast.Module(list(self.module_body), type_ignores=[])
             raise StopIteration()
         self.stack.opcode = opcode
         opcode.run(self)
