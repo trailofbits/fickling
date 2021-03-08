@@ -598,9 +598,9 @@ class Reduce(Opcode):
         args = interpreter.stack.pop()
         func = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            call = ast.Call(func, args=list(args.elts), keywords=[])
+            call = ast.Call(func, list(args.elts), [])
         else:
-            call = ast.Call(func, args=[ast.Starred(args)], keywords=[])
+            call = ast.Call(func, [ast.Starred(args)], [])
         # Any call to reduce can have global side effects, since it runs arbitrary Python code.
         # However, if we just save it to the stack, then it might not make it to the final AST unless the stack
         # value is actually used. So save the result to a temp variable, and then put that on the stack:
@@ -656,9 +656,9 @@ class NewObj(Opcode):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, args=list(args.elts), keywords=[]))
+            interpreter.stack.append(ast.Call(class_type, list(args.elts), []))
         else:
-            interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], keywords=[]))
+            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], []))
 
 
 class NewObjEx(Opcode):
@@ -669,9 +669,9 @@ class NewObjEx(Opcode):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, args=list(args.elts), kwargs=kwargs))
+            interpreter.stack.append(ast.Call(class_type, list(args.elts), kwargs))
         else:
-            interpreter.stack.append(ast.Call(class_type, args=[ast.Starred(args)], kwargs=kwargs))
+            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], kwargs))
 
 
 class BinPersId(Opcode):
@@ -680,7 +680,7 @@ class BinPersId(Opcode):
     def run(self, interpreter: Interpreter):
         pid = interpreter.stack.pop()
         interpreter.stack.append(
-            ast.Call(ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"), args=[pid], keywords=[])
+            ast.Call(ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"), [pid], [])
         )
 
 
@@ -720,7 +720,7 @@ class Build(Opcode):
         obj = interpreter.stack.pop()
         obj_name = interpreter.new_variable(obj)
         interpreter.module_body.append(ast.Expr(
-            ast.Call(ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"), args=[argument], keywords=[])
+            ast.Call(ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"), [argument], [])
         ))
         interpreter.stack.append(ast.Name(obj_name, ast.Load()))
 
@@ -767,7 +767,7 @@ class SetItems(StackSliceOpcode):
             dict_name = interpreter.new_variable(pydict)
             update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
             interpreter.module_body.append(ast.Expr(
-                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), args=[update_dict], keywords=[])
+                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), [update_dict], [])
             ))
             interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
