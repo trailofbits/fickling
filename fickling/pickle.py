@@ -17,9 +17,19 @@ if sys.version_info < (3, 9):
     # abstract collections were not subscriptable until Python 3.9
     OpcodeSequence = MutableSequence
     GenericSequence = Sequence
+
+    def make_constant(*args, **kwargs) -> ast.Constant:
+        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
+        # expects that!
+        ret = ast.Constant(*args, **kwargs)
+        if not hasattr(ret, "kind"):
+            setattr(ret, "kind", None)
+        return ret
+
 else:
     OpcodeSequence = MutableSequence["Opcode"]
     GenericSequence = Sequence[T]
+    make_constant = ast.Constant
 
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 del sys
@@ -148,7 +158,7 @@ def raw_unicode_escape(byte_string: bytes) -> str:
 
 class ConstantOpcode(Opcode):
     def run(self, interpreter: "Interpreter"):
-        interpreter.stack.append(ast.Constant(self.arg))
+        interpreter.stack.append(make_constant(self.arg))
 
 
 class StackSliceOpcode(Opcode):
@@ -678,21 +688,21 @@ class NoneOpcode(Opcode):
     name = "NONE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(None))
+        interpreter.stack.append(make_constant(None))
 
 
 class NewTrue(Opcode):
     name = "NEWTRUE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(True))
+        interpreter.stack.append(make_constant(True))
 
 
 class NewFalse(Opcode):
     name = "NEWFALSE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Constant(False))
+        interpreter.stack.append(make_constant(False))
 
 
 class Tuple(StackSliceOpcode):
