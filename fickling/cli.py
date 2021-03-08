@@ -4,12 +4,12 @@ from typing import List, Optional, Tuple
 
 from astunparse import unparse
 
-from . import pickle, tracing
+from . import pickle, tracing, version
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     if argv is None:
-        argv = sys.argv[1:]
+        argv = sys.argv
 
     parser = ArgumentParser(description="fickle is a static analyzer and interpreter for Python pickle data")
     parser.add_argument("PICKLE_FILE", type=str, nargs="?", default="-", help="path to the pickle file to either "
@@ -34,8 +34,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                               "check exits with code zero.")
     parser.add_argument("--trace", "-t", action="store_true",
                         help="print a runtime trace while interpreting the input pickle file")
+    parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
 
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv[1:])
+
+    if args.version:
+        if sys.stdout.isatty():
+            print(f"fickling version {version()}")
+        else:
+            print(version())
+        return 0
 
     if args.create is None:
         if args.PICKLE_FILE == "-":
