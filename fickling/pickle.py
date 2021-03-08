@@ -6,7 +6,7 @@ from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
 from typing import (
     Any, BinaryIO, ByteString, Dict, FrozenSet, Generic, Iterable,
-    Iterator, List, Optional, overload, Type, TypeVar, Union
+    Iterator, List, Optional, overload, Set, Type, TypeVar, Union
 )
 
 import sys
