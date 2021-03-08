@@ -44,7 +44,7 @@ class Opcode:
     ):
         if self.__class__ is Opcode:
             if info is None:
-                raise TypeError(f"The Opcode class must be constructed with the `info` argument")
+                raise TypeError("The Opcode class must be constructed with the `info` argument")
         elif info is not None and info != self.info:
             raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
                              f"{info!r}")
