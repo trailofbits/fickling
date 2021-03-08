@@ -75,6 +75,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             properties = pickled.properties
             likely_safe = True
             reported_shortened_code = set()
+
             def shorten_code(node) -> Tuple[str, bool]:
                 code = unparse(node).strip()
                 if len(code) > 32:
