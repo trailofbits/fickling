@@ -431,12 +431,40 @@ class Stack(GenericSequence, Generic[T]):
         return f"{self.__class__.__name__}(initial_value={self._stack!r})"
 
 
+class ModuleBody:
+    def __init__(self, interpreter: "Interpreter"):
+        self._list: List[ast.stmt] = []
+        self.interpreter: Interpreter = interpreter
+
+    def append(self, stmt: ast.stmt):
+        lineno = len(self._list) + 1
+        if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
+            raise ValueError(
+                f"Statement {stmt} was expected to have line number {lineno} but instead has {stmt.lineno}"
+            )
+        setattr(stmt, "lineno", lineno)
+        self._list.append(stmt)
+
+    def extend(self, stmts: Iterable[ast.stmt]):
+        for stmt in stmts:
+            self.append(stmt)
+
+    def __iter__(self) -> Iterator[ast.stmt]:
+        return iter(self._list)
+
+    def __len__(self):
+        return len(self._list)
+
+    def __getitem__(self, index: Union[int, slice]) -> ast.stmt:
+        return self._list[index]
+
+
 class Interpreter:
     def __init__(self, pickled: Pickled):
         self.pickled: Pickled = pickled
         self.memory: Dict[int, ast.expr] = {}
         self.stack: Stack[Union[ast.expr, MarkObject]] = Stack()
-        self.module_body: List[ast.stmt] = []
+        self.module_body: ModuleBody = ModuleBody(self)
         self._module: Optional[ast.Module] = None
         self._var_counter: int = 0
         self._opcodes: Iterator[Opcode] = iter(pickled)
