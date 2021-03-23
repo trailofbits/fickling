@@ -837,6 +837,13 @@ class BinInt2(BinInt1):
     name = "BININT2"
 
 
+class EmptySet(Opcode):
+    name = "EMPTY_SET"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(ast.Set())
+
+
 class EmptyList(Opcode):
     name = "EMPTY_LIST"
 
