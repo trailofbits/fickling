@@ -875,6 +875,9 @@ class Appends(StackSliceOpcode):
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
 
+# TODO (Carson) figure out floats
+class BinFloat(NoOp):
+    name = "BINFLOAT"
 
 class BinBytes(ConstantOpcode):
     name = "BINBYTES"
