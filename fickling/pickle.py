@@ -18,6 +18,7 @@ if sys.version_info < (3, 9):
     OpcodeSequence = MutableSequence
     GenericSequence = Sequence
 
+
     def make_constant(*args, **kwargs) -> ast.Constant:
         # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
         # expects that!
@@ -398,11 +399,13 @@ class Stack(GenericSequence, Generic[T]):
 
     @overload
     @abstractmethod
-    def __getitem__(self, i: int) -> T: ...
+    def __getitem__(self, i: int) -> T:
+        ...
 
     @overload
     @abstractmethod
-    def __getitem__(self, s: slice) -> GenericSequence: ...
+    def __getitem__(self, s: slice) -> GenericSequence:
+        ...
 
     def __getitem__(self, i: int) -> T:
         return self._stack[i]
@@ -875,9 +878,13 @@ class Appends(StackSliceOpcode):
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
 
+
 # TODO (Carson) figure out floats
-class BinFloat(NoOp):
+# https://github.com/python/cpython/blob/main/Lib/pickle.py#L782
+# Floats are apart of ast.Constant (pretty sure)
+class BinFloat(ConstantOpcode):
     name = "BINFLOAT"
+
 
 class BinBytes(ConstantOpcode):
     name = "BINBYTES"
