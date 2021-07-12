@@ -892,3 +892,34 @@ class BinBytes(ConstantOpcode):
 
 class ShortBinBytes(BinBytes):
     name = "SHORT_BINBYTES"
+
+
+class Int(ConstantOpcode):
+    name = "INT"
+
+
+class Dict(Opcode):
+    name = "DICT"
+
+    def run(self, interpreter: Interpreter):
+        
+        i = 0
+        keys = []
+        values = []
+
+        while interpreter.stack:
+            obj = interpreter.stack.pop()
+            if isinstance(obj, MarkObject):
+                break
+            if i == 0:
+                values.append(obj)
+            elif i == 1:
+                keys.append(obj)
+            i = (i + 1) % 2
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+
+        if len(keys) != len(values):
+            raise ValueError(f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match")            
+
+        interpreter.stack.append(ast.Dict(keys=keys, values=values))
