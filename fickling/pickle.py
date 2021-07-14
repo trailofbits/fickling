@@ -763,6 +763,13 @@ class BinGet(Opcode):
         interpreter.stack.append(interpreter.memory[self.arg])
 
 
+class LongBinGet(Opcode):
+    name = "LONG_BINGET"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(interpreter.memory[self.arg])
+
+
 class Get(Opcode):
     name = "GET"
 
@@ -844,7 +851,7 @@ class EmptySet(Opcode):
     name = "EMPTY_SET"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Set())
+        interpreter.stack.append(ast.Set([]))
 
 
 class EmptyList(Opcode):
@@ -879,9 +886,6 @@ class Appends(StackSliceOpcode):
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
 
 
-# TODO (Carson) figure out floats
-# https://github.com/python/cpython/blob/main/Lib/pickle.py#L782
-# Floats are apart of ast.Constant (pretty sure)
 class BinFloat(ConstantOpcode):
     name = "BINFLOAT"
 
@@ -902,7 +906,6 @@ class Dict(Opcode):
     name = "DICT"
 
     def run(self, interpreter: Interpreter):
-        
         i = 0
         keys = []
         values = []
