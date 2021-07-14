@@ -851,7 +851,7 @@ class EmptySet(Opcode):
     name = "EMPTY_SET"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Set())
+        interpreter.stack.append(ast.Set([]))
 
 
 class EmptyList(Opcode):
