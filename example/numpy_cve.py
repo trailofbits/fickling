@@ -2,8 +2,9 @@
 
 import numpy
 import os
-import  pickle
+import pickle
 from fickling.pickle import Pickled
+
 
 class Test(object):
     def __init__(self):
@@ -11,6 +12,7 @@ class Test(object):
 
     def __reduce__(self):
         return (os.system,('python pytorch_poc.py',))
+
 
 payload = Test()
 
@@ -37,5 +39,3 @@ if safety is False:
     print("❌")
 else:
     print("✅")
-
-

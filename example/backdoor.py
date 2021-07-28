@@ -52,4 +52,3 @@ if safety is False:
     print("❌")
 else:
     print("✅")
-

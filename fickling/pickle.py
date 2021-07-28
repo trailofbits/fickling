@@ -874,14 +874,18 @@ class Memoize(Opcode):
     def run(self, interpreter: Interpreter):
         interpreter.memory[len(interpreter.memory)] = interpreter.stack[-1]
 
-"""
+
 class Append(Opcode):
     name = "APPEND"
 
     def run(self, interpreter: Interpreter):
         value = interpreter.stack.pop()
         list_obj = interpreter.stack[-1]
-"""
+        if isinstance(list_obj, ast.List):
+            list_obj.elts.append(value)
+        else:
+            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+
 
 class Appends(StackSliceOpcode):
     name = "APPENDS"
