@@ -874,13 +874,14 @@ class Memoize(Opcode):
     def run(self, interpreter: Interpreter):
         interpreter.memory[len(interpreter.memory)] = interpreter.stack[-1]
 
+"""
 class Append(Opcode):
     name = "APPEND"
 
-    #def run(self, interpreter: Interpreter):
-    #    value = interpreter.stack.pop()
-    #    list_obj = interpreter.stack[-1]
-    #    list_obj.elts.extend(value)
+    def run(self, interpreter: Interpreter):
+        value = interpreter.stack.pop()
+        list_obj = interpreter.stack[-1]
+"""
 
 class Appends(StackSliceOpcode):
     name = "APPENDS"
