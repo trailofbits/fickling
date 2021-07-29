@@ -18,7 +18,14 @@ setup(
     python_requires=">=3.6",
     install_requires=requirements,
     extras_require={
-        "dev": ["flake8", "pytest", "twine"]
+        "dev": ["flake8", "pytest", "twine"],
+        # Dependencies necessary to run the examples:
+        "examples": [
+            "numpy",
+            "pytorchfi~=0.4.1",
+            "torch~=1.9.0",
+            "torchvision~=0.10.0"
+        ]
     },
     entry_points={
         "console_scripts": [
