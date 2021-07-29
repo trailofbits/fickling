@@ -17,7 +17,6 @@ class Test(object):
 
 payload = Test()
 
-
 print("\n\nWithout fickling\n\n")
 
 with open("a-file.pickle", "wb") as f:
@@ -26,15 +25,12 @@ with open("a-file.pickle", "wb") as f:
 # The original PoC used an earlier version where allow_pickle was True by default
 numpy.load("a-file.pickle", allow_pickle=True)
 
-
 print("\n\nWith fickling\n\n")
 
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
 print("\n\nIs this is_likely_safe?")
-
 safety = fickled_payload.is_likely_safe
-
 if safety is False:
     print("❌")
 else:

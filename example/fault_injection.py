@@ -1,3 +1,7 @@
+"""
+This is tutorial code for performing fault injections with PyTorchFi:
+https://colab.research.google.com/drive/1BMB4LbsTU_K_YXUFzRyfIynpGu5Yhr1Y
+"""
 import torch
 import torchvision.models as models
 import pickle
@@ -60,7 +64,6 @@ unsafe_props = fickled_unsafe_model.properties
 print("\n\nIs this is_likely_safe?")
 
 safety = fickled_unsafe_model.is_likely_safe
-
 if safety:
     print("✅")
 else:
@@ -70,7 +73,6 @@ else:
 # Test more safety checks
 
 print("Do the AST properties match?")
-
 if unsafe_props == safe_props:
     print("✅")
 else:
