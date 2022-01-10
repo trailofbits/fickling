@@ -1001,6 +1001,14 @@ class Int(ConstantOpcode):
     name = "INT"
 
 
+class Long(ConstantOpcode):
+    name = "LONG"
+
+
+class Long1(Long):
+    name = "LONG1"
+
+
 class Dict(Opcode):
     name = "DICT"
 
