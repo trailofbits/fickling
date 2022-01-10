@@ -5,8 +5,21 @@ from collections.abc import MutableSequence, Sequence
 from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
 from typing import (
-    Any, BinaryIO, ByteString, Dict, FrozenSet, Generic, Iterable,
-    Iterator, List, Optional, overload, Set, Type, TypeVar, Union
+    Any,
+    BinaryIO,
+    ByteString,
+    Dict,
+    FrozenSet,
+    Generic,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    overload,
+    Set,
+    Type,
+    TypeVar,
+    Union,
 )
 
 import sys
@@ -18,7 +31,6 @@ if sys.version_info < (3, 9):
     OpcodeSequence = MutableSequence
     GenericSequence = Sequence
 
-
     def make_constant(*args, **kwargs) -> ast.Constant:
         # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
         # expects that!
@@ -26,6 +38,7 @@ if sys.version_info < (3, 9):
         if not hasattr(ret, "kind"):
             setattr(ret, "kind", None)
         return ret
+
 
 else:
     OpcodeSequence = MutableSequence["Opcode"]
@@ -36,16 +49,18 @@ BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 del sys
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
-OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {
-    opcode.name: opcode for opcode in opcodes
-}
+OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
 STD_LIB = sysconfig.get_python_lib(standard_lib=True)
 
 
 def is_std_module(module_name: str) -> bool:
     base_path = Path(STD_LIB).joinpath(*module_name.split("."))
-    return base_path.is_dir() or base_path.with_suffix(".py").is_file() or module_name in BUILTIN_MODULE_NAMES
+    return (
+        base_path.is_dir()
+        or base_path.with_suffix(".py").is_file()
+        or module_name in BUILTIN_MODULE_NAMES
+    )
 
 
 class MarkObject:
@@ -57,19 +72,23 @@ class Opcode:
     info: OpcodeInfo
 
     def __init__(
-            self,
-            argument: Optional[Any] = None,
-            position: Optional[int] = None,
-            data: Optional[bytes] = None,
-            *,
-            info: Optional[OpcodeInfo] = None
+        self,
+        argument: Optional[Any] = None,
+        position: Optional[int] = None,
+        data: Optional[bytes] = None,
+        *,
+        info: Optional[OpcodeInfo] = None,
     ):
         if self.__class__ is Opcode:
             if info is None:
-                raise TypeError("The Opcode class must be constructed with the `info` argument")
+                raise TypeError(
+                    "The Opcode class must be constructed with the `info` argument"
+                )
         elif info is not None and info != self.info:
-            raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
-                             f"{info!r}")
+            raise ValueError(
+                f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
+                f"{info!r}"
+            )
         self.arg: Any = argument
         self.pos: Optional[int] = position
         self._data: Optional[bytes] = data
@@ -91,12 +110,16 @@ class Opcode:
     def encode(self) -> bytes:
         if self.info.arg is None or self.info.arg.n == 0:
             return self.info.code.encode("latin-1")
-        raise NotImplementedError(f"encode() is not yet implemented for opcode {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"encode() is not yet implemented for opcode {self.__class__.__name__}"
+        )
 
     def __new__(cls, *args, **kwargs):
         if cls is Opcode:
             if "info" not in kwargs:
-                raise ValueError(f"You must provide an `info` argument to construct {cls.__name__}")
+                raise ValueError(
+                    f"You must provide an `info` argument to construct {cls.__name__}"
+                )
             else:
                 info = kwargs["info"]
             if info.name in OPCODES_BY_NAME:
@@ -107,7 +130,9 @@ class Opcode:
         return super().__new__(cls)
 
     def run(self, interpreter: "Interpreter"):
-        raise NotImplementedError(f"TODO: Add support for Pickle opcode {self.info.name}")
+        raise NotImplementedError(
+            f"TODO: Add support for Pickle opcode {self.info.name}"
+        )
 
     def __init_subclass__(cls, **kwargs):
         if cls.__name__ not in ("NoOp", "StackSliceOpcode", "ConstantOpcode"):
@@ -116,7 +141,9 @@ class Opcode:
             elif cls.name in OPCODES_BY_NAME:
                 raise TypeError(f"An Opcode named {cls.name} is already defined")
             elif cls.name not in OPCODE_INFO_BY_NAME:
-                raise TypeError(f"An Opcode named {cls.name} is not defined in `pickletools`")
+                raise TypeError(
+                    f"An Opcode named {cls.name} is not defined in `pickletools`"
+                )
             OPCODES_BY_NAME[cls.name] = cls
             setattr(cls, "info", OPCODE_INFO_BY_NAME[cls.name])
             # find the associated `pickletools` OpcodeInfo:
@@ -174,7 +201,9 @@ class StackSliceOpcode(Opcode):
             args = []
             while True:
                 if not interpreter.stack:
-                    raise ValueError("Exhausted the stack while searching for a MarkObject!")
+                    raise ValueError(
+                        "Exhausted the stack while searching for a MarkObject!"
+                    )
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
@@ -232,7 +261,12 @@ class Pickled(OpcodeSequence):
         self._ast = None
         self._properties = None
 
-    def insert_python_exec(self, exec_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
+    def insert_python_exec(
+        self,
+        exec_cmd: str,
+        run_first: bool = True,
+        use_output_as_unpickle_result: bool = False,
+    ):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
         """
@@ -263,7 +297,12 @@ class Pickled(OpcodeSequence):
 
         pass
 
-    def insert_python_eval(self, eval_cmd: str, run_first: bool = True, use_output_as_unpickle_result: bool = False):
+    def insert_python_eval(
+        self,
+        eval_cmd: str,
+        run_first: bool = True,
+        use_output_as_unpickle_result: bool = False,
+    ):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
         # we need to add the call to GLOBAL before the preexisting code, because the following code can sometimes
@@ -300,7 +339,9 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Reduce())
                 self.insert(-1, Get.create(memo_id))
 
-    def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
+    def __setitem__(
+        self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]
+    ):
         self._opcodes[index] = item
         self._ast = None
         self._properties = None
@@ -332,18 +373,23 @@ class Pickled(OpcodeSequence):
         for info, arg, pos in genops(pickled):
             if info.arg is None or info.arg.n == 0:
                 if pos is not None:
-                    data = pickled[pos:pos + 1]
+                    data = pickled[pos : pos + 1]
                 else:
                     data = info.code
             elif info.arg.n > 0 and pos is not None:
-                data = pickled[pos:pos + 1 + info.arg.n]
+                data = pickled[pos : pos + 1 + info.arg.n]
             else:
                 data = None
-            if pos is not None and opcodes and opcodes[-1].pos is not None and not opcodes[-1].has_data():
-                opcodes[-1].data = pickled[opcodes[-1].pos:pos]
+            if (
+                pos is not None
+                and opcodes
+                and opcodes[-1].pos is not None
+                and not opcodes[-1].has_data()
+            ):
+                opcodes[-1].data = pickled[opcodes[-1].pos : pos]
             opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
         if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
-            opcodes[-1].data = pickled[opcodes[-1].pos:]
+            opcodes[-1].data = pickled[opcodes[-1].pos :]
         return Pickled(opcodes)
 
     @property
@@ -418,7 +464,9 @@ class Stack(GenericSequence, Generic[T]):
             if self.opcode is None:
                 raise IndexError("Stack is empty")
             else:
-                raise IndexError(f"Opcode {self.opcode!s} attempted to pop from an empty stack")
+                raise IndexError(
+                    f"Opcode {self.opcode!s} attempted to pop from an empty stack"
+                )
         else:
             return self._stack.pop()
 
@@ -441,7 +489,11 @@ class ModuleBody:
 
     def append(self, stmt: ast.stmt):
         lineno = len(self._list) + 1
-        if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
+        if (
+            hasattr(stmt, "lineno")
+            and stmt.lineno is not None
+            and stmt.lineno != lineno
+        ):
             raise ValueError(
                 f"Statement {stmt} was expected to have line number {lineno} but instead has {stmt.lineno}"
             )
@@ -545,7 +597,9 @@ class Global(Opcode):
             # no need to emit an import for builtins!
             pass
         else:
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
+            interpreter.module_body.append(
+                ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0)
+            )
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
@@ -566,7 +620,9 @@ class StackGlobal(NoOp):
             # no need to emit an import for builtins!
             pass
         else:
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0))
+            interpreter.module_body.append(
+                ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0)
+            )
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
@@ -657,7 +713,9 @@ class Unicode(ConstantOpcode):
     name = "UNICODE"
 
     def encode(self) -> bytes:
-        return self.info.code.encode("latin-1") + raw_unicode_escape(self.arg).encode("utf-8")
+        return self.info.code.encode("latin-1") + raw_unicode_escape(self.arg).encode(
+            "utf-8"
+        )
 
 
 class BinUnicode(ConstantOpcode):
@@ -711,7 +769,11 @@ class BinPersId(Opcode):
     def run(self, interpreter: Interpreter):
         pid = interpreter.stack.pop()
         interpreter.stack.append(
-            ast.Call(ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"), [pid], [])
+            ast.Call(
+                ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"),
+                [pid],
+                [],
+            )
         )
 
 
@@ -750,9 +812,15 @@ class Build(Opcode):
         argument = interpreter.stack.pop()
         obj = interpreter.stack.pop()
         obj_name = interpreter.new_variable(obj)
-        interpreter.module_body.append(ast.Expr(
-            ast.Call(ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"), [argument], [])
-        ))
+        interpreter.module_body.append(
+            ast.Expr(
+                ast.Call(
+                    ast.Attribute(ast.Name(obj_name, ast.Load()), "__setstate__"),
+                    [argument],
+                    [],
+                )
+            )
+        )
         interpreter.stack.append(ast.Name(obj_name, ast.Load()))
 
 
@@ -800,13 +868,21 @@ class SetItems(StackSliceOpcode):
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
-            interpreter.stack.append(ast.Dict(keys=update_dict_keys, values=update_dict_values))
+            interpreter.stack.append(
+                ast.Dict(keys=update_dict_keys, values=update_dict_values)
+            )
         else:
             dict_name = interpreter.new_variable(pydict)
             update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
-            interpreter.module_body.append(ast.Expr(
-                ast.Call(ast.Attribute(ast.Name(dict_name, ast.Load()), "update"), [update_dict], [])
-            ))
+            interpreter.module_body.append(
+                ast.Expr(
+                    ast.Call(
+                        ast.Attribute(ast.Name(dict_name, ast.Load()), "update"),
+                        [update_dict],
+                        [],
+                    )
+                )
+            )
             interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
 
@@ -822,7 +898,10 @@ class SetItem(Opcode):
             interpreter.stack.append(ast.Dict(keys=[key], values=[value]))
         else:
             dict_name = interpreter.new_variable(pydict)
-            assignment = ast.Assign([ast.Subscript(ast.Name(dict_name, ast.Load()), key, ast.Store())], value)
+            assignment = ast.Assign(
+                [ast.Subscript(ast.Name(dict_name, ast.Load()), key, ast.Store())],
+                value,
+            )
             interpreter.module_body.append(assignment)
             interpreter.stack.append(ast.Name(dict_name, ast.Load()))
 
@@ -839,7 +918,11 @@ class Frame(NoOp):
     name = "FRAME"
 
 
-class BinInt1(ConstantOpcode):
+class BinInt(ConstantOpcode):
+    name = "BININT"
+
+
+class BinInt1(BinInt):
     name = "BININT1"
 
 
@@ -884,7 +967,9 @@ class Append(Opcode):
         if isinstance(list_obj, ast.List):
             list_obj.elts.append(value)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise ValueError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class Appends(StackSliceOpcode):
@@ -895,7 +980,9 @@ class Appends(StackSliceOpcode):
         if isinstance(list_obj, ast.List):
             list_obj.elts.extend(stack_slice)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise ValueError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class BinFloat(ConstantOpcode):
@@ -935,6 +1022,8 @@ class Dict(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
 
         if len(keys) != len(values):
-            raise ValueError(f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match")            
+            raise ValueError(
+                f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
+            )
 
         interpreter.stack.append(ast.Dict(keys=keys, values=values))
