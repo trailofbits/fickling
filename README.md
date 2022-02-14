@@ -10,6 +10,9 @@ human-readable Python code that, when executed, will deserialize to the original
 The authors do not prescribe any meaning to the “F” in Fickling; it could stand for “fickle,” … or something else.
 Divining its meaning is a personal journey in discretion and is left as an exercise to the reader.
 
+Learn more about it in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
+and [DEF CON 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
+
 ## Installation
 
 Fickling has been tested on Python 3.6 through Python 3.9 and has very few dependencies.
