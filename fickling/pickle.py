@@ -409,7 +409,7 @@ class Pickled(OpcodeSequence):
     @property
     def has_unvetted_import(self) -> bool:
         if self._vetted_dependencies is None:
-            raise Exception("Cannot call has_unvetted_import when vetted_dependencies is not set")
+            raise ValueError("Cannot call has_unvetted_import when vetted_dependencies is not set")
         unvetted_import = False
         for node in self.properties.imports:
             module_path = node.module.split(".")
@@ -426,7 +426,7 @@ class Pickled(OpcodeSequence):
     @property
     def has_unvetted_calls(self) -> bool:
         if self._vetted_calls is None:
-            raise Exception("Cannot call has_unvetted_functions when vetted_functions is not set")
+            raise ValueError("Cannot call has_unvetted_functions when vetted_functions is not set")
         unvetted_call = False
         for call in self.properties.non_setstate_calls:
             function = call.func.id

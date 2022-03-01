@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 
 
-arr = np.array([1,2,3])
+arr = np.array([1, 2, 3])
 fickled = Pickled.load(pickle.dumps(arr))
 fickled.vetted_dependencies = ["numpy"]
 fickled.vetted_calls = ["ndarray", "dtype"]
