@@ -16,10 +16,18 @@ s = pickle.dumps(clf)
 p = Pickled.load(s)
 p.vetted_dependencies = ["numpy.ndarray", "sklearn.svm._classes.SVC", "numpy.core.multiarray._reconstruct", "numpy.dtype", "numpy.core.multiarray.scalar"]
 check_vetted(p)
+if p.is_likely_safe:
+    print("✅")
+else:
+    print("❌")
 
 # numpy
 arr = np.ndarray([1, 2, 3])
 p = Pickled.load(pickle.dumps(arr))
 p.vetted_dependencies = ["numpy.ndarray"]
 check_vetted(p)
+if p.is_likely_safe:
+    print("✅")
+else:
+    print("❌")
 
