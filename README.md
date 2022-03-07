@@ -65,6 +65,12 @@ You can also safely trace the execution of the Pickle virtual machine without ex
 Finally, you can inject arbitrary Python code that will be run on unpickling into an existing pickle file with the
 `--inject` option.
 
+### Unvetted Dependencies
+
+You can check for unvetted dependencies in `fickling` by giving the `Pickled` class a list of "vetted" function calls from given modules.
+
+See [example/unvetted_dependencies.py](example/unvetted_dependencies.py)
+
 ## License
 
 This utility was developed by [Trail of Bits](https://www.trailofbits.com/).
