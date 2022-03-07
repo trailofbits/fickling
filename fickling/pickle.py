@@ -247,7 +247,7 @@ class Pickled(OpcodeSequence):
         self._ast: Optional[ast.Module] = None
         self._properties: Optional[ASTProperties] = None
         self._vetted_dependencies: Optional[List[str]] = None
-        self._vetted_calls: Optional[List[str]] = None
+        self._unvetted_dependencies: Optional[List[str]] = None
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -407,35 +407,27 @@ class Pickled(OpcodeSequence):
         return bool(self.properties.imports)
 
     @property
-    def has_unvetted_import(self) -> bool:
+    def has_unvetted_dependency(self) -> bool:
         if self._vetted_dependencies is None:
             raise ValueError("Cannot call has_unvetted_import when vetted_dependencies is not set")
-        unvetted_import = False
-        for node in self.properties.imports:
-            module_path = node.module.split(".")
-            if module_path[0] not in self._vetted_dependencies:
-                unvetted_import = True
-                break
-        return unvetted_import
+        if self._unvetted_dependencies is None:
+            self._unvetted_dependencies = []
+            for st in self.ast.body:
+                if isinstance(st, ast.ImportFrom):
+                    for imp in st.names:
+                        import_path = f"{st.module}.{imp.name}"
+                        if import_path not in self._vetted_dependencies:
+                            self._unvetted_dependencies.append(import_path)
+            return len(self._unvetted_dependencies) > 0
+        elif len(self._unvetted_dependencies) > 0:
+            return True
+        else:
+            return False
 
     @property
     def has_call(self) -> bool:
         """Checks whether unpickling would cause a function call"""
         return bool(self.properties.calls)
-
-    @property
-    def has_unvetted_calls(self) -> bool:
-        if self._vetted_calls is None:
-            raise ValueError("Cannot call has_unvetted_functions when vetted_functions is not set")
-        unvetted_call = False
-        for call in self.properties.non_setstate_calls:
-            function = call.func.id
-            if function == "_reconstruct":
-                function = call.args[0].id
-            if function not in self._vetted_calls:
-                unvetted_call = True
-                break
-        return unvetted_call
 
     @property
     def has_non_setstate_call(self) -> bool:
@@ -445,10 +437,7 @@ class Pickled(OpcodeSequence):
     @property
     def is_likely_safe(self) -> bool:
         # `self.has_call` is probably safe as long as `not self.has_import`
-        if self._vetted_dependencies is None or self._vetted_calls is None:
-            return not self.has_import and not self.has_non_setstate_call
-        else:
-            return not self.has_unvetted_import and not self.has_unvetted_calls
+        return not self.has_import and not self.has_non_setstate_call
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
@@ -477,12 +466,8 @@ class Pickled(OpcodeSequence):
         self._vetted_dependencies = dependencies
 
     @property
-    def vetted_calls(self) -> Optional[List[str]]:
-        return self._vetted_calls
-
-    @vetted_calls.setter
-    def vetted_calls(self, functions: List[str]):
-        self._vetted_calls = functions
+    def unvetted_dependencies(self) -> Optional[List[str]]:
+        return self._unvetted_dependencies
 
 
 class Stack(GenericSequence, Generic[T]):
