@@ -15,7 +15,7 @@ setup(
     author="Trail of Bits",
     version="0.0.3",
     packages=find_packages(exclude=["test"]),
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=requirements,
     extras_require={
         "dev": ["flake8", "pytest", "twine"],
