@@ -10,6 +10,7 @@ else:
 
 from fickling import pickle as fpickle
 from fickling.pickle import Pickled, Interpreter
+from fickling.analysis import check_safety
 
 
 def correctness_test(to_pickle):
@@ -95,3 +96,4 @@ class TestInterpreter(TestCase):
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
+        self.assertFalse(check_safety(loaded))

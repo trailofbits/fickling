@@ -528,11 +528,12 @@ class Interpreter:
             self.run()
         return self._module
 
-    def unused_variables(self) -> Set[str]:
+    def unused_assignments(self) -> Dict[str, ast.Assign]:
         if self._module is None:
             self.run()
         used: Set[str] = set()
         defined: Set[str] = set()
+        assignments: Dict[str, ast.Assign] = {}
         for statement in self.module_body:
             # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
@@ -543,12 +544,19 @@ class Interpreter:
                 for target in statement.targets:
                     if isinstance(target, ast.Name):
                         defined.add(target.id)
+                        if target.id in assignments:
+                            # this should never happen, since Fickling constructs the AST
+                            sys.stderr.write(f"Warning: Duplicate declaration of variable {target.id}\n")
+                        assignments[target.id] = statement
                 statement = statement.value
             if statement is not None:
                 for node in ast.walk(statement):
                     if isinstance(node, ast.Name):
                         used.add(node.id)
-        return defined - used
+        return {varname: assignments[varname] for varname in defined - used}
+
+    def unused_variables(self) -> FrozenSet[str]:
+        return self.unused_assignments().keys()  # type: ignore
 
     def stop(self):
         self._opcodes = iter(())
