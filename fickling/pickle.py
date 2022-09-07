@@ -421,7 +421,7 @@ class Pickled(OpcodeSequence):
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
-            if node.module in ("__builtin__", "os", "subprocess", "sys", "builtins"):
+            if node.module in ("__builtin__", "os", "subprocess", "sys", "builtins", "socket"):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
