@@ -46,7 +46,6 @@ else:
     make_constant = ast.Constant
 
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
-del sys
 
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
@@ -597,8 +596,13 @@ class Global(Opcode):
             # no need to emit an import for builtins!
             pass
         else:
+            if sys.version_info < (3, 9):
+                # workaround for a bug in astunparse
+                alias = ast.alias(attr, asname=None)
+            else:
+                alias = ast.alias(attr)
             interpreter.module_body.append(
-                ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0)
+                ast.ImportFrom(module=module, names=[alias], level=0)
             )
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
@@ -620,8 +624,13 @@ class StackGlobal(NoOp):
             # no need to emit an import for builtins!
             pass
         else:
+            if sys.version_info < (3, 9):
+                # workaround for a bug in astunparse
+                alias = ast.alias(attr, asname=None)
+            else:
+                alias = ast.alias(attr)
             interpreter.module_body.append(
-                ast.ImportFrom(module=module, names=[ast.alias(attr)], level=0)
+                ast.ImportFrom(module=module, names=[alias], level=0)
             )
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 

@@ -1,11 +1,4 @@
 from setuptools import setup, find_packages
-from sys import version_info
-
-if version_info >= (3, 9):
-    # ast.unparse was added in Python 3.9
-    requirements = []
-else:
-    requirements = ["astunparse~=1.6.3"]
 
 setup(
     name="fickling",
@@ -16,7 +9,7 @@ setup(
     version="0.0.3",
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.7",
-    install_requires=requirements,
+    install_requires=["astunparse~=1.6.3"],
     extras_require={
         "dev": ["flake8", "pytest", "twine"],
         # Dependencies necessary to run the examples:
