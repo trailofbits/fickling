@@ -528,6 +528,28 @@ class Interpreter:
             self.run()
         return self._module
 
+    def unused_variables(self) -> Set[str]:
+        if self._module is None:
+            self.run()
+        used: Set[str] = set()
+        defined: Set[str] = set()
+        for statement in self.module_body:
+            # skip the last statement because it is always used
+            if isinstance(statement, ast.Assign):
+                if len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name) and \
+                        statement.targets[0].id == "result":
+                    # this is the return value of the program
+                    break
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        defined.add(target.id)
+                statement = statement.value
+            if statement is not None:
+                for node in ast.walk(statement):
+                    if isinstance(node, ast.Name):
+                        used.add(node.id)
+        return defined - used
+
     def stop(self):
         self._opcodes = iter(())
 
