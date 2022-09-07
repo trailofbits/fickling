@@ -66,9 +66,9 @@ def check_safety(pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Opti
     interpreter = Interpreter(pickled)
     for varname, asmt in interpreter.unused_assignments().items():
         likely_safe = False
-        shortened, _ = shorten_code(asmt)
-        stderr.write(f"Variable {varname} defined in {shortened} is unused; this is suspicious and indicative of a "
-                     f"malicious pickle file\n")
+        shortened, _ = shorten_code(asmt.value)
+        stderr.write(f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
+                     f"this is suspicious and indicative of a malicious pickle file\n")
     if likely_safe:
         stderr.write("Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
                      "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n")
