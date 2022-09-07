@@ -6,7 +6,7 @@ setup(
     license="LGPL-3.0-or-later",
     url="https://github.com/trailofbits/fickling",
     author="Trail of Bits",
-    version="0.0.3",
+    version="0.0.4",
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.7",
     install_requires=["astunparse~=1.6.3"],
