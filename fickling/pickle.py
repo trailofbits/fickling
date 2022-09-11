@@ -208,7 +208,7 @@ class DynamicLength(Opcode, ABC):
         st = cls.struct_types[cls.length_bytes]
         if not cls.length_signed:
             st = st.upper()
-        return struct.pack(f"{cls.length_endianness.value}{st}")
+        return struct.pack(f"{cls.length_endianness.value}{st}", length)
 
     def encode(self) -> bytes:
         body = self.encode_body()
@@ -220,6 +220,7 @@ class DynamicLength(Opcode, ABC):
         if length < cls.min_value or length > cls.max_value:
             raise ValueError(f"Invalid object {obj!r}: {cls.__name__} can only represent objects with lengths in the "
                              f"range [{cls.min_value}, {cls.max_value}]")
+        return obj
 
 
 class NoOp(Opcode):
@@ -881,7 +882,7 @@ class ShortBinUnicode(DynamicLength, ConstantOpcode):
     def validate(cls, obj: str) -> bytes:
         if not isinstance(obj, str):
             raise ValueError(f"obj must be of type str, not {obj!r}")
-        return super().validate(str.encode("utf-8"))
+        return super().validate(obj.encode("utf-8"))
 
     def encode_body(self) -> bytes:
         text = self.arg
