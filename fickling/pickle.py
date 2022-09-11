@@ -255,7 +255,9 @@ class ConstantOpcode(Opcode):
     def __init_subclass__(cls, **kwargs):
         ret = super().__init_subclass__(**kwargs)
         if not cls.__name__ == "ConstantInt":
-            if not hasattr(cls, "priority") or not isinstance(cls.priority, int) or cls.priority is None:
+            if cls.validate.__code__ == ConstantOpcode.validate.__code__:
+                raise TypeError(f"{cls.__name__} must implement the validate method")
+            elif not hasattr(cls, "priority") or not isinstance(cls.priority, int) or cls.priority is None:
                 raise TypeError(f"{cls.__name__} must define an integer priority used for auto-instantiation from "
                                 f"ConstantOpcode.new(...)")
             ConstantOpcode.ConstantOpcodePriorities[cls] = cls.priority
@@ -267,11 +269,11 @@ class ConstantOpcode(Opcode):
         Returning the value of the object to be saved to the constant
         Or throwing a ValueError if obj cannot be used to instantiate this type of onstant
         """
-        return obj
+        raise NotImplementedError()
 
     @classmethod
     def new(cls: Type[T], obj) -> T:
-        for subclass, _ in sorted(ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda _, v: v):
+        for subclass, _ in sorted(ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]):
             if not issubclass(subclass, cls):
                 continue
             try:
@@ -397,47 +399,11 @@ class Pickled(OpcodeSequence):
         self._ast = None
         self._properties = None
 
-    def insert_python_exec(
-        self,
-        exec_cmd: str,
-        run_first: bool = True,
-        use_output_as_unpickle_result: bool = False,
-    ):
-        if not isinstance(self[-1], Stop):
-            raise ValueError("Expected the last opcode to be STOP")
-        """
-        Similar to what Evan did down below, this imports the builtin exec function
-        Exec works on statements, while eval works on expressions
-        """
-        self.insert(0, Global.create("__builtin__", "exec"))
-        self.insert(1, Mark())
-        # This might be a multiline exec, so lets just insert the payload one by one.
-        self.insert(2, Unicode(exec_cmd.encode("utf-8")))
-        self.insert(3, Tuple())
-        if run_first:
-            self.insert(4, Reduce())
-            if use_output_as_unpickle_result:
-                self.insert(-1, Pop())
-        if not run_first:
-            if use_output_as_unpickle_result:
-                self.insert(-1, Pop())
-                self.insert(-1, Reduce())
-            else:
-                interpreter = Interpreter(self)
-                interpreter.run()
-                memo_id = len(interpreter.memory)
-                self.insert(-1, Memoize())
-                self.insert(-1, Pop())
-                self.insert(-1, Reduce())
-                self.insert(-1, Get.create(memo_id))
-
-        pass
-
     def insert_python(
         self,
+        *args,
         module: str = "__builtin__",
         attr: str = "eval",
-        *args,
         run_first: bool = True,
         use_output_as_unpickle_result: bool = False,
     ):
@@ -454,10 +420,7 @@ class Pickled(OpcodeSequence):
         i = 1
         for arg in args:
             i += 1
-            if isinstance(arg, str):
-                self.insert(i, Unicode(arg.encode("utf-8")))
-            elif isinstance(arg, int):
-                self.insert(i, Int())
+            self.insert(i, ConstantOpcode.new(arg))
         self.insert(i + 1, Tuple())
         if run_first:
             self.insert(i + 2, Reduce())
@@ -484,6 +447,20 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Get.create(memo_id))
 
     insert_python_eval = insert_python
+
+    def insert_python_exec(
+            self,
+            *args,
+            run_first: bool = True,
+            use_output_as_unpickle_result: bool = False,
+    ):
+        return self.insert_python(
+            *args,
+            module="__builtin__",
+            attr="exec",
+            run_first=run_first,
+            use_output_as_unpickle_result=use_output_as_unpickle_result
+        )
 
     def __setitem__(
         self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]
@@ -946,6 +923,12 @@ class String(ConstantOpcode):
     def encode_body(self) -> bytes:
         return self.info.code.encode("latin-1") + repr(self.arg).encode("utf-8")
 
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, str):
+            raise ValueError(f"String must be instantiated from a str, not {obj!r}")
+        return obj
+
 
 class NewObj(Opcode):
     name = "NEWOBJ"
@@ -1206,10 +1189,10 @@ class BinFloat(ConstantOpcode):
     priority = BinInt1.priority * 2
 
     @classmethod
-    def new(cls: Type[T], obj: float) -> T:
+    def validate(cls, obj):
         if not isinstance(obj, float):
             raise ValueError(f"{cls.__name__} expects a float, but received {obj!r}")
-        return cls(obj)
+        return obj
 
 
 class ShortBinBytes(DynamicLength, ConstantOpcode):
