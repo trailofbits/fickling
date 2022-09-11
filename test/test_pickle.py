@@ -81,6 +81,7 @@ class TestInterpreter(TestCase):
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
         loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False)
+        self.assertEqual(sum(1 for op in loaded if isinstance(op, fpickle.Stop)), 1)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
 
         # Make sure the injected code cleans up the stack after itself:

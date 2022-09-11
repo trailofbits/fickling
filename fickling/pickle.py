@@ -445,6 +445,7 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Memoize())
                 self.insert(-1, Pop())
                 self.insert(-1, Reduce())
+                self.insert(-1, Pop())
                 self.insert(-1, Get.create(memo_id))
 
     insert_python_eval = insert_python
