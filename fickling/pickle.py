@@ -923,7 +923,7 @@ class String(ConstantOpcode):
     priority = Unicode.priority + 1
 
     def encode_body(self) -> bytes:
-        return self.info.code.encode("latin-1") + repr(self.arg).encode("utf-8")
+        return repr(self.arg).encode("utf-8")
 
     @classmethod
     def validate(cls, obj):
