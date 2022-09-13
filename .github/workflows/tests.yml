@@ -28,8 +28,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install setuptools
         pip install .[dev]
-    - name: Scan with pip-audit
-      uses: trailofbits/gh-action-pip-audit@v1.0.0
     - name: Lint with flake8
       run: |
         pip install flake8
