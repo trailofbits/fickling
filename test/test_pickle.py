@@ -1,6 +1,9 @@
+from contextlib import redirect_stdout
 from functools import wraps
+from pathlib import Path
 from pickle import dumps, loads
 from sys import version_info
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 if version_info >= (3, 9):
@@ -9,8 +12,18 @@ else:
     from astunparse import unparse
 
 from fickling import pickle as fpickle
+from fickling.cli import main
 from fickling.pickle import Pickled, Interpreter, StackedPickle
 from fickling.analysis import check_safety
+
+
+def get_result(pickled: Pickled):
+    ast = pickled.ast
+    global_vars = {}
+    local_vars = {}
+    code = unparse(ast)
+    exec(code, global_vars, local_vars)
+    return local_vars["result"]
 
 
 def correctness_test(to_pickle):
@@ -18,13 +31,7 @@ def correctness_test(to_pickle):
         @wraps(func)
         def wrapper(self: TestCase):
             pickled = dumps(to_pickle)
-            ast = Pickled.load(pickled).ast
-            global_vars = {}
-            local_vars = {}
-            code = unparse(ast)
-            exec(code, global_vars, local_vars)
-            self.assertIn("result", local_vars)
-            self.assertEqual(to_pickle, local_vars["result"])
+            self.assertEqual(to_pickle, get_result(Pickled.load(pickled)))
 
         return wrapper
     return decorator
@@ -76,6 +83,10 @@ class TestInterpreter(TestCase):
 
     @correctness_test(b"abcdefg")
     def test_bytes(self):
+        pass
+
+    @correctness_test(b"(lambda:1234)()")
+    def test_call(self):
         pass
 
     def test_dumps(self):
@@ -139,3 +150,33 @@ class TestInterpreter(TestCase):
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
         pass
+
+    def test_insert_stacked(self):
+        tmpfile = NamedTemporaryFile("wb", delete=False)
+        try:
+            tmpfile.write(dumps([1, 2, 3, 4]))
+            tmpfile.write(dumps(['a', 'b', 'c', 'd']))
+            tmpfile.write(dumps(1234567))
+            tmpfile.close()
+
+            # Make sure that it fails if we try and inject into the forth stacked pickle (there are only 3)
+            self.assertNotEqual(main(["", tmpfile.name, "--inject", "print(\"foo\")", "--inject-target", "3"]), 0)
+
+            # Inject into the second pickle (this should work)
+            with NamedTemporaryFile("wb", delete=False) as outfile, redirect_stdout(outfile):
+                try:
+                    retval = main([
+                        "", tmpfile.name, "--inject", "(lambda:7654321)()", "--inject-target", "1", "--replace-result"
+                    ])
+                    self.assertEqual(retval, 0)
+                    outfile.close()
+                    with open(outfile.name, "rb") as f:
+                        stacked = StackedPickle.load(f)
+                finally:
+                    Path(outfile.name).unlink()
+
+            self.assertEqual(len(stacked), 3)
+            self.assertEqual(7654321, get_result(stacked[1]))
+
+        finally:
+            Path(tmpfile.name).unlink()

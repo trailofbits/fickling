@@ -496,6 +496,8 @@ class Pickled(OpcodeSequence):
     def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
         if isinstance(pickled, (bytes, bytearray, ByteString)):
             pickled = BytesIO(pickled)
+        elif not hasattr(pickled, "seekable") and hasattr(pickled, "read"):
+            pickled = BytesIO(pickled.read())
         elif not pickled.seekable():
             raise ValueError(f"{pickled!r} must be seekable")
         # offset = pickled.tell()
