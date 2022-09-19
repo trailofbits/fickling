@@ -654,14 +654,19 @@ class ModuleBody:
 
 
 class Interpreter:
-    def __init__(self, pickled: Pickled):
+    def __init__(self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"):
         self.pickled: Pickled = pickled
         self.memory: Dict[int, ast.expr] = {}
         self.stack: Stack[Union[ast.expr, MarkObject]] = Stack()
         self.module_body: ModuleBody = ModuleBody(self)
+        self.result_variable: str = result_variable
         self._module: Optional[ast.Module] = None
-        self._var_counter: int = 0
+        self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
+
+    @property
+    def next_variable_id(self) -> int:
+        return self._var_counter
 
     def to_ast(self) -> ast.Module:
         if self._module is None:
@@ -678,7 +683,7 @@ class Interpreter:
             # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
                 if len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name) and \
-                        statement.targets[0].id == "result":
+                        statement.targets[0].id == self.result_variable:
                     # this is the return value of the program
                     break
                 for target in statement.targets:
@@ -1118,7 +1123,7 @@ class Stop(Opcode):
     name = "STOP"
 
     def run(self, interpreter: Interpreter):
-        interpreter.new_variable(interpreter.stack.pop(), name="result")
+        interpreter.new_variable(interpreter.stack.pop(), name=interpreter.result_variable)
         interpreter.stop()
 
 

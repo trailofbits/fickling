@@ -94,13 +94,16 @@ def main(argv: Optional[List[str]] = None) -> int:
                 if not check_safety(pickled):
                     was_safe = False
             return [1, 0][was_safe]
-        elif args.trace:
-            for pickled in stacked_pickled:
-                trace = tracing.Trace(pickle.Interpreter(pickled))
-                print(unparse(trace.run()))
         else:
-            for pickled in stacked_pickled:
-                print(unparse(pickled.ast))
+            var_id = 0
+            for i, pickled in enumerate(stacked_pickled):
+                interpreter = pickle.Interpreter(pickled, first_variable_id=var_id, result_variable=f"result{i}")
+                if args.trace:
+                    trace = tracing.Trace(interpreter)
+                    print(unparse(trace.run()))
+                else:
+                    print(unparse(interpreter.to_ast()))
+                var_id = interpreter.next_variable_id
     else:
         pickled = pickle.Pickled([
             pickle.Global.create("__builtin__", "eval"),
