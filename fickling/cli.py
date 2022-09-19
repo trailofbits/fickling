@@ -23,6 +23,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     options.add_argument("--inject", "-i", type=str, default=None, help="inject the specified Python code to be run at "
                                                                         "the end of depickling, and output the "
                                                                         "resulting pickle data")
+    options.add_argument("--inject-target", type=int, default=0, help="some machine learning frameworks stack multiple "
+                                                                      "pickles into the same model file; this option "
+                                                                      "specifies the index of the pickle file in which "
+                                                                      "to inject the code from the `--inject` command "
+                                                                      "(default is 0)")
     options.add_argument("--create", "-c", type=str, default=None)
     parser.add_argument("--run-last", "-l", action="store_true", help="used with --inject to have the injected code "
                                                                       "run after the existing pickling code in "
@@ -58,14 +63,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             file = open(args.PICKLE_FILE, "rb")
         try:
-            pickled = pickle.Pickled.load(file)
+            stacked_pickled = pickle.StackedPickle.load(file)
+        except ValueError as e:
+            sys.stderr.write(f"Error: {str(e)}\n")
+            return 1
         finally:
             file.close()
 
         if args.inject is not None:
+            if args.inject_target >= len(stacked_pickled):
+                sys.stderr.write(f"Error: --inject-target {args.inject_target} is too high; there are only "
+                                 f"{len(stacked_pickled)} stacked pickle files in the input\n")
+                return 1
+            pickled = stacked_pickled[args.inject_target]
             if not isinstance(pickled[-1], pickle.Stop):
-                sys.stderr.write("Error: The last opcode of the input file was expected to be STOP, but was in fact "
-                                 f"{pickled[-1].info.name}")
+                sys.stderr.write("Warning: The last opcode of the input file was expected to be STOP, but was in fact "
+                                 f"{pickled[-1].info.name}\n")
             pickled.insert_python_eval(
                 args.inject,
                 run_first=not args.run_last,
@@ -76,12 +89,18 @@ def main(argv: Optional[List[str]] = None) -> int:
             else:
                 pickled.dump(sys.stdout)
         elif args.check_safety:
-            return [1, 0][check_safety(pickled)]
+            was_safe = True
+            for pickled in stacked_pickled:
+                if not check_safety(pickled):
+                    was_safe = False
+            return [1, 0][was_safe]
         elif args.trace:
-            trace = tracing.Trace(pickle.Interpreter(pickled))
-            print(unparse(trace.run()))
+            for pickled in stacked_pickled:
+                trace = tracing.Trace(pickle.Interpreter(pickled))
+                print(unparse(trace.run()))
         else:
-            print(unparse(pickled.ast))
+            for pickled in stacked_pickled:
+                print(unparse(pickled.ast))
     else:
         pickled = pickle.Pickled([
             pickle.Global.create("__builtin__", "eval"),
