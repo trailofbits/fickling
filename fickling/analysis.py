@@ -1,12 +1,12 @@
 import sys
 from typing import Optional, TextIO, Tuple
 
-if sys.version_info < (3,9):
+if sys.version_info < (3, 9):
     from astunparse import unparse
 else:
     from ast import unparse
 
-from .pickle import Pickled
+from .pickle import Pickled, Interpreter
 
 
 def check_safety(pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Optional[TextIO] = None) -> bool:
@@ -63,6 +63,12 @@ def check_safety(pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Opti
         stdout.write(f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file\n")
     for overtly_bad_eval in overtly_bad_evals:
         stdout.write(f"Call to `{overtly_bad_eval}` is almost certainly evidence of a malicious pickle file\n")
+    interpreter = Interpreter(pickled)
+    for varname, asmt in interpreter.unused_assignments().items():
+        likely_safe = False
+        shortened, _ = shorten_code(asmt.value)
+        stderr.write(f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
+                     f"this is suspicious and indicative of a malicious pickle file\n")
     if likely_safe:
         stderr.write("Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
                      "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n")
