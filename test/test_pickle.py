@@ -9,7 +9,7 @@ else:
     from astunparse import unparse
 
 from fickling import pickle as fpickle
-from fickling.pickle import Pickled, Interpreter
+from fickling.pickle import Pickled, Interpreter, StackedPickle
 from fickling.analysis import check_safety
 
 
@@ -26,6 +26,29 @@ def correctness_test(to_pickle):
             self.assertIn("result", local_vars)
             self.assertEqual(to_pickle, local_vars["result"])
 
+        return wrapper
+    return decorator
+
+
+def stacked_correctness_test(*to_pickle):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self: TestCase):
+            to_pickle_list = list(to_pickle)
+            stacked = [dumps(p) for p in to_pickle_list]
+            stacked_pickle = StackedPickle.load(b"".join(stacked))
+            self.assertEqual(len(stacked_pickle), len(stacked))
+            for pickled, p_bytes, original in zip(stacked_pickle, stacked, to_pickle_list):
+                stacked_ast = pickled.ast
+                true_ast = Pickled.load(p_bytes).ast
+                stacked_code = unparse(stacked_ast)
+                true_code = unparse(true_ast)
+                self.assertEqual(stacked_code, true_code)
+                global_vars = {}
+                local_vars = {}
+                exec(stacked_code, global_vars, local_vars)
+                self.assertIn("result", local_vars)
+                self.assertEqual(original, local_vars["result"])
         return wrapper
     return decorator
 
@@ -112,3 +135,7 @@ class TestInterpreter(TestCase):
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
         self.assertFalse(check_safety(loaded))
+
+    @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
+    def test_stacked_pickles(self):
+        pass

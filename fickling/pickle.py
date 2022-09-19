@@ -3,6 +3,7 @@ import distutils.sysconfig as sysconfig
 from abc import abstractmethod, ABC
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from pickletools import genops, opcodes, OpcodeInfo
 import struct
@@ -19,9 +20,10 @@ from typing import (
     Optional,
     overload,
     Set,
+    Tuple as TupleType,
     Type,
     TypeVar,
-    Union,
+    Union
 )
 
 import sys
@@ -492,17 +494,22 @@ class Pickled(OpcodeSequence):
 
     @staticmethod
     def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
-        if not isinstance(pickled, (bytes, bytearray)) and hasattr(pickled, "read"):
-            pickled = pickled.read()
+        if isinstance(pickled, (bytes, bytearray, ByteString)):
+            pickled = BytesIO(pickled)
+        elif not pickled.seekable():
+            raise ValueError(f"{pickled!r} must be seekable")
+        # offset = pickled.tell()
         opcodes: List[Opcode] = []
         for info, arg, pos in genops(pickled):
             if info.arg is None or info.arg.n == 0:
                 if pos is not None:
-                    data = pickled[pos : pos + 1]
+                    pickled.seek(pos)
+                    data = pickled.read(1)
                 else:
                     data = info.code
             elif info.arg.n > 0 and pos is not None:
-                data = pickled[pos : pos + 1 + info.arg.n]
+                pickled.seek(pos)
+                data = pickled.read(1 + info.arg.n)
             else:
                 data = None
             if (
@@ -511,10 +518,17 @@ class Pickled(OpcodeSequence):
                 and opcodes[-1].pos is not None
                 and not opcodes[-1].has_data()
             ):
-                opcodes[-1].data = pickled[opcodes[-1].pos : pos]
+                pickled.seek(opcodes[-1].pos)
+                opcodes[-1].data = pickled.read(pos - opcodes[-1].pos)
             opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
         if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
-            opcodes[-1].data = pickled[opcodes[-1].pos :]
+            pickled.seek(opcodes[-1].pos)
+            opcodes[-1].data = pickled.read()
+        if opcodes:
+            last_pos = opcodes[-1].pos
+            if opcodes[-1].has_data():
+                last_pos += len(opcodes[-1].data)
+            pickled.seek(last_pos)
         return Pickled(opcodes)
 
     @property
@@ -1279,3 +1293,35 @@ class Dict(Opcode):
             )
 
         interpreter.stack.append(ast.Dict(keys=keys, values=values))
+
+
+if sys.version_info < (3, 9):
+    # abstract collections were not subscriptable until Python 3.9
+    PickledSequence = Sequence
+else:
+    PickledSequence = Sequence[Pickled]
+
+
+class StackedPickle(PickledSequence):
+    def __init__(self, pickled: Iterable[Pickled]):
+        self.pickled: TupleType[Pickled, ...] = tuple(pickled)
+
+    def __getitem__(self, index: int) -> Pickled:
+        return self.pickled[index]
+
+    def __len__(self) -> int:
+        return len(self.pickled)
+
+    @staticmethod
+    def load(pickled: Union[ByteString, BinaryIO]) -> "StackedPickle":
+        if isinstance(pickled, (bytes, bytearray, ByteString)):
+            pickled = BytesIO(pickled)
+        pickles: List[Pickled] = []
+        while True:
+            try:
+                pickles.append(Pickled.load(pickled))
+            except ValueError:
+                break
+        if not pickles:
+            raise ValueError("No pickle files detected")
+        return StackedPickle(pickles)
