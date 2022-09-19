@@ -493,14 +493,16 @@ class Pickled(OpcodeSequence):
         return iter(self)
 
     @staticmethod
+    def make_stream(data: Union[ByteString, BinaryIO]) -> BinaryIO:
+        if isinstance(data, (bytes, bytearray, ByteString)):
+            data = BytesIO(data)
+        elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
+            data = BytesIO(data.read())
+        return data
+
+    @staticmethod
     def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
-        if isinstance(pickled, (bytes, bytearray, ByteString)):
-            pickled = BytesIO(pickled)
-        elif not hasattr(pickled, "seekable") and hasattr(pickled, "read"):
-            pickled = BytesIO(pickled.read())
-        elif not pickled.seekable():
-            raise ValueError(f"{pickled!r} must be seekable")
-        # offset = pickled.tell()
+        pickled = Pickled.make_stream(pickled)
         opcodes: List[Opcode] = []
         for info, arg, pos in genops(pickled):
             if info.arg is None or info.arg.n == 0:
@@ -1321,8 +1323,7 @@ class StackedPickle(PickledSequence):
 
     @staticmethod
     def load(pickled: Union[ByteString, BinaryIO]) -> "StackedPickle":
-        if isinstance(pickled, (bytes, bytearray, ByteString)):
-            pickled = BytesIO(pickled)
+        pickled = Pickled.make_stream(pickled)
         pickles: List[Pickled] = []
         while True:
             try:
