@@ -416,15 +416,21 @@ class Pickled(OpcodeSequence):
         # and then either immediately call the `eval` with a `Reduce` opcode (the default)
         # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
         # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
-        self.insert(0, Global.create(module, attr))
-        self.insert(1, Mark())
-        i = 1
-        for arg in args:
+        i = 0
+        while isinstance(self[i], (Proto, Frame)):
             i += 1
+        self.insert(i, Global.create(module, attr))
+        i += 1
+        self.insert(i, Mark())
+        i += 1
+        for arg in args:
             self.insert(i, ConstantOpcode.new(arg))
-        self.insert(i + 1, Tuple())
+            i += 1
+        self.insert(i, Tuple())
+        i += 1
         if run_first:
-            self.insert(i + 2, Reduce())
+            self.insert(i, Reduce())
+            i += 1
             if use_output_as_unpickle_result:
                 self.insert(-1, Pop())
         else:
