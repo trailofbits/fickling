@@ -182,13 +182,6 @@ class TestInterpreter(TestCase):
             finally:
                 Path(outfile.name).unlink()
 
-            interpreter = Interpreter(Pickled.load(dumps(['a', 'b', 'c', 'd'])))
-            from fickling.tracing import Trace
-            Trace(interpreter).run()
-            print("===========================================")
-            interpreter = Interpreter(stacked[1])
-            Trace(interpreter).run()
-
             self.assertEqual(len(stacked), 3)
             self.assertEqual(7654321, get_result(stacked[1]))
 
