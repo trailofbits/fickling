@@ -735,6 +735,23 @@ class Interpreter:
 class Proto(NoOp):
     name = "PROTO"
 
+    @staticmethod
+    def create(version: int) -> "Proto":
+        return Proto(version)
+
+    def encode_body(self) -> bytes:
+        return bytes([self.version])
+
+    @property
+    def version(self) -> int:
+        if self.arg is None:
+            return 0
+        elif isinstance(self.arg, int):
+            return self.arg
+        else:
+            # Endianness shouldn't really matter here because there is only one byte for the version
+            return int.from_bytes(self.arg, "big", signed=False)
+
 
 class Global(Opcode):
     name = "GLOBAL"

@@ -112,3 +112,11 @@ class TestInterpreter(TestCase):
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
         self.assertFalse(check_safety(loaded))
+
+    def test_duplicate_proto(self):
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        self.assertTrue(check_safety(loaded))
+        loaded.insert(-1, fpickle.Proto.create(1))
+        loaded.insert(-1, fpickle.Proto.create(2))
+        self.assertFalse(check_safety(loaded))
