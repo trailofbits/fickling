@@ -413,7 +413,7 @@ class Pickled(OpcodeSequence):
     def insert_python(
         self,
         *args,
-        module: str = "__builtin__",
+        module: str = "builtins",
         attr: str = "eval",
         run_first: bool = True,
         use_output_as_unpickle_result: bool = False,
@@ -422,7 +422,7 @@ class Pickled(OpcodeSequence):
             raise ValueError("Expected the last opcode to be STOP")
         # we need to add the call to GLOBAL before the preexisting code, because the following code can sometimes
         # mess up module look (somehow? I, Evan, don't fully understand why yet).
-        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call to it,
+        # So we set up the "import" of `__builtins__.eval` first, then set up the stack for a call to it,
         # and then either immediately call the `eval` with a `Reduce` opcode (the default)
         # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
         # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
@@ -473,7 +473,7 @@ class Pickled(OpcodeSequence):
     ):
         return self.insert_python(
             *args,
-            module="__builtin__",
+            module="builtins",
             attr="exec",
             run_first=run_first,
             use_output_as_unpickle_result=use_output_as_unpickle_result
@@ -518,39 +518,50 @@ class Pickled(OpcodeSequence):
         pickled = Pickled.make_stream(pickled)
         first_pos = pickled.tell()
         opcodes: List[Opcode] = []
-        for info, arg, pos in genops(pickled):
-            if (
-                pos is not None
-                and opcodes
-                and opcodes[-1].pos is not None
-                and not opcodes[-1].has_data()
-                and opcodes[-1].pos + len(opcodes[-1].info.code) < pos
-            ):
-                pickled.seek(opcodes[-1].pos)
-                opcodes[-1].data = pickled.read(pos - opcodes[-1].pos - len(opcodes[-1].info.code))
-            if pos is not None:
-                pickled.seek(pos + len(info.code))
-            if info.arg is None or info.arg.n == 0:
-                if pos is not None:
-                    data = None
-                else:
-                    data = info.code
-            elif info.arg.n > 0 and pos is not None:
-                data = pickled.read(info.arg.n)
-                if len(data) != info.arg.n:
-                    raise PickleDecodeError(f"Error decoding opcode {info.name} at offset {pos + len(info.code)}: "
-                                            f"Expected {info.arg.n} bytes of data but only read {len(data)}")
+
+        try:
+            for info, arg, pos in genops(pickled):
+                pos_before = pickled.tell()
+                try:
+                    if (
+                        pos is not None
+                        and opcodes
+                        and opcodes[-1].pos is not None
+                        and not opcodes[-1].has_data()
+                        and opcodes[-1].pos < pos
+                    ):
+                        pickled.seek(opcodes[-1].pos)
+                        opcodes[-1].data = pickled.read(pos - opcodes[-1].pos)
+                    if pos is not None:
+                        pickled.seek(pos)
+                    if info.arg is None or info.arg.n == 0:
+                        if pos is not None:
+                            data = None
+                        else:
+                            data = info.code.encode("utf-8")
+                    elif info.arg.n > 0 and pos is not None:
+                        data = pickled.read(len(info.code) + info.arg.n)
+                        if len(data) != len(info.code) + info.arg.n:
+                            raise PickleDecodeError(f"Error decoding opcode {info.name} at offset {pos}: "
+                                                    f"Expected {len(info.code) + info.arg.n} bytes of data but only "
+                                                    f"read {len(data)}")
+                    else:
+                        data = None
+                    opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
+                finally:
+                    # Need to reset the position within the file so as not to confuse genops
+                    pickled.seek(pos_before)
+        except ValueError as e:
+            if opcodes:
+                raise PickleDecodeError(e)
             else:
-                data = None
-            opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
+                raise EmptyPickleError()
         if opcodes:
             if opcodes[-1].pos is not None:
-                if not opcodes[-1].has_data():
-                    pickled.seek(opcodes[-1].pos)
-                    opcodes[-1].data = pickled.read()
-                last_pos = opcodes[-1].pos
                 if opcodes[-1].has_data():
-                    last_pos += len(opcodes[-1].data)
+                    last_pos = opcodes[-1].pos + len(opcodes[-1].data)
+                else:
+                    last_pos = opcodes[-1].pos + len(opcodes[-1].info.code)
                 pickled.seek(last_pos)
         else:
             pickled.seek(first_pos)
@@ -585,7 +596,9 @@ class Pickled(OpcodeSequence):
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
-            if node.module in ("__builtin__", "os", "subprocess", "sys", "builtins", "socket"):
+            if node.module in (
+                    "__builtin__", "__builtins__", "builtins", "os", "subprocess", "sys", "builtins", "socket"
+            ):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
@@ -792,7 +805,7 @@ class Global(Opcode):
 
     def run(self, interpreter: Interpreter):
         module, attr = self.module, self.attr
-        if module == "__builtin__":
+        if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
         else:
@@ -820,7 +833,7 @@ class StackGlobal(NoOp):
             module = module.value
         if isinstance(attr, ast.Constant):
             attr = attr.value
-        if module == "__builtin__":
+        if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
         else:
@@ -1348,12 +1361,12 @@ class StackedPickle(PickledSequence):
         pickles: List[Pickled] = []
         while True:
             try:
-                pickles.append(Pickled.load(pickled))
-            finally:
-                pass
-            #except ValueError as e:
-            #    print(e)
-            #    break
+                p = Pickled.load(pickled)
+                if len(p) == 0:
+                    break
+                pickles.append(p)
+            except EmptyPickleError:
+                break
         if not pickles:
-            raise ValueError("No pickle files detected")
+            raise EmptyPickleError("No pickle files detected")
         return StackedPickle(pickles)

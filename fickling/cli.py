@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 if sys.version_info >= (3, 9):
     from ast import unparse
@@ -64,7 +64,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             file = open(args.PICKLE_FILE, "rb")
         try:
             stacked_pickled = pickle.StackedPickle.load(file)
-        except ValueError as e:
+        except pickle.PickleDecodeError as e:
             sys.stderr.write(f"Error: {str(e)}\n")
             return 1
         finally:
