@@ -85,9 +85,16 @@ class TestInterpreter(TestCase):
     def test_bytes(self):
         pass
 
-    @correctness_test(b"(lambda:1234)()")
     def test_call(self):
-        pass
+        pickled = Pickled([
+            fpickle.Global.create("__builtin__", "eval"),
+            fpickle.Mark(),
+            fpickle.Unicode("(lambda:1234)()"),
+            fpickle.Tuple(),
+            fpickle.Reduce(),
+            fpickle.Stop()
+        ])
+        self.assertEqual(1234, get_result(pickled))
 
     def test_dumps(self):
         pickled = dumps([1, 2, 3, 4])
@@ -163,17 +170,24 @@ class TestInterpreter(TestCase):
             self.assertNotEqual(main(["", tmpfile.name, "--inject", "print(\"foo\")", "--inject-target", "3"]), 0)
 
             # Inject into the second pickle (this should work)
-            with NamedTemporaryFile("wb", delete=False) as outfile, redirect_stdout(outfile):
-                try:
+            try:
+                with NamedTemporaryFile("wb", delete=False) as outfile, redirect_stdout(outfile):
                     retval = main([
                         "", tmpfile.name, "--inject", "(lambda:7654321)()", "--inject-target", "1", "--replace-result"
                     ])
                     self.assertEqual(retval, 0)
                     outfile.close()
-                    with open(outfile.name, "rb") as f:
-                        stacked = StackedPickle.load(f)
-                finally:
-                    Path(outfile.name).unlink()
+                with open(outfile.name, "rb") as f:
+                    stacked = StackedPickle.load(f)
+            finally:
+                Path(outfile.name).unlink()
+
+            interpreter = Interpreter(Pickled.load(dumps(['a', 'b', 'c', 'd'])))
+            from fickling.tracing import Trace
+            Trace(interpreter).run()
+            print("===========================================")
+            interpreter = Interpreter(stacked[1])
+            Trace(interpreter).run()
 
             self.assertEqual(len(stacked), 3)
             self.assertEqual(7654321, get_result(stacked[1]))

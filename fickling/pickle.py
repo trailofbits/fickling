@@ -420,13 +420,14 @@ class Pickled(OpcodeSequence):
         # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         self.insert(0, Global.create(module, attr))
         self.insert(1, Mark())
-        i = 1
+        i = 2
         for arg in args:
-            i += 1
             self.insert(i, ConstantOpcode.new(arg))
-        self.insert(i + 1, Tuple())
+            i += 1
+        self.insert(i, Tuple())
+        i += 1
         if run_first:
-            self.insert(i + 2, Reduce())
+            self.insert(i, Reduce())
             if use_output_as_unpickle_result:
                 self.insert(-1, Pop())
         else:
