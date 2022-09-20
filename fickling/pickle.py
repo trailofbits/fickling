@@ -382,6 +382,14 @@ class ASTProperties(ast.NodeVisitor):
             self.non_setstate_calls.append(node)
 
 
+class PickleDecodeError(ValueError):
+    pass
+
+
+class EmptyPickleError(PickleDecodeError):
+    pass
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
@@ -418,9 +426,13 @@ class Pickled(OpcodeSequence):
         # and then either immediately call the `eval` with a `Reduce` opcode (the default)
         # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
         # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
-        self.insert(0, Global.create(module, attr))
-        self.insert(1, Mark())
-        i = 2
+        i = 0
+        while isinstance(self[i], (Proto, Frame)):
+            i += 1
+        self.insert(i, Global.create(module, attr))
+        i += 1
+        self.insert(i, Mark())
+        i += 1
         for arg in args:
             self.insert(i, ConstantOpcode.new(arg))
             i += 1
@@ -504,36 +516,44 @@ class Pickled(OpcodeSequence):
     @staticmethod
     def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
         pickled = Pickled.make_stream(pickled)
+        first_pos = pickled.tell()
         opcodes: List[Opcode] = []
         for info, arg, pos in genops(pickled):
-            if info.arg is None or info.arg.n == 0:
-                if pos is not None:
-                    pickled.seek(pos)
-                    data = pickled.read(1)
-                else:
-                    data = info.code
-            elif info.arg.n > 0 and pos is not None:
-                pickled.seek(pos)
-                data = pickled.read(1 + info.arg.n)
-            else:
-                data = None
             if (
                 pos is not None
                 and opcodes
                 and opcodes[-1].pos is not None
                 and not opcodes[-1].has_data()
+                and opcodes[-1].pos + len(opcodes[-1].info.code) < pos
             ):
                 pickled.seek(opcodes[-1].pos)
-                opcodes[-1].data = pickled.read(pos - opcodes[-1].pos)
+                opcodes[-1].data = pickled.read(pos - opcodes[-1].pos - len(opcodes[-1].info.code))
+            if pos is not None:
+                pickled.seek(pos + len(info.code))
+            if info.arg is None or info.arg.n == 0:
+                if pos is not None:
+                    data = None
+                else:
+                    data = info.code
+            elif info.arg.n > 0 and pos is not None:
+                data = pickled.read(info.arg.n)
+                if len(data) != info.arg.n:
+                    raise PickleDecodeError(f"Error decoding opcode {info.name} at offset {pos + len(info.code)}: "
+                                            f"Expected {info.arg.n} bytes of data but only read {len(data)}")
+            else:
+                data = None
             opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
-        if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
-            pickled.seek(opcodes[-1].pos)
-            opcodes[-1].data = pickled.read()
         if opcodes:
-            last_pos = opcodes[-1].pos
-            if opcodes[-1].has_data():
-                last_pos += len(opcodes[-1].data)
-            pickled.seek(last_pos)
+            if opcodes[-1].pos is not None:
+                if not opcodes[-1].has_data():
+                    pickled.seek(opcodes[-1].pos)
+                    opcodes[-1].data = pickled.read()
+                last_pos = opcodes[-1].pos
+                if opcodes[-1].has_data():
+                    last_pos += len(opcodes[-1].data)
+                pickled.seek(last_pos)
+        else:
+            pickled.seek(first_pos)
         return Pickled(opcodes)
 
     @property
@@ -1329,8 +1349,11 @@ class StackedPickle(PickledSequence):
         while True:
             try:
                 pickles.append(Pickled.load(pickled))
-            except ValueError:
-                break
+            finally:
+                pass
+            #except ValueError as e:
+            #    print(e)
+            #    break
         if not pickles:
             raise ValueError("No pickle files detected")
         return StackedPickle(pickles)
