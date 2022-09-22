@@ -648,6 +648,8 @@ class Stack(GenericSequence, Generic[T]):
             return self._stack.pop()
 
     def push(self, obj: T):
+        if self.opcode is not None and (not hasattr(obj, "opcode") or obj.opcode is None):
+            setattr(obj, "opcode", self.opcode)
         self._stack.append(obj)
 
     append = push
@@ -772,7 +774,10 @@ class Interpreter:
         if name is None:
             name = f"_var{self._var_counter}"
             self._var_counter += 1
-        self.module_body.append(ast.Assign([ast.Name(name, ast.Store())], value))
+        assignment = ast.Assign([ast.Name(name, ast.Store())], value)
+        if self.stack.opcode is not None:
+            setattr(assignment, "opcode", self.stack.opcode)
+        self.module_body.append(assignment)
         return name
 
     @staticmethod
