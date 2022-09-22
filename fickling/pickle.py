@@ -158,6 +158,41 @@ class Opcode:
             # find the associated `pickletools` OpcodeInfo:
         return super().__init_subclass__(**kwargs)
 
+    def __eq__(self, other):
+        return isinstance(other, Opcode) and self.name == other.name and self.arg == other.arg and self.pos == other.pos
+
+    def __hash__(self):
+        return hash((self.name, self.arg, self.pos))
+
+    def __lt__(self, other):
+        if not isinstance(other, Opcode):
+            return True
+        elif self.pos == other.pos:
+            if self.arg == other.arg:
+                return self.name < other.name
+            elif self.arg is None and other.arg is not None:
+                return True
+            elif self.arg is not None and other.arg is None:
+                return False
+            else:
+                return str(self.arg) < str(other.arg)
+        elif self.pos is None and other.arg is not None:
+            return False
+        elif self.pos is not None and other.arg is None:
+            return True
+        else:
+            return self.pos < other.pos
+
+    def __str__(self):
+        if self.pos is not None:
+            s = f"{self.pos:x} "
+        else:
+            s = ""
+        s = f"{s}{self.name}"
+        if self.info.arg.n > 0:
+            s = f"{s} {self.arg!s}"
+        return s
+
     def __repr__(self):
         if self.pos is None:
             p = ""

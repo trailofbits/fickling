@@ -8,7 +8,7 @@ else:
     from astunparse import unparse
 
 from . import pickle, tracing, version
-from .analysis import check_safety
+from .analysis import check_safety, Results, Safety
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -94,11 +94,11 @@ def main(argv: Optional[List[str]] = None) -> int:
             for pickled in stacked_pickled[args.inject_target+1:]:
                 pickled.dump(buffer)
         elif args.check_safety:
-            was_safe = True
+            results = Results()
             for pickled in stacked_pickled:
-                if not check_safety(pickled):
-                    was_safe = False
-            return [1, 0][was_safe]
+                results = results + check_safety(pickled)
+            print(str(results))
+            return [1, 0][results.safety == Safety.LIKELY_SAFE]
         else:
             var_id = 0
             for i, pickled in enumerate(stacked_pickled):
