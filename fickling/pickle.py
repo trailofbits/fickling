@@ -843,6 +843,26 @@ class TupleThree(Opcode):
         interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
 
 
+class AddItems(Opcode):
+    name = "ADDITEMS"
+
+    def run(self, interpreter: Interpreter):
+        to_add = []
+        while interpreter.stack:
+            obj = interpreter.stack.pop()
+            if isinstance(obj, MarkObject):
+                break
+            to_add.append(obj)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+        if not interpreter.stack:
+            raise ValueError("Stack was empty; expected a pyset")
+        pyset = interpreter.stack.pop()
+        if not isinstance(pyset, ast.Set):
+            raise ValueError(f"{pyset!r} was expected to be a set-like object with an `add` function")
+        pyset.elts.extend(reversed(to_add))
+
+
 class Reduce(Opcode):
     name = "REDUCE"
 
