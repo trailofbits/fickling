@@ -24,10 +24,9 @@ jobs:
 
       - name: Install project
         run: |
-          python -m venv /tmp/pip-audit-env
+          python -m venv --upgrade-deps /tmp/pip-audit-env
           source /tmp/pip-audit-env/bin/activate
 
-          python -m pip install --upgrade pip
           python -m pip install .
 
 
