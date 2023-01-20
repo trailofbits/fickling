@@ -33,8 +33,8 @@ if sys.version_info < (3, 9):
     GenericSequence = Sequence
 
     def make_constant(*args, **kwargs) -> ast.Constant:
-        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
-        # expects that!
+        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the
+        # `astunparse` module expects that!
         ret = ast.Constant(*args, **kwargs)
         if not hasattr(ret, "kind"):
             setattr(ret, "kind", None)
@@ -192,8 +192,8 @@ class DynamicLength(Opcode, ABC):
     def encode_length(cls, length: int) -> bytes:
         if cls.length_bytes not in cls.struct_types:
             raise TypeError(
-                f"{cls.__name__}.struct_types does not include a value for {cls.__name__}.length_bytes = "
-                f"{cls.length_bytes}"
+                f"{cls.__name__}.struct_types does not include a value for "
+                f"{cls.__name__}.length_bytes = {cls.length_bytes}"
             )
         if length < cls.min_value or length > cls.max_value:
             raise ValueError(
@@ -214,8 +214,8 @@ class DynamicLength(Opcode, ABC):
         length = len(cls(obj).encode_body())
         if length < cls.min_value or length > cls.max_value:
             raise ValueError(
-                f"Invalid object {obj!r}: {cls.__name__} can only represent objects with lengths in the "
-                f"range [{cls.min_value}, {cls.max_value}]"
+                f"Invalid object {obj!r}: {cls.__name__} can only represent objects with lengths "
+                f"in the range [{cls.min_value}, {cls.max_value}]"
             )
         return obj
 
@@ -261,17 +261,19 @@ class ConstantOpcode(Opcode):
                 or cls.priority is None
             ):
                 raise TypeError(
-                    f"{cls.__name__} must define an integer priority used for auto-instantiation from "
-                    f"ConstantOpcode.new(...)"
+                    f"{cls.__name__} must define an integer priority used for auto-instantiation "
+                    "from ConstantOpcode.new(...)"
                 )
             ConstantOpcode.ConstantOpcodePriorities[cls] = cls.priority
         return ret
 
     @classmethod
     def validate(cls, obj):
-        """Validates whether obj can be used to instantiate a new instance of this class using new(...)
+        """
+        Validates whether obj can be used to instantiate a new instance of this class using new(...)
+
         Returning the value of the object to be saved to the constant
-        Or throwing a ValueError if obj cannot be used to instantiate this type of onstant
+        Or throwing a ValueError if obj cannot be used to instantiate this type of constant
         """
         raise NotImplementedError()
 
@@ -287,8 +289,8 @@ class ConstantOpcode(Opcode):
             except ValueError:
                 pass
         raise ValueError(
-            f"There is no subclass of ConstantOpcode that handles objects of type {type(obj)!r} for "
-            f"{obj!r}"
+            "There is no subclass of ConstantOpcode that handles objects of type "
+            f"{type(obj)!r} for {obj!r}"
         )
 
 
@@ -372,13 +374,13 @@ class ASTProperties(ast.NodeVisitor):
         if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
             self.likely_safe_imports |= {name.name for name in node.names}
 
-    def visit_Import(self, node: ast.Import):
+    def visit_Import(self, node: ast.Import):  # noqa: N802
         self._process_import(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom):
+    def visit_ImportFrom(self, node: ast.ImportFrom):  # noqa: N802
         self._process_import(node)
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call):  # noqa: N802
         self.calls.append(node)
         if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
             self.non_setstate_calls.append(node)
@@ -414,12 +416,13 @@ class Pickled(OpcodeSequence):
     ):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
-        # we need to add the call to GLOBAL before the preexisting code, because the following code can sometimes
-        # mess up module look (somehow? I, Evan, don't fully understand why yet).
-        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call to it,
-        # and then either immediately call the `eval` with a `Reduce` opcode (the default)
-        # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
-        # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
+        # we need to add the call to GLOBAL before the preexisting code, because the following code
+        # can sometimes mess up module look (somehow? I, Evan, don't fully understand why yet).
+        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call
+        # to it, and then either immediately call the `eval` with a `Reduce` opcode (the default)
+        # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up
+        # its stack so it remains how we left it!
+        # TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         self.insert(0, Global.create(module, attr))
         self.insert(1, Mark())
         i = 1
@@ -433,16 +436,18 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Pop())
         else:
             if use_output_as_unpickle_result:
-                # the top of the stack should be the original unpickled value, but we can throw that away because
-                # we are replacing it with the result of calling eval:
+                # the top of the stack should be the original unpickled value, but we can throw
+                # that away because we are replacing it with the result of calling eval:
                 self.insert(-1, Pop())
-                # now the top of the stack should be our original Global, Mark, Unicode, Tuple setup, ready for Reduce:
+                # now the top of the stack should be our original Global, Mark, Unicode,
+                # Tuple setup, ready for Reduce:
                 self.insert(-1, Reduce())
             else:
-                # we need to preserve the "real" output of the preexisting unpickling, which should be at the top
-                # of the stack, directly above our Tuple, Unicode, Mark, and Global stack items we added above.
-                # So, we have to save the original result to the memo. First, interpret the existing code to see which
-                # memo location it would be saved to:
+                # we need to preserve the "real" output of the preexisting unpickling, which should
+                # be at the top of the stack, directly above our Tuple, Unicode, Mark, and Global
+                # stack items we added above.
+                # So, we have to save the original result to the memo. First, interpret the existing
+                # code to see which memo location it would be saved to:
                 interpreter = Interpreter(self)
                 interpreter.run()
                 memo_id = len(interpreter.memory)
@@ -538,7 +543,8 @@ class Pickled(OpcodeSequence):
 
     @property
     def has_non_setstate_call(self) -> bool:
-        """Checks whether unpickling would cause a call to a function other than object.__setstate__"""
+        """Checks whether unpickling would cause a call to a function other than
+        object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
 
     @property
@@ -616,7 +622,8 @@ class ModuleBody:
         lineno = len(self._list) + 1
         if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
             raise ValueError(
-                f"Statement {stmt} was expected to have line number {lineno} but instead has {stmt.lineno}"
+                f"Statement {stmt} was expected to have line number {lineno} but instead has "
+                f"{stmt.lineno}"
             )
         setattr(stmt, "lineno", lineno)
         self._list.append(stmt)
@@ -873,8 +880,9 @@ class Reduce(Opcode):
         else:
             call = ast.Call(func, [ast.Starred(args)], [])
         # Any call to reduce can have global side effects, since it runs arbitrary Python code.
-        # However, if we just save it to the stack, then it might not make it to the final AST unless the stack
-        # value is actually used. So save the result to a temp variable, and then put that on the stack:
+        # However, if we just save it to the stack, then it might not make it to the final AST
+        # unless the stack value is actually used. So save the result to a temp variable, and then
+        # put that on the stack:
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 

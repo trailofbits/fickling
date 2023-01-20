@@ -51,17 +51,21 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--replace-result",
         "-r",
         action="store_true",
-        help="used with --inject to replace the unpickling result of the code in PICKLE_FILE with the "
-        "return value of the injected code. Either way, the preexisting pickling code is still "
-        "executed.",
+        help=(
+            "used with --inject to replace the unpickling result of the code in PICKLE_FILE "
+            "with the return value of the injected code. Either way, the preexisting pickling "
+            "code is still executed."
+        ),
     )
     options.add_argument(
         "--check-safety",
         "-s",
         action="store_true",
-        help="test if the given pickle file is known to be unsafe. If so, exit with non-zero status. "
-        "This test is not guaranteed correct; the pickle file may still be unsafe even if this "
-        "check exits with code zero.",
+        help=(
+            "test if the given pickle file is known to be unsafe. If so, exit with non-zero "
+            "status. This test is not guaranteed correct; the pickle file may still be unsafe "
+            "even if this check exits with code zero."
+        ),
     )
     parser.add_argument(
         "--trace",
@@ -96,8 +100,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.inject is not None:
             if not isinstance(pickled[-1], pickle.Stop):
                 sys.stderr.write(
-                    "Error: The last opcode of the input file was expected to be STOP, but was in fact "
-                    f"{pickled[-1].info.name}"
+                    "Error: The last opcode of the input file was expected to be STOP, but was "
+                    f"in fact {pickled[-1].info.name}"
                 )
             pickled.insert_python_eval(
                 args.inject,

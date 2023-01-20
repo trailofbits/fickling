@@ -40,14 +40,15 @@ def check_safety(
         shortened, already_reported = shorten_code(node)
         if not already_reported:
             stdout.write(
-                f"`{shortened}` imports a Python module that is not a part of the standard library; "
-                "this can execute arbitrary code and is inherently unsafe\n"
+                f"`{shortened}` imports a Python module that is not a part of "
+                "the standard library; this can execute arbitrary code and is "
+                "inherently unsafe\n"
             )
     overtly_bad_evals = []
     for node in properties.non_setstate_calls:
         if hasattr(node.func, "id") and node.func.id in properties.likely_safe_imports:
-            # if the call is to a constructor of an object imported from the Python standard library,
-            # it's probably okay
+            # if the call is to a constructor of an object imported from the Python
+            # standard library, it's probably okay
             continue
         likely_safe = False
         shortened, already_reported = shorten_code(node)
@@ -71,7 +72,8 @@ def check_safety(
         )
     for overtly_bad_eval in overtly_bad_evals:
         stdout.write(
-            f"Call to `{overtly_bad_eval}` is almost certainly evidence of a malicious pickle file\n"
+            f"Call to `{overtly_bad_eval}` is almost certainly evidence of a "
+            "malicious pickle file\n"
         )
     interpreter = Interpreter(pickled)
     for varname, asmt in interpreter.unused_assignments().items():
