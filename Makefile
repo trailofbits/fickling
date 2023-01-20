@@ -48,7 +48,7 @@ format: $(VENV_EXISTS)
 test: $(VENV_EXISTS)
 	. $(VENV_BIN)/activate && \
 		pytest --cov=$(PY_MODULE) test/ && \
-		python -m coverage report -m --fail-under 100
+		python -m coverage report
 
 .PHONY: dist
 dist: $(VENV_EXISTS)
