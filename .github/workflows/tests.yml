@@ -10,8 +10,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -34,7 +33,7 @@ jobs:
     if: always()
 
     needs:
-    - test
+      - test
 
     runs-on: ubuntu-latest
 
