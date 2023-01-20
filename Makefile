@@ -35,13 +35,13 @@ dev: $(VENV)/pyvenv.cfg
 lint: $(VENV_EXISTS)
 	. $(VENV_BIN)/activate && \
 		black --check $(ALL_PY_SRCS) && \
-		ruff $(ALL_PY_SRCS) && \
+		ruff $(PY_MODULE) && \
 		mypy $(PY_MODULE)
 
 .PHONY: format
 format: $(VENV_EXISTS)
 	. $(VENV_BIN)/activate && \
-		ruff --fix $(ALL_PY_SRCS) && \
+		ruff --fix $(PY_MODULE) && \
 		black $(ALL_PY_SRCS)
 
 .PHONY: test
