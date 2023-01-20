@@ -27,6 +27,7 @@ def correctness_test(to_pickle):
             self.assertEqual(to_pickle, local_vars["result"])
 
         return wrapper
+
     return decorator
 
 
@@ -80,7 +81,9 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False)
+        loaded.insert_python_eval(
+            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False
+        )
         self.assertEqual(sum(1 for op in loaded if isinstance(op, fpickle.Stop)), 1)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
 
@@ -97,7 +100,9 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True)
+        loaded.insert_python_eval(
+            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
+        )
         self.assertIsInstance(loaded[-1], fpickle.Stop)
         evaluated = loads(loaded.dumps())
         self.assertEqual([5, 6, 7, 8], evaluated)
@@ -106,7 +111,9 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True)
+        loaded.insert_python_eval(
+            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
+        )
         interpreter = Interpreter(loaded)
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
