@@ -4,8 +4,8 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "fickling"
-version = "0.0.4"
-description = "A catch-all compile-tool wrapper"
+dynamic = ["version"]
+description = "A static analyzer and interpreter for Python pickle data"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
