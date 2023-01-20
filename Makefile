@@ -12,7 +12,7 @@ endif
 
 # Optionally overridden by the user/CI, to limit the installation to a specific
 # subset of development dependencies.
-BLIGHT_EXTRA := dev
+FICKLING_EXTRA := dev
 
 ALL_PY_SRCS := $(shell find $(PY_MODULE) -name '*.py') \
 	$(shell find test -name '*.py') \
@@ -26,7 +26,7 @@ $(VENV)/pyvenv.cfg: pyproject.toml
 	python -m venv env
 	. $(VENV_BIN)/activate && \
 		pip install --upgrade pip setuptools && \
-		pip install -e .[$(BLIGHT_EXTRA)]
+		pip install -e .[$(FICKLING_EXTRA)]
 
 .PHONY: dev
 dev: $(VENV)/pyvenv.cfg
