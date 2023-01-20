@@ -1,11 +1,12 @@
 import ast
 import distutils.sysconfig as sysconfig
-from abc import abstractmethod, ABC
+import struct
+import sys
+from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from pathlib import Path
-from pickletools import genops, opcodes, OpcodeInfo
-import struct
+from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
@@ -17,14 +18,12 @@ from typing import (
     Iterator,
     List,
     Optional,
-    overload,
     Set,
     Type,
     TypeVar,
     Union,
+    overload,
 )
-
-import sys
 
 T = TypeVar("T")
 
@@ -763,7 +762,7 @@ class Global(Opcode):
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
-        return f"c{self.module}\n{self.attr}\n".encode("utf-8")
+        return f"c{self.module}\n{self.attr}\n".encode()
 
 
 class StackGlobal(NoOp):
@@ -1063,11 +1062,11 @@ class Get(Opcode):
         interpreter.stack.append(interpreter.memory[self.memo_id])
 
     def encode_body(self) -> bytes:
-        return f"{self.memo_id}\n".encode("utf-8")
+        return f"{self.memo_id}\n".encode()
 
     @staticmethod
     def create(memo_id: int) -> "Get":
-        return Get(f"{memo_id}\n".encode("utf-8"))
+        return Get(f"{memo_id}\n".encode())
 
 
 class SetItems(StackSliceOpcode):
@@ -1256,7 +1255,7 @@ class Int(ConstantOpcode):
     priority = Long4.priority + 1
 
     def encode_body(self) -> bytes:
-        return f"{int(self.arg)}\n".encode("utf-8")
+        return f"{int(self.arg)}\n".encode()
 
     @classmethod
     def validate(cls, obj):

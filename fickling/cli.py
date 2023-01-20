@@ -1,6 +1,6 @@
-from argparse import ArgumentParser
 import sys
-from typing import List, Optional, Tuple
+from argparse import ArgumentParser
+from typing import List, Optional
 
 if sys.version_info >= (3, 9):
     from ast import unparse
