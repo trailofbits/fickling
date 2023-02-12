@@ -1302,3 +1302,18 @@ class Dict(Opcode):
             )
 
         interpreter.stack.append(ast.Dict(keys=keys, values=values))
+
+class List(Opcode):
+    name = "LIST"
+
+    def run(self, interpreter: Interpreter):
+        objs = []
+        while interpreter.stack:
+            obj = interpreter.stack.pop()
+            if isinstance(obj, MarkObject):
+                break
+            objs.append(obj)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+
+        interpreter.stack.append(ast.List(elts=objs[::-1], ctx=ast.Load()))
