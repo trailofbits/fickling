@@ -1317,3 +1317,18 @@ class List(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.List(elts=objs[::-1], ctx=ast.Load()))
+
+class FrozenSet(Opcode):
+    name = "FROZENSET"
+
+    def run(self, interpreter: Interpreter):
+        objs = []
+        while interpreter.stack:
+            obj = interpreter.stack.pop()
+            if isinstance(obj, MarkObject):
+                break
+            objs.append(obj)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+
+        interpreter.stack.append(ast.Constant(ast.Set(elts=objs[::-1])))
