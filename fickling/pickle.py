@@ -1303,6 +1303,7 @@ class Dict(Opcode):
 
         interpreter.stack.append(ast.Dict(keys=keys, values=values))
 
+
 class List(Opcode):
     name = "LIST"
 
@@ -1318,6 +1319,7 @@ class List(Opcode):
 
         interpreter.stack.append(ast.List(elts=objs[::-1], ctx=ast.Load()))
 
+
 class FrozenSet(Opcode):
     name = "FROZENSET"
 
@@ -1332,3 +1334,17 @@ class FrozenSet(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.Constant(ast.Set(elts=objs[::-1])))
+
+
+class Dup(Opcode):
+    name = "DUP"
+
+    def run(self, interpreter: Interpreter):
+        stack_len = len(interpreter.stack)
+        if stack_len == 0:
+            raise IndexError(
+                f"Opcode {self.opcode!s} \
+                attempted to duplicate the topmost entry on the stack, but it is empty"
+            )
+        obj = interpreter.stack[stack_len - 1]
+        interpreter.stack.append(obj)
