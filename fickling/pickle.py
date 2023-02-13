@@ -1,11 +1,12 @@
 import ast
 import distutils.sysconfig as sysconfig
-from abc import abstractmethod, ABC
+import struct
+import sys
+from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from pathlib import Path
-from pickletools import genops, opcodes, OpcodeInfo
-import struct
+from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
@@ -17,14 +18,12 @@ from typing import (
     Iterator,
     List,
     Optional,
-    overload,
     Set,
     Type,
     TypeVar,
     Union,
+    overload,
 )
-
-import sys
 
 T = TypeVar("T")
 
@@ -34,13 +33,12 @@ if sys.version_info < (3, 9):
     GenericSequence = Sequence
 
     def make_constant(*args, **kwargs) -> ast.Constant:
-        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the `astunparse` module
-        # expects that!
+        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the
+        # `astunparse` module expects that!
         ret = ast.Constant(*args, **kwargs)
         if not hasattr(ret, "kind"):
             setattr(ret, "kind", None)
         return ret
-
 
 else:
     OpcodeSequence = MutableSequence["Opcode"]
@@ -82,9 +80,7 @@ class Opcode:
     ):
         if self.__class__ is Opcode:
             if info is None:
-                raise TypeError(
-                    "The Opcode class must be constructed with the `info` argument"
-                )
+                raise TypeError("The Opcode class must be constructed with the `info` argument")
         elif info is not None and info != self.info:
             raise ValueError(
                 f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
@@ -124,9 +120,7 @@ class Opcode:
     def __new__(cls, *args, **kwargs):
         if cls is Opcode:
             if "info" not in kwargs:
-                raise ValueError(
-                    f"You must provide an `info` argument to construct {cls.__name__}"
-                )
+                raise ValueError(f"You must provide an `info` argument to construct {cls.__name__}")
             else:
                 info = kwargs["info"]
             if info.name in OPCODES_BY_NAME:
@@ -137,20 +131,22 @@ class Opcode:
         return super().__new__(cls)
 
     def run(self, interpreter: "Interpreter"):
-        raise NotImplementedError(
-            f"TODO: Add support for Pickle opcode {self.info.name}"
-        )
+        raise NotImplementedError(f"TODO: Add support for Pickle opcode {self.info.name}")
 
     def __init_subclass__(cls, **kwargs):
-        if cls.__name__ not in ("NoOp", "StackSliceOpcode", "ConstantOpcode", "DynamicLength", "ConstantInt"):
+        if cls.__name__ not in (
+            "NoOp",
+            "StackSliceOpcode",
+            "ConstantOpcode",
+            "DynamicLength",
+            "ConstantInt",
+        ):
             if not hasattr(cls, "name") or cls.name is None:
                 raise TypeError("Opcode subclasses must define a name")
             elif cls.name in OPCODES_BY_NAME:
                 raise TypeError(f"An Opcode named {cls.name} is already defined")
             elif cls.name not in OPCODE_INFO_BY_NAME:
-                raise TypeError(
-                    f"An Opcode named {cls.name} is not defined in `pickletools`"
-                )
+                raise TypeError(f"An Opcode named {cls.name} is not defined in `pickletools`")
             OPCODES_BY_NAME[cls.name] = cls
             setattr(cls, "info", OPCODE_INFO_BY_NAME[cls.name])
             # find the associated `pickletools` OpcodeInfo:
@@ -177,12 +173,7 @@ class DynamicLength(Opcode, ABC):
     length_signed: bool = False
     length_bytes: int = 4
     length_endianness: Endianness = Endianness.Little
-    struct_types = {
-        1: "b",
-        2: "h",
-        4: "i",
-        8: "q"
-    }
+    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -190,7 +181,7 @@ class DynamicLength(Opcode, ABC):
         ret = super().__init_subclass__(**kwargs)
         length_bits = cls.length_bytes * 8
         if cls.length_signed:
-            cls.min_value = (1 << (length_bits - 1))
+            cls.min_value = 1 << (length_bits - 1)
             cls.max_value = cls.min_value ^ (2**length_bits - 1)
         else:
             cls.min_value = 0
@@ -200,11 +191,15 @@ class DynamicLength(Opcode, ABC):
     @classmethod
     def encode_length(cls, length: int) -> bytes:
         if cls.length_bytes not in cls.struct_types:
-            raise TypeError(f"{cls.__name__}.struct_types does not include a value for {cls.__name__}.length_bytes = "
-                            f"{cls.length_bytes}")
+            raise TypeError(
+                f"{cls.__name__}.struct_types does not include a value for "
+                f"{cls.__name__}.length_bytes = {cls.length_bytes}"
+            )
         if length < cls.min_value or length > cls.max_value:
-            raise ValueError(f"Invalid length {length}: {cls.__name__} can only represent lengths in the range "
-                             f"[{cls.min_value}, {cls.max_value}]")
+            raise ValueError(
+                f"Invalid length {length}: {cls.__name__} can only represent lengths in the range "
+                f"[{cls.min_value}, {cls.max_value}]"
+            )
         st = cls.struct_types[cls.length_bytes]
         if not cls.length_signed:
             st = st.upper()
@@ -218,8 +213,10 @@ class DynamicLength(Opcode, ABC):
     def validate(cls, obj):
         length = len(cls(obj).encode_body())
         if length < cls.min_value or length > cls.max_value:
-            raise ValueError(f"Invalid object {obj!r}: {cls.__name__} can only represent objects with lengths in the "
-                             f"range [{cls.min_value}, {cls.max_value}]")
+            raise ValueError(
+                f"Invalid object {obj!r}: {cls.__name__} can only represent objects with lengths "
+                f"in the range [{cls.min_value}, {cls.max_value}]"
+            )
         return obj
 
 
@@ -258,43 +255,50 @@ class ConstantOpcode(Opcode):
         if not cls.__name__ == "ConstantInt":
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
-            elif not hasattr(cls, "priority") or not isinstance(cls.priority, int) or cls.priority is None:
-                raise TypeError(f"{cls.__name__} must define an integer priority used for auto-instantiation from "
-                                f"ConstantOpcode.new(...)")
+            elif (
+                not hasattr(cls, "priority")
+                or not isinstance(cls.priority, int)
+                or cls.priority is None
+            ):
+                raise TypeError(
+                    f"{cls.__name__} must define an integer priority used for auto-instantiation "
+                    "from ConstantOpcode.new(...)"
+                )
             ConstantOpcode.ConstantOpcodePriorities[cls] = cls.priority
         return ret
 
     @classmethod
     def validate(cls, obj):
-        """Validates whether obj can be used to instantiate a new instance of this class using new(...)
+        """
+        Validates whether obj can be used to instantiate a new instance of this class using new(...)
+
         Returning the value of the object to be saved to the constant
-        Or throwing a ValueError if obj cannot be used to instantiate this type of onstant
+        Or throwing a ValueError if obj cannot be used to instantiate this type of constant
         """
         raise NotImplementedError()
 
     @classmethod
     def new(cls: Type[T], obj) -> T:
-        for subclass, _ in sorted(ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]):
+        for subclass, _ in sorted(
+            ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]
+        ):
             if not issubclass(subclass, cls):
                 continue
             try:
                 return subclass(subclass.validate(obj))
             except ValueError:
                 pass
-        raise ValueError(f"There is no subclass of ConstantOpcode that handles objects of type {type(obj)!r} for "
-                         f"{obj!r}")
+        raise ValueError(
+            "There is no subclass of ConstantOpcode that handles objects of type "
+            f"{type(obj)!r} for {obj!r}"
+        )
 
 
 class ConstantInt(ConstantOpcode, ABC):
     signed: bool = False
     num_bytes: int = 4
     endianness: Endianness = Endianness.Little
-    struct_types = {
-        1: "b",
-        2: "h",
-        4: "i",
-        8: "q"
-    }
+    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -302,7 +306,7 @@ class ConstantInt(ConstantOpcode, ABC):
         ret = super().__init_subclass__(**kwargs)
         length_bits = cls.num_bytes * 8
         if cls.signed:
-            cls.min_value = (1 << (length_bits - 1))
+            cls.min_value = 1 << (length_bits - 1)
             cls.max_value = cls.min_value ^ (2**length_bits - 1)
         else:
             cls.min_value = 0
@@ -320,11 +324,15 @@ class ConstantInt(ConstantOpcode, ABC):
         if not isinstance(obj, int):
             raise ValueError(f"{cls.__name__} can only be instantiated from integers, not {obj!r}")
         elif cls.num_bytes not in cls.struct_types:
-            raise TypeError(f"{cls.__name__}.struct_types does not include a value for "
-                            f"{cls.__name__}.length_bytes = {cls.num_bytes}")
+            raise TypeError(
+                f"{cls.__name__}.struct_types does not include a value for "
+                f"{cls.__name__}.length_bytes = {cls.num_bytes}"
+            )
         elif obj < cls.min_value or obj > cls.max_value:
-            raise ValueError(f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range "
-                             f"[{cls.min_value}, {cls.max_value}]")
+            raise ValueError(
+                f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range "
+                f"[{cls.min_value}, {cls.max_value}]"
+            )
         return obj
 
 
@@ -340,9 +348,7 @@ class StackSliceOpcode(Opcode):
             args = []
             while True:
                 if not interpreter.stack:
-                    raise ValueError(
-                        "Exhausted the stack while searching for a MarkObject!"
-                    )
+                    raise ValueError("Exhausted the stack while searching for a MarkObject!")
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
@@ -368,13 +374,13 @@ class ASTProperties(ast.NodeVisitor):
         if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
             self.likely_safe_imports |= {name.name for name in node.names}
 
-    def visit_Import(self, node: ast.Import):
+    def visit_Import(self, node: ast.Import):  # noqa: N802
         self._process_import(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom):
+    def visit_ImportFrom(self, node: ast.ImportFrom):  # noqa: N802
         self._process_import(node)
 
-    def visit_Call(self, node: ast.Call):
+    def visit_Call(self, node: ast.Call):  # noqa: N802
         self.calls.append(node)
         if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
             self.non_setstate_calls.append(node)
@@ -410,12 +416,13 @@ class Pickled(OpcodeSequence):
     ):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
-        # we need to add the call to GLOBAL before the preexisting code, because the following code can sometimes
-        # mess up module look (somehow? I, Evan, don't fully understand why yet).
-        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call to it,
-        # and then either immediately call the `eval` with a `Reduce` opcode (the default)
-        # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up its stack so it
-        # remains how we left it! TODO: Add code to emulate the code afterward and confirm that the stack is sane!
+        # we need to add the call to GLOBAL before the preexisting code, because the following code
+        # can sometimes mess up module look (somehow? I, Evan, don't fully understand why yet).
+        # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call
+        # to it, and then either immediately call the `eval` with a `Reduce` opcode (the default)
+        # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up
+        # its stack so it remains how we left it!
+        # TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         self.insert(0, Global.create(module, attr))
         self.insert(1, Mark())
         i = 1
@@ -429,16 +436,18 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Pop())
         else:
             if use_output_as_unpickle_result:
-                # the top of the stack should be the original unpickled value, but we can throw that away because
-                # we are replacing it with the result of calling eval:
+                # the top of the stack should be the original unpickled value, but we can throw
+                # that away because we are replacing it with the result of calling eval:
                 self.insert(-1, Pop())
-                # now the top of the stack should be our original Global, Mark, Unicode, Tuple setup, ready for Reduce:
+                # now the top of the stack should be our original Global, Mark, Unicode,
+                # Tuple setup, ready for Reduce:
                 self.insert(-1, Reduce())
             else:
-                # we need to preserve the "real" output of the preexisting unpickling, which should be at the top
-                # of the stack, directly above our Tuple, Unicode, Mark, and Global stack items we added above.
-                # So, we have to save the original result to the memo. First, interpret the existing code to see which
-                # memo location it would be saved to:
+                # we need to preserve the "real" output of the preexisting unpickling, which should
+                # be at the top of the stack, directly above our Tuple, Unicode, Mark, and Global
+                # stack items we added above.
+                # So, we have to save the original result to the memo. First, interpret the existing
+                # code to see which memo location it would be saved to:
                 interpreter = Interpreter(self)
                 interpreter.run()
                 memo_id = len(interpreter.memory)
@@ -451,22 +460,20 @@ class Pickled(OpcodeSequence):
     insert_python_eval = insert_python
 
     def insert_python_exec(
-            self,
-            *args,
-            run_first: bool = True,
-            use_output_as_unpickle_result: bool = False,
+        self,
+        *args,
+        run_first: bool = True,
+        use_output_as_unpickle_result: bool = False,
     ):
         return self.insert_python(
             *args,
             module="__builtin__",
             attr="exec",
             run_first=run_first,
-            use_output_as_unpickle_result=use_output_as_unpickle_result
+            use_output_as_unpickle_result=use_output_as_unpickle_result,
         )
 
-    def __setitem__(
-        self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]
-    ):
+    def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
         self._opcodes[index] = item
         self._ast = None
         self._properties = None
@@ -536,7 +543,8 @@ class Pickled(OpcodeSequence):
 
     @property
     def has_non_setstate_call(self) -> bool:
-        """Checks whether unpickling would cause a call to a function other than object.__setstate__"""
+        """Checks whether unpickling would cause a call to a function other than
+        object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
 
     @property
@@ -589,9 +597,7 @@ class Stack(GenericSequence, Generic[T]):
             if self.opcode is None:
                 raise IndexError("Stack is empty")
             else:
-                raise IndexError(
-                    f"Opcode {self.opcode!s} attempted to pop from an empty stack"
-                )
+                raise IndexError(f"Opcode {self.opcode!s} attempted to pop from an empty stack")
         else:
             return self._stack.pop()
 
@@ -614,13 +620,10 @@ class ModuleBody:
 
     def append(self, stmt: ast.stmt):
         lineno = len(self._list) + 1
-        if (
-            hasattr(stmt, "lineno")
-            and stmt.lineno is not None
-            and stmt.lineno != lineno
-        ):
+        if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
             raise ValueError(
-                f"Statement {stmt} was expected to have line number {lineno} but instead has {stmt.lineno}"
+                f"Statement {stmt} was expected to have line number {lineno} but instead has "
+                f"{stmt.lineno}"
             )
         setattr(stmt, "lineno", lineno)
         self._list.append(stmt)
@@ -663,8 +666,11 @@ class Interpreter:
         for statement in self.module_body:
             # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
-                if len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name) and \
-                        statement.targets[0].id == "result":
+                if (
+                    len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and statement.targets[0].id == "result"
+                ):
                     # this is the return value of the program
                     break
                 for target in statement.targets:
@@ -672,7 +678,9 @@ class Interpreter:
                         defined.add(target.id)
                         if target.id in assignments:
                             # this should never happen, since Fickling constructs the AST
-                            sys.stderr.write(f"Warning: Duplicate declaration of variable {target.id}\n")
+                            sys.stderr.write(
+                                f"Warning: Duplicate declaration of variable {target.id}\n"
+                            )
                         assignments[target.id] = statement
                 statement = statement.value
             if statement is not None:
@@ -757,13 +765,11 @@ class Global(Opcode):
                 alias = ast.alias(attr, asname=None)
             else:
                 alias = ast.alias(attr)
-            interpreter.module_body.append(
-                ast.ImportFrom(module=module, names=[alias], level=0)
-            )
+            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
-        return f"c{self.module}\n{self.attr}\n".encode("utf-8")
+        return f"c{self.module}\n{self.attr}\n".encode()
 
 
 class StackGlobal(NoOp):
@@ -785,9 +791,7 @@ class StackGlobal(NoOp):
                 alias = ast.alias(attr, asname=None)
             else:
                 alias = ast.alias(attr)
-            interpreter.module_body.append(
-                ast.ImportFrom(module=module, names=[alias], level=0)
-            )
+            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
@@ -859,7 +863,9 @@ class AddItems(Opcode):
             raise ValueError("Stack was empty; expected a pyset")
         pyset = interpreter.stack.pop()
         if not isinstance(pyset, ast.Set):
-            raise ValueError(f"{pyset!r} was expected to be a set-like object with an `add` function")
+            raise ValueError(
+                f"{pyset!r} was expected to be a set-like object with an `add` function"
+            )
         pyset.elts.extend(reversed(to_add))
 
 
@@ -874,8 +880,9 @@ class Reduce(Opcode):
         else:
             call = ast.Call(func, [ast.Starred(args)], [])
         # Any call to reduce can have global side effects, since it runs arbitrary Python code.
-        # However, if we just save it to the stack, then it might not make it to the final AST unless the stack
-        # value is actually used. So save the result to a temp variable, and then put that on the stack:
+        # However, if we just save it to the stack, then it might not make it to the final AST
+        # unless the stack value is actually used. So save the result to a temp variable, and then
+        # put that on the stack:
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
@@ -1063,11 +1070,11 @@ class Get(Opcode):
         interpreter.stack.append(interpreter.memory[self.memo_id])
 
     def encode_body(self) -> bytes:
-        return f"{self.memo_id}\n".encode("utf-8")
+        return f"{self.memo_id}\n".encode()
 
     @staticmethod
     def create(memo_id: int) -> "Get":
-        return Get(f"{memo_id}\n".encode("utf-8"))
+        return Get(f"{memo_id}\n".encode())
 
 
 class SetItems(StackSliceOpcode):
@@ -1082,9 +1089,7 @@ class SetItems(StackSliceOpcode):
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
-            interpreter.stack.append(
-                ast.Dict(keys=update_dict_keys, values=update_dict_values)
-            )
+            interpreter.stack.append(ast.Dict(keys=update_dict_keys, values=update_dict_values))
         else:
             dict_name = interpreter.new_variable(pydict)
             update_dict = ast.Dict(keys=update_dict_keys, values=update_dict_values)
@@ -1188,9 +1193,7 @@ class Append(Opcode):
         if isinstance(list_obj, ast.List):
             list_obj.elts.append(value)
         else:
-            raise ValueError(
-                f"Expected a list on the stack, but instead found {list_obj!r}"
-            )
+            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
 
 
 class Appends(StackSliceOpcode):
@@ -1201,9 +1204,7 @@ class Appends(StackSliceOpcode):
         if isinstance(list_obj, ast.List):
             list_obj.elts.extend(stack_slice)
         else:
-            raise ValueError(
-                f"Expected a list on the stack, but instead found {list_obj!r}"
-            )
+            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
 
 
 class BinFloat(ConstantOpcode):
@@ -1225,7 +1226,9 @@ class ShortBinBytes(DynamicLength, ConstantOpcode):
     @classmethod
     def validate(cls, obj):
         if not isinstance(obj, bytes):
-            raise ValueError(f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}")
+            raise ValueError(
+                f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}"
+            )
         return super().validate(obj)
 
 
@@ -1260,7 +1263,7 @@ class Int(ConstantOpcode):
     priority = Long4.priority + 1
 
     def encode_body(self) -> bytes:
-        return f"{int(self.arg)}\n".encode("utf-8")
+        return f"{int(self.arg)}\n".encode()
 
     @classmethod
     def validate(cls, obj):

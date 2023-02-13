@@ -106,9 +106,7 @@ def inject_payload(pytorch_model_path: Path, payload: str, output_model_path: Pa
                     print("=" * 30)
                     new_model = torch.load("test_poc.zip")
                     new_model.eval()
-                    optimizer = optim.SGD(
-                        new_model.parameters(), lr=0.001, momentum=0.9
-                    )
+                    optimizer = optim.SGD(new_model.parameters(), lr=0.001, momentum=0.9)
                     # Print model's state_dict
                     print("Model's state_dict:")
                     for param_tensor in new_model.state_dict():
@@ -152,9 +150,7 @@ for file in os.listdir():
         EXFIL_PAYLOAD, run_first=True, use_output_as_unpickle_result=False
     )
     exfil_model = exfil_model.save(Path("pytorch_exfil_poc.zip"))
-    print(
-        f"Created PyTorch exfiltration exploit payload PoC {exfil_model.path.absolute()!s}"
-    )
+    print(f"Created PyTorch exfiltration exploit payload PoC {exfil_model.path.absolute()!s}")
 
     is_safe = exfil_model.pickled.is_likely_safe
     sys.stdout.write(f"Fickling correctly classifies this model as unsafe? ")
@@ -164,9 +160,7 @@ for file in os.listdir():
         print("❌")
     assert not is_safe
 
-    print(
-        "Loading the model... (you should see simulated exfil messages during the load)"
-    )
+    print("Loading the model... (you should see simulated exfil messages during the load)")
 
     print(f"{'=' * 30} BEGIN LOAD {'=' * 30}")
     exfil_model.eval()

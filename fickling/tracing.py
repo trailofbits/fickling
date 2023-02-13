@@ -32,7 +32,10 @@ class Trace:
         print(f"\tMemoized {index} -> {unparse(value).strip()}")
 
     def on_update_memo(self, index: int, old_value: ast.expr, new_value: ast.expr):
-        print(f"\tMemo index {index} changed from {unparse(old_value).strip()} to {unparse(new_value).strip()}")
+        print(
+            f"\tMemo index {index} changed from {unparse(old_value).strip()} to "
+            f"{unparse(new_value).strip()}"
+        )
 
     def on_statement(self, statement: ast.stmt):
         print(f"\t{unparse(statement).strip()}")
