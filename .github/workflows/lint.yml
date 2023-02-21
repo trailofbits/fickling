@@ -8,6 +8,6 @@ on:
 
 jobs:
   lint:
-    uses: trailofbits/.github/.github/workflows/lint.yml@v0.0.2
+    uses: trailofbits/.github/.github/workflows/lint.yml@v0.1.0
     with:
       python-version: "3.7"
