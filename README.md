@@ -51,7 +51,7 @@ Module(
 
 Fickling can also be run as a command line utility:
 
-```bash
+```console
 $ fickling pickled.data
 result = [1, 2, 3, 4]
 ```
@@ -61,7 +61,7 @@ arbitrary Python commands (such as `exec` or `os.system`) so it is a security
 risk to unpickle untrusted data. You can test for common patterns of
 malicious pickle files with the `--check-safety` option:
 
-```bash
+```console
 $ fickling --check-safety pickled.data
 Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may still be unsafe.
 Do not unpickle this file if it is from an untrusted source!
