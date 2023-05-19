@@ -9,7 +9,9 @@ else:
 from .pickle import Pickled, Proto, Interpreter
 
 
-def check_safety(pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Optional[TextIO] = None) -> bool:
+def check_safety(
+    pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Optional[TextIO] = None
+) -> bool:
     if stdout is None:
         stdout = sys.stdout
     if stderr is None:
@@ -48,60 +50,80 @@ def check_safety(pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Opti
                 else:
                     suffix = "th"
                 if opcode.version in proto_versions:
-                    stdout.write(f"The {i+1}{suffix} opcode is a duplicate PROTO, which is unusual and may be "
-                                 f"indicative of a tampered pickle\n")
+                    stdout.write(
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO, which is unusual and may be "
+                        f"indicative of a tampered pickle\n"
+                    )
                 else:
-                    stdout.write(f"The {i+1}{suffix} opcode is a duplicate PROTO with a different version than "
-                                 f"reported in the previous PROTO opcode, which is almost certainly a sign of a "
-                                 f"tampered pickle\n")
+                    stdout.write(
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO with a different version than "
+                        f"reported in the previous PROTO opcode, which is almost certainly a sign of a "
+                        f"tampered pickle\n"
+                    )
             else:
                 had_proto = True
             if opcode.version >= 2 and i > 0:
                 likely_safe = False
-                stdout.write(f"The protocol version is {opcode.version}, but the PROTO opcode is not the first "
-                             f"opcode in the pickle, as required for versions 2 and later; this may be "
-                             f"indicative of a tampered pickle\n")
+                stdout.write(
+                    f"The protocol version is {opcode.version}, but the PROTO opcode is not the first "
+                    f"opcode in the pickle, as required for versions 2 and later; this may be "
+                    f"indicative of a tampered pickle\n"
+                )
             proto_versions.add(opcode.version)
 
     for node in pickled.non_standard_imports():
         likely_safe = False
         shortened, already_reported = shorten_code(node)
         if not already_reported:
-            stdout.write(f"`{shortened}` imports a Python module that is not a part of the standard library; "
-                         "this can execute arbitrary code and is inherently unsafe\n")
+            stdout.write(
+                f"`{shortened}` imports a Python module that is not a part of "
+                "the standard library; this can execute arbitrary code and is "
+                "inherently unsafe\n"
+            )
     overtly_bad_evals = []
     for node in properties.non_setstate_calls:
         if hasattr(node.func, "id") and node.func.id in properties.likely_safe_imports:
-            # if the call is to a constructor of an object imported from the Python standard library,
-            # it's probably okay
+            # if the call is to a constructor of an object imported from the Python
+            # standard library, it's probably okay
             continue
         likely_safe = False
         shortened, already_reported = shorten_code(node)
         if (
-                shortened.startswith("eval(") or
-                shortened.startswith("exec(") or
-                shortened.startswith("compile(") or
-                shortened.startswith("open(")
+            shortened.startswith("eval(")
+            or shortened.startswith("exec(")
+            or shortened.startswith("compile(")
+            or shortened.startswith("open(")
         ):
             # this is overtly bad, so record it and print it at the end
             overtly_bad_evals.append(shortened)
         elif not already_reported:
-            stdout.write(f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe\n")
+            stdout.write(
+                f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe\n"
+            )
     for node in pickled.unsafe_imports():
         likely_safe = False
         shortened, _ = shorten_code(node)
-        stdout.write(f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file\n")
+        stdout.write(
+            f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file\n"
+        )
     for overtly_bad_eval in overtly_bad_evals:
-        stdout.write(f"Call to `{overtly_bad_eval}` is almost certainly evidence of a malicious pickle file\n")
+        stdout.write(
+            f"Call to `{overtly_bad_eval}` is almost certainly evidence of a "
+            "malicious pickle file\n"
+        )
     interpreter = Interpreter(pickled)
     for varname, asmt in interpreter.unused_assignments().items():
         likely_safe = False
         shortened, _ = shorten_code(asmt.value)
-        stderr.write(f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
-                     f"this is suspicious and indicative of a malicious pickle file\n")
+        stderr.write(
+            f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
+            f"this is suspicious and indicative of a malicious pickle file\n"
+        )
     if likely_safe:
-        stderr.write("Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
-                     "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n")
+        stderr.write(
+            "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
+            "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n"
+        )
         return True
     else:
         return False

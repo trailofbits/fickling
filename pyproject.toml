@@ -1,0 +1,85 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "fickling"
+dynamic = ["version"]
+description = "A static analyzer and interpreter for Python pickle data"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Trail of Bits", email = "opensource@trailofbits.com" }
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Utilities"
+]
+dependencies = [
+  "astunparse ~= 1.6.3"
+]
+requires-python = ">=3.7"
+
+[project.optional-dependencies]
+lint = [
+  "black",
+  "mypy",
+  "ruff",
+]
+test = [
+  "pytest",
+  "pytest-cov",
+  "coverage[toml]",
+]
+dev = [
+  "build",
+  "fickling[lint,test]",
+  "twine",
+]
+examples = [
+  "numpy",
+  "pytorchfi~=0.4.1",
+  "torch~=1.9.0",
+  "torchvision~=0.10.0",
+]
+
+[project.scripts]
+"fickling" = "fickling.__main__:main"
+
+[project.urls]
+Homepage = "https://pypi.org/project/fickling"
+Issues = "https://github.com/trailofbits/fickling/issues"
+Source = "https://github.com/trailofbits/fickling"
+
+[tool.black]
+line-length = 100
+
+[tool.coverage.run]
+# don't attempt code coverage for the CLI entrypoints
+omit = ["fickling/__main__.py", "fickling/cli.py"]
+
+[tool.mypy]
+allow_redefinition = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+sqlite_cache = true
+strict_equality = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "UP", "I", "N", "YTT", "BLE", "C4"]
+target-version = "py37"
