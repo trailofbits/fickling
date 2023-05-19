@@ -1,14 +1,11 @@
-# This workflows will upload a Python Package using Twine when a release is created
-# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
-
-name: Upload Python Package
+name: Publish to PyPI
 
 on:
   release:
     types: [published]
 
 jobs:
-  deploy:
+  build-release:
 
     runs-on: ubuntu-latest
 
@@ -23,8 +20,33 @@ jobs:
       - name: Build distributions
         run: make dist
 
-      - name: Publish a Python distribution to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Upload distributions
+        uses: actions/upload-artifact@v3
         with:
-          username: ${{ secrets.PYPI_USERNAME }}
-          password: ${{ secrets.PYPI_PASSWORD }}
+          name: fickling-dists
+          path: dist/
+
+  publish:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write  # For trusted publishing + codesigning.
+      contents: write  # For attaching signing artifacts to the release.
+    needs:
+      - build-release
+    steps:
+      - name: fetch dists
+        uses: actions/download-artifact@v3
+        with:
+          name: fickling-dists
+          path: dist/
+
+      - name: publish
+        uses: pypa/gh-action-pypi-publish@v1.8.6
+
+      - name: sign
+        uses: sigstore/gh-action-sigstore-python@v1.2.3
+        with:
+          inputs: ./dist/*.tar.gz ./dist/*.whl
+          release-signing-artifacts: true
+          bundle-only: true
