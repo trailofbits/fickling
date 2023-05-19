@@ -51,23 +51,23 @@ def check_safety(
                     suffix = "th"
                 if opcode.version in proto_versions:
                     stdout.write(
-                        f"The {i+1}{suffix} opcode is a duplicate PROTO, which is unusual and may be "
-                        f"indicative of a tampered pickle\n"
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO, which is unusual and may"
+                        f"be indicative of a tampered pickle\n"
                     )
                 else:
                     stdout.write(
-                        f"The {i+1}{suffix} opcode is a duplicate PROTO with a different version than "
-                        f"reported in the previous PROTO opcode, which is almost certainly a sign of a "
-                        f"tampered pickle\n"
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO with a different version "
+                        "than reported in the previous PROTO opcode, which is almost certainly a "
+                        "sign of a tampered pickle\n"
                     )
             else:
                 had_proto = True
             if opcode.version >= 2 and i > 0:
                 likely_safe = False
                 stdout.write(
-                    f"The protocol version is {opcode.version}, but the PROTO opcode is not the first "
-                    f"opcode in the pickle, as required for versions 2 and later; this may be "
-                    f"indicative of a tampered pickle\n"
+                    f"The protocol version is {opcode.version}, but the PROTO opcode is not the"
+                    "first opcode in the pickle, as required for versions 2 and later; this may be "
+                    "indicative of a tampered pickle\n"
                 )
             proto_versions.add(opcode.version)
 
