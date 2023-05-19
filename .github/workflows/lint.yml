@@ -17,3 +17,18 @@ jobs:
     uses: trailofbits/.github/.github/workflows/make-lint.yml@v0.1.3
     with:
       language: "markdown"
+
+  all-lints-pass:
+    if: always()
+
+    needs:
+      - lint-python
+      - lint-markdown
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: check test jobs
+        uses: re-actors/alls-green@v1.2.2
+        with:
+          jobs: ${{ toJSON(needs) }}
