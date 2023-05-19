@@ -1,12 +1,12 @@
 import sys
-from typing import Optional, TextIO, Tuple
+from typing import Optional, Set, TextIO, Tuple
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
 else:
     from ast import unparse
 
-from .pickle import Interpreter, Pickled
+from .pickle import Interpreter, Pickled, Proto
 
 
 def check_safety(
@@ -34,6 +34,42 @@ def check_safety(
         was_already_reported = shortened_code in reported_shortened_code
         reported_shortened_code.add(shortened_code)
         return shortened_code, was_already_reported
+
+    had_proto = False
+    proto_versions: Set[int] = set()
+    for i, opcode in enumerate(pickled):
+        if isinstance(opcode, Proto):
+            if had_proto:
+                likely_safe = False
+                if i == 2:
+                    suffix = "rd"
+                elif i == 1:
+                    suffix = "nd"
+                elif i == 0:
+                    suffix = "st"
+                else:
+                    suffix = "th"
+                if opcode.version in proto_versions:
+                    stdout.write(
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO, which is unusual and may"
+                        f"be indicative of a tampered pickle\n"
+                    )
+                else:
+                    stdout.write(
+                        f"The {i+1}{suffix} opcode is a duplicate PROTO with a different version "
+                        "than reported in the previous PROTO opcode, which is almost certainly a "
+                        "sign of a tampered pickle\n"
+                    )
+            else:
+                had_proto = True
+            if opcode.version >= 2 and i > 0:
+                likely_safe = False
+                stdout.write(
+                    f"The protocol version is {opcode.version}, but the PROTO opcode is not the"
+                    "first opcode in the pickle, as required for versions 2 and later; this may be "
+                    "indicative of a tampered pickle\n"
+                )
+            proto_versions.add(opcode.version)
 
     for node in pickled.non_standard_imports():
         likely_safe = False

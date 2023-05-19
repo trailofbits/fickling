@@ -5,6 +5,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
+from io import BytesIO
 from pathlib import Path
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
@@ -23,6 +24,9 @@ from typing import (
     TypeVar,
     Union,
     overload,
+)
+from typing import (
+    Tuple as TupleType,
 )
 
 T = TypeVar("T")
@@ -386,6 +390,14 @@ class ASTProperties(ast.NodeVisitor):
             self.non_setstate_calls.append(node)
 
 
+class PickleDecodeError(ValueError):
+    pass
+
+
+class EmptyPickleError(PickleDecodeError):
+    pass
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode]):
         self._opcodes: List[Opcode] = list(opcodes)
@@ -409,7 +421,7 @@ class Pickled(OpcodeSequence):
     def insert_python(
         self,
         *args,
-        module: str = "__builtin__",
+        module: str = "builtins",
         attr: str = "eval",
         run_first: bool = True,
         use_output_as_unpickle_result: bool = False,
@@ -417,21 +429,26 @@ class Pickled(OpcodeSequence):
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
         # we need to add the call to GLOBAL before the preexisting code, because the following code
-        # can sometimes mess up module look (somehow? I, Evan, don't fully understand why yet).
+        # can sometimes mess up module lookup (somehow? I, Evan, don't fully understand why yet).
         # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call
         # to it, and then either immediately call the `eval` with a `Reduce` opcode (the default)
         # or optionally insert the `Reduce` at the end (and hope that the existing code cleans up
         # its stack so it remains how we left it!
         # TODO: Add code to emulate the code afterward and confirm that the stack is sane!
-        self.insert(0, Global.create(module, attr))
-        self.insert(1, Mark())
-        i = 1
-        for arg in args:
+        i = 0
+        while isinstance(self[i], (Proto, Frame)):
             i += 1
+        self.insert(i, Global.create(module, attr))
+        i += 1
+        self.insert(i, Mark())
+        i += 1
+        for arg in args:
             self.insert(i, ConstantOpcode.new(arg))
-        self.insert(i + 1, Tuple())
+            i += 1
+        self.insert(i, Tuple())
+        i += 1
         if run_first:
-            self.insert(i + 2, Reduce())
+            self.insert(i, Reduce())
             if use_output_as_unpickle_result:
                 self.insert(-1, Pop())
         else:
@@ -467,7 +484,7 @@ class Pickled(OpcodeSequence):
     ):
         return self.insert_python(
             *args,
-            module="__builtin__",
+            module="builtins",
             attr="exec",
             run_first=run_first,
             use_output_as_unpickle_result=use_output_as_unpickle_result,
@@ -498,30 +515,67 @@ class Pickled(OpcodeSequence):
         return iter(self)
 
     @staticmethod
+    def make_stream(data: Union[ByteString, BinaryIO]) -> BinaryIO:
+        if isinstance(data, (bytes, bytearray, ByteString)):
+            data = BytesIO(data)
+        elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
+            data = BytesIO(data.read())
+        return data
+
+    @staticmethod
     def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
-        if not isinstance(pickled, (bytes, bytearray)) and hasattr(pickled, "read"):
-            pickled = pickled.read()
+        pickled = Pickled.make_stream(pickled)
+        first_pos = pickled.tell()
         opcodes: List[Opcode] = []
-        for info, arg, pos in genops(pickled):
-            if info.arg is None or info.arg.n == 0:
-                if pos is not None:
-                    data = pickled[pos : pos + 1]
-                else:
-                    data = info.code
-            elif info.arg.n > 0 and pos is not None:
-                data = pickled[pos : pos + 1 + info.arg.n]
+
+        try:
+            for info, arg, pos in genops(pickled):
+                pos_before = pickled.tell()
+                try:
+                    if (
+                        pos is not None
+                        and opcodes
+                        and opcodes[-1].pos is not None
+                        and not opcodes[-1].has_data()
+                        and opcodes[-1].pos < pos
+                    ):
+                        pickled.seek(opcodes[-1].pos)
+                        opcodes[-1].data = pickled.read(pos - opcodes[-1].pos)
+                    if pos is not None:
+                        pickled.seek(pos)
+                    if info.arg is None or info.arg.n == 0:
+                        if pos is not None:
+                            data = None
+                        else:
+                            data = info.code.encode("utf-8")
+                    elif info.arg.n > 0 and pos is not None:
+                        data = pickled.read(len(info.code) + info.arg.n)
+                        if len(data) != len(info.code) + info.arg.n:
+                            raise PickleDecodeError(
+                                f"Error decoding opcode {info.name} at offset {pos}: "
+                                f"Expected {len(info.code) + info.arg.n} bytes of data but only "
+                                f"read {len(data)}"
+                            )
+                    else:
+                        data = None
+                    opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
+                finally:
+                    # Need to reset the position within the file so as not to confuse genops
+                    pickled.seek(pos_before)
+        except ValueError as e:
+            if opcodes:
+                raise PickleDecodeError(e)
             else:
-                data = None
-            if (
-                pos is not None
-                and opcodes
-                and opcodes[-1].pos is not None
-                and not opcodes[-1].has_data()
-            ):
-                opcodes[-1].data = pickled[opcodes[-1].pos : pos]
-            opcodes.append(Opcode(info=info, argument=arg, data=data, position=pos))
-        if opcodes and not opcodes[-1].has_data() and opcodes[-1].pos is not None:
-            opcodes[-1].data = pickled[opcodes[-1].pos :]
+                raise EmptyPickleError()
+        if opcodes:
+            if opcodes[-1].pos is not None:
+                if opcodes[-1].has_data():
+                    last_pos = opcodes[-1].pos + len(opcodes[-1].data)
+                else:
+                    last_pos = opcodes[-1].pos + len(opcodes[-1].info.code)
+                pickled.seek(last_pos)
+        else:
+            pickled.seek(first_pos)
         return Pickled(opcodes)
 
     @property
@@ -554,7 +608,16 @@ class Pickled(OpcodeSequence):
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
-            if node.module in ("__builtin__", "os", "subprocess", "sys", "builtins", "socket"):
+            if node.module in (
+                "__builtin__",
+                "__builtins__",
+                "builtins",
+                "os",
+                "subprocess",
+                "sys",
+                "builtins",
+                "socket",
+            ):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
@@ -643,14 +706,21 @@ class ModuleBody:
 
 
 class Interpreter:
-    def __init__(self, pickled: Pickled):
+    def __init__(
+        self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"
+    ):
         self.pickled: Pickled = pickled
         self.memory: Dict[int, ast.expr] = {}
         self.stack: Stack[Union[ast.expr, MarkObject]] = Stack()
         self.module_body: ModuleBody = ModuleBody(self)
+        self.result_variable: str = result_variable
         self._module: Optional[ast.Module] = None
-        self._var_counter: int = 0
+        self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
+
+    @property
+    def next_variable_id(self) -> int:
+        return self._var_counter
 
     def to_ast(self) -> ast.Module:
         if self._module is None:
@@ -737,6 +807,23 @@ class Interpreter:
 class Proto(NoOp):
     name = "PROTO"
 
+    @staticmethod
+    def create(version: int) -> "Proto":
+        return Proto(version)
+
+    def encode_body(self) -> bytes:
+        return bytes([self.version])
+
+    @property
+    def version(self) -> int:
+        if self.arg is None:
+            return 0
+        elif isinstance(self.arg, int):
+            return self.arg
+        else:
+            # Endianness shouldn't really matter here because there is only one byte for the version
+            return int.from_bytes(self.arg, "big", signed=False)
+
 
 class Global(Opcode):
     name = "GLOBAL"
@@ -756,7 +843,7 @@ class Global(Opcode):
 
     def run(self, interpreter: Interpreter):
         module, attr = self.module, self.attr
-        if module == "__builtin__":
+        if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
         else:
@@ -782,7 +869,7 @@ class StackGlobal(NoOp):
             module = module.value
         if isinstance(attr, ast.Constant):
             attr = attr.value
-        if module == "__builtin__":
+        if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
         else:
@@ -1129,7 +1216,7 @@ class Stop(Opcode):
     name = "STOP"
 
     def run(self, interpreter: Interpreter):
-        interpreter.new_variable(interpreter.stack.pop(), name="result")
+        interpreter.new_variable(interpreter.stack.pop(), name=interpreter.result_variable)
         interpreter.stop()
 
 
@@ -1302,6 +1389,40 @@ class Dict(Opcode):
             )
 
         interpreter.stack.append(ast.Dict(keys=keys, values=values))
+
+
+if sys.version_info < (3, 9):
+    # abstract collections were not subscriptable until Python 3.9
+    PickledSequence = Sequence
+else:
+    PickledSequence = Sequence[Pickled]
+
+
+class StackedPickle(PickledSequence):
+    def __init__(self, pickled: Iterable[Pickled]):
+        self.pickled: TupleType[Pickled, ...] = tuple(pickled)
+
+    def __getitem__(self, index: int) -> Pickled:
+        return self.pickled[index]
+
+    def __len__(self) -> int:
+        return len(self.pickled)
+
+    @staticmethod
+    def load(pickled: Union[ByteString, BinaryIO]) -> "StackedPickle":
+        pickled = Pickled.make_stream(pickled)
+        pickles: List[Pickled] = []
+        while True:
+            try:
+                p = Pickled.load(pickled)
+                if len(p) == 0:
+                    break
+                pickles.append(p)
+            except EmptyPickleError:
+                break
+        if not pickles:
+            raise EmptyPickleError("No pickle files detected")
+        return StackedPickle(pickles)
 
 
 class List(Opcode):

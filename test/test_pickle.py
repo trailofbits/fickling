@@ -1,6 +1,9 @@
+from contextlib import redirect_stdout
 from functools import wraps
+from pathlib import Path
 from pickle import dumps, loads
 from sys import version_info
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 if version_info >= (3, 9):
@@ -9,8 +12,18 @@ else:
     from astunparse import unparse
 
 from fickling import pickle as fpickle
-from fickling.pickle import Pickled, Interpreter
+from fickling.cli import main
+from fickling.pickle import Pickled, Interpreter, StackedPickle
 from fickling.analysis import check_safety
+
+
+def get_result(pickled: Pickled):
+    ast = pickled.ast
+    global_vars = {}
+    local_vars = {}
+    code = unparse(ast)
+    exec(code, global_vars, local_vars)
+    return local_vars["result"]
 
 
 def correctness_test(to_pickle):
@@ -18,13 +31,32 @@ def correctness_test(to_pickle):
         @wraps(func)
         def wrapper(self: TestCase):
             pickled = dumps(to_pickle)
-            ast = Pickled.load(pickled).ast
-            global_vars = {}
-            local_vars = {}
-            code = unparse(ast)
-            exec(code, global_vars, local_vars)
-            self.assertIn("result", local_vars)
-            self.assertEqual(to_pickle, local_vars["result"])
+            self.assertEqual(to_pickle, get_result(Pickled.load(pickled)))
+
+        return wrapper
+
+    return decorator
+
+
+def stacked_correctness_test(*to_pickle):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(self: TestCase):
+            to_pickle_list = list(to_pickle)
+            stacked = [dumps(p) for p in to_pickle_list]
+            stacked_pickle = StackedPickle.load(b"".join(stacked))
+            self.assertEqual(len(stacked_pickle), len(stacked))
+            for pickled, p_bytes, original in zip(stacked_pickle, stacked, to_pickle_list):
+                stacked_ast = pickled.ast
+                true_ast = Pickled.load(p_bytes).ast
+                stacked_code = unparse(stacked_ast)
+                true_code = unparse(true_ast)
+                self.assertEqual(stacked_code, true_code)
+                global_vars = {}
+                local_vars = {}
+                exec(stacked_code, global_vars, local_vars)
+                self.assertIn("result", local_vars)
+                self.assertEqual(original, local_vars["result"])
 
         return wrapper
 
@@ -55,6 +87,19 @@ class TestInterpreter(TestCase):
     @correctness_test(b"abcdefg")
     def test_bytes(self):
         pass
+
+    def test_call(self):
+        pickled = Pickled(
+            [
+                fpickle.Global.create("__builtins__", "eval"),
+                fpickle.Mark(),
+                fpickle.Unicode("(lambda:1234)()"),
+                fpickle.Tuple(),
+                fpickle.Reduce(),
+                fpickle.Stop(),
+            ]
+        )
+        self.assertEqual(1234, get_result(pickled))
 
     def test_dumps(self):
         pickled = dumps([1, 2, 3, 4])
@@ -118,4 +163,56 @@ class TestInterpreter(TestCase):
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
+        self.assertFalse(check_safety(loaded))
+
+    @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
+    def test_stacked_pickles(self):
+        pass
+
+    def test_insert_stacked(self):
+        tmpfile = NamedTemporaryFile("wb", delete=False)
+        try:
+            tmpfile.write(dumps([1, 2, 3, 4]))
+            tmpfile.write(dumps(["a", "b", "c", "d"]))
+            tmpfile.write(dumps(1234567))
+            tmpfile.close()
+
+            # Make sure that it fails if we try and inject into the forth stacked pickle (there are only 3)
+            self.assertNotEqual(
+                main(["", tmpfile.name, "--inject", 'print("foo")', "--inject-target", "3"]), 0
+            )
+
+            # Inject into the second pickle (this should work)
+            try:
+                with NamedTemporaryFile("wb", delete=False) as outfile, redirect_stdout(outfile):
+                    retval = main(
+                        [
+                            "",
+                            tmpfile.name,
+                            "--inject",
+                            "(lambda:7654321)()",
+                            "--inject-target",
+                            "1",
+                            "--replace-result",
+                        ]
+                    )
+                    self.assertEqual(retval, 0)
+                    outfile.close()
+                with open(outfile.name, "rb") as f:
+                    stacked = StackedPickle.load(f)
+            finally:
+                Path(outfile.name).unlink()
+
+            self.assertEqual(len(stacked), 3)
+            self.assertEqual(7654321, get_result(stacked[1]))
+
+        finally:
+            Path(tmpfile.name).unlink()
+
+    def test_duplicate_proto(self):
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        self.assertTrue(check_safety(loaded))
+        loaded.insert(-1, fpickle.Proto.create(1))
+        loaded.insert(-1, fpickle.Proto.create(2))
         self.assertFalse(check_safety(loaded))
