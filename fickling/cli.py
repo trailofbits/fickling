@@ -7,7 +7,7 @@ if sys.version_info >= (3, 9):
 else:
     from astunparse import unparse
 
-from . import pickle, tracing, version
+from . import __version__, pickle, tracing
 from .analysis import check_safety
 
 
@@ -33,9 +33,16 @@ def main(argv: Optional[List[str]] = None) -> int:
         "-i",
         type=str,
         default=None,
-        help="inject the specified Python code to be run at "
-        "the end of depickling, and output the "
-        "resulting pickle data",
+        help="inject the specified Python code to be run at the end of depickling, "
+        "and output the resulting pickle data",
+    )
+    parser.add_argument(
+        "--inject-target",
+        type=int,
+        default=0,
+        help="some machine learning frameworks stack multiple pickles into the same model file; "
+        "this option specifies the index of the pickle file in which to inject the code from the "
+        "`--inject` command (default is 0)",
     )
     options.add_argument("--create", "-c", type=str, default=None)
     parser.add_argument(
@@ -79,9 +86,9 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.version:
         if sys.stdout.isatty():
-            print(f"fickling version {version()}")
+            print(f"fickling version {__version__}")
         else:
-            print(version())
+            print(__version__)
         return 0
 
     if args.create is None:
@@ -93,14 +100,30 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             file = open(args.PICKLE_FILE, "rb")
         try:
-            pickled = pickle.Pickled.load(file)
+            stacked_pickled = pickle.StackedPickle.load(file)
+        except pickle.PickleDecodeError as e:
+            sys.stderr.write(f"Error: {str(e)}\n")
+            return 1
         finally:
             file.close()
 
         if args.inject is not None:
+            if args.inject_target >= len(stacked_pickled):
+                sys.stderr.write(
+                    f"Error: --inject-target {args.inject_target} is too high; there are only "
+                    f"{len(stacked_pickled)} stacked pickle files in the input\n"
+                )
+                return 1
+            if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+                buffer = sys.stdout.buffer
+            else:
+                buffer = sys.stdout
+            for pickled in stacked_pickled[: args.inject_target]:
+                pickled.dump(buffer)
+            pickled = stacked_pickled[args.inject_target]
             if not isinstance(pickled[-1], pickle.Stop):
                 sys.stderr.write(
-                    "Error: The last opcode of the input file was expected to be STOP, but was "
+                    "Warning: The last opcode of the input file was expected to be STOP, but was "
                     f"in fact {pickled[-1].info.name}"
                 )
             pickled.insert_python_eval(
@@ -108,17 +131,27 @@ def main(argv: Optional[List[str]] = None) -> int:
                 run_first=not args.run_last,
                 use_output_as_unpickle_result=args.replace_result,
             )
-            if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
-                pickled.dump(sys.stdout.buffer)
-            else:
-                pickled.dump(sys.stdout)
+            pickled.dump(buffer)
+            for pickled in stacked_pickled[args.inject_target + 1 :]:
+                pickled.dump(buffer)
         elif args.check_safety:
-            return [1, 0][check_safety(pickled)]
-        elif args.trace:
-            trace = tracing.Trace(pickle.Interpreter(pickled))
-            print(unparse(trace.run()))
+            was_safe = True
+            for pickled in stacked_pickled:
+                if not check_safety(pickled):
+                    was_safe = False
+            return [1, 0][was_safe]
         else:
-            print(unparse(pickled.ast))
+            var_id = 0
+            for i, pickled in enumerate(stacked_pickled):
+                interpreter = pickle.Interpreter(
+                    pickled, first_variable_id=var_id, result_variable=f"result{i}"
+                )
+                if args.trace:
+                    trace = tracing.Trace(interpreter)
+                    print(unparse(trace.run()))
+                else:
+                    print(unparse(interpreter.to_ast()))
+                var_id = interpreter.next_variable_id
     else:
         pickled = pickle.Pickled(
             [
