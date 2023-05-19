@@ -7,7 +7,7 @@ if sys.version_info >= (3, 9):
 else:
     from astunparse import unparse
 
-from . import pickle, tracing, __version__
+from . import __version__, pickle, tracing
 from .analysis import check_safety
 
 

@@ -57,7 +57,9 @@ def stacked_correctness_test(*to_pickle):
                 exec(stacked_code, global_vars, local_vars)
                 self.assertIn("result", local_vars)
                 self.assertEqual(original, local_vars["result"])
+
         return wrapper
+
     return decorator
 
 
@@ -87,14 +89,16 @@ class TestInterpreter(TestCase):
         pass
 
     def test_call(self):
-        pickled = Pickled([
-            fpickle.Global.create("__builtins__", "eval"),
-            fpickle.Mark(),
-            fpickle.Unicode("(lambda:1234)()"),
-            fpickle.Tuple(),
-            fpickle.Reduce(),
-            fpickle.Stop()
-        ])
+        pickled = Pickled(
+            [
+                fpickle.Global.create("__builtins__", "eval"),
+                fpickle.Mark(),
+                fpickle.Unicode("(lambda:1234)()"),
+                fpickle.Tuple(),
+                fpickle.Reduce(),
+                fpickle.Stop(),
+            ]
+        )
         self.assertEqual(1234, get_result(pickled))
 
     def test_dumps(self):
@@ -169,19 +173,29 @@ class TestInterpreter(TestCase):
         tmpfile = NamedTemporaryFile("wb", delete=False)
         try:
             tmpfile.write(dumps([1, 2, 3, 4]))
-            tmpfile.write(dumps(['a', 'b', 'c', 'd']))
+            tmpfile.write(dumps(["a", "b", "c", "d"]))
             tmpfile.write(dumps(1234567))
             tmpfile.close()
 
             # Make sure that it fails if we try and inject into the forth stacked pickle (there are only 3)
-            self.assertNotEqual(main(["", tmpfile.name, "--inject", "print(\"foo\")", "--inject-target", "3"]), 0)
+            self.assertNotEqual(
+                main(["", tmpfile.name, "--inject", 'print("foo")', "--inject-target", "3"]), 0
+            )
 
             # Inject into the second pickle (this should work)
             try:
                 with NamedTemporaryFile("wb", delete=False) as outfile, redirect_stdout(outfile):
-                    retval = main([
-                        "", tmpfile.name, "--inject", "(lambda:7654321)()", "--inject-target", "1", "--replace-result"
-                    ])
+                    retval = main(
+                        [
+                            "",
+                            tmpfile.name,
+                            "--inject",
+                            "(lambda:7654321)()",
+                            "--inject-target",
+                            "1",
+                            "--replace-result",
+                        ]
+                    )
                     self.assertEqual(retval, 0)
                     outfile.close()
                 with open(outfile.name, "rb") as f:

@@ -19,12 +19,14 @@ from typing import (
     Iterator,
     List,
     Optional,
-    overload,
     Set,
-    Tuple as TupleType,
     Type,
     TypeVar,
     Union,
+    overload,
+)
+from typing import (
+    Tuple as TupleType,
 )
 
 T = TypeVar("T")

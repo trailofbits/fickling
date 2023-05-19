@@ -6,7 +6,7 @@ if sys.version_info < (3, 9):
 else:
     from ast import unparse
 
-from .pickle import Pickled, Proto, Interpreter
+from .pickle import Interpreter, Pickled, Proto
 
 
 def check_safety(
