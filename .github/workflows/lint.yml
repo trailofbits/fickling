@@ -7,7 +7,13 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    uses: trailofbits/.github/.github/workflows/lint.yml@v0.0.2
+  lint-python:
+    uses: trailofbits/.github/.github/workflows/make-lint.yml@v0.1.3
     with:
+      language: "python"
       python-version: "3.7"
+
+  lint-markdown:
+    uses: trailofbits/.github/.github/workflows/make-lint.yml@v0.1.3
+    with:
+      language: "markdown"
