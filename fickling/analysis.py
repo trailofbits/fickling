@@ -1,7 +1,7 @@
+import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-import sys
 from typing import Dict, Iterable, Iterator, Optional, Set, TextIO, Tuple, Type
 
 if sys.version_info < (3, 9):
@@ -147,24 +147,24 @@ class ProtoAnalysis(Analysis):
                     if opcode.version in proto_versions:
                         yield AnalysisResult(
                             Severity.LIKELY_UNSAFE,
-                            f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual and may "
-                            f"be indicative of a tampered pickle",
+                            f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual "
+                            f"and may be indicative of a tampered pickle",
                         )
                     else:
                         yield AnalysisResult(
                             Severity.LIKELY_UNSAFE,
-                            f"The {i + 1}{suffix} opcode is a duplicate PROTO with a different version "
-                            "than reported in the previous PROTO opcode, which is almost certainly a "
-                            "sign of a tampered pickle",
+                            f"The {i + 1}{suffix} opcode is a duplicate PROTO with a different "
+                            f"version than reported in the previous PROTO opcode, which is almost "
+                            f"certainly a sign of a tampered pickle",
                         )
                 else:
                     had_proto = True
                 if opcode.version >= 2 and i > 0:
                     yield AnalysisResult(
                         Severity.LIKELY_UNSAFE,
-                        f"The protocol version is {opcode.version}, but the PROTO opcode is not the "
-                        "first opcode in the pickle, as required for versions 2 and later; this may be "
-                        "indicative of a tampered pickle",
+                        f"The protocol version is {opcode.version}, but the PROTO opcode is not "
+                        f"the first opcode in the pickle, as required for versions 2 and later; "
+                        f"this may be indicative of a tampered pickle",
                     )
                 proto_versions.add(opcode.version)
 
@@ -192,7 +192,6 @@ class OvertlyBadEvals(Analysis):
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
-            likely_safe = False
             shortened, already_reported = context.shorten_code(node)
             if (
                 shortened.startswith("eval(")
@@ -251,7 +250,7 @@ class AnalysisResults:
         return all(map(bool, sorted(self.results)))
 
     def to_string(self, verbosity: Severity = Severity.SUSPICIOUS):
-        return "\n".join((str(r) for r in self.results if verbosity <= r.severity))
+        return "\n".join(str(r) for r in self.results if verbosity <= r.severity)
 
     __str__ = to_string
 
