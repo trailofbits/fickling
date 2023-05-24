@@ -102,9 +102,10 @@ class AnalysisResult:
         self.message: Optional[str] = message
 
     def __lt__(self, other):
-        return isinstance(other, AnalysisResult) and (self.severity < other.severity or (
-                self.severity == other.severity and str(self) < str(other)
-        ))
+        return isinstance(other, AnalysisResult) and (
+            self.severity < other.severity
+            or (self.severity == other.severity and str(self) < str(other))
+        )
 
     def __bool__(self):
         """Returns True if there is no evidence that this result is unsafe"""
@@ -144,24 +145,27 @@ class ProtoAnalysis(Analysis):
                     else:
                         suffix = "th"
                     if opcode.version in proto_versions:
-                        yield AnalysisResult(Severity.LIKELY_UNSAFE,
+                        yield AnalysisResult(
+                            Severity.LIKELY_UNSAFE,
                             f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual and may "
-                            f"be indicative of a tampered pickle"
-                                             )
+                            f"be indicative of a tampered pickle",
+                        )
                     else:
-                        yield AnalysisResult(Severity.LIKELY_UNSAFE,
+                        yield AnalysisResult(
+                            Severity.LIKELY_UNSAFE,
                             f"The {i + 1}{suffix} opcode is a duplicate PROTO with a different version "
                             "than reported in the previous PROTO opcode, which is almost certainly a "
-                            "sign of a tampered pickle"
-                                             )
+                            "sign of a tampered pickle",
+                        )
                 else:
                     had_proto = True
                 if opcode.version >= 2 and i > 0:
-                    yield AnalysisResult(Severity.LIKELY_UNSAFE,
+                    yield AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
                         f"The protocol version is {opcode.version}, but the PROTO opcode is not the "
                         "first opcode in the pickle, as required for versions 2 and later; this may be "
-                        "indicative of a tampered pickle"
-                                         )
+                        "indicative of a tampered pickle",
+                    )
                 proto_versions.add(opcode.version)
 
 
@@ -170,46 +174,53 @@ class NonStandardImports(Analysis):
         for node in context.pickled.non_standard_imports():
             shortened, already_reported = context.shorten_code(node)
             if not already_reported:
-                yield AnalysisResult(Severity.LIKELY_UNSAFE,
+                yield AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
                     f"`{shortened}` imports a Python module that is not a part of "
                     "the standard library; this can execute arbitrary code and is "
-                    "inherently unsafe"
-                                     )
+                    "inherently unsafe",
+                )
 
 
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.non_setstate_calls:
-            if hasattr(node.func, "id") and node.func.id in context.pickled.properties.likely_safe_imports:
+            if (
+                hasattr(node.func, "id")
+                and node.func.id in context.pickled.properties.likely_safe_imports
+            ):
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
             likely_safe = False
             shortened, already_reported = context.shorten_code(node)
             if (
-                    shortened.startswith("eval(")
-                    or shortened.startswith("exec(")
-                    or shortened.startswith("compile(")
-                    or shortened.startswith("open(")
+                shortened.startswith("eval(")
+                or shortened.startswith("exec(")
+                or shortened.startswith("compile(")
+                or shortened.startswith("open(")
             ):
                 # this is overtly bad, so record it and print it at the end
-                yield AnalysisResult(Severity.OVERTLY_MALICIOUS,
+                yield AnalysisResult(
+                    Severity.OVERTLY_MALICIOUS,
                     f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file"
-                                     )
+                    "malicious pickle file",
+                )
             elif not already_reported:
-                yield AnalysisResult(Severity.LIKELY_UNSAFE,
-                    f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe"
-                                     )
+                yield AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe",
+                )
 
 
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
             shortened, _ = context.shorten_code(node)
-            yield AnalysisResult(Severity.LIKELY_OVERTLY_MALICIOUS,
-                f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file"
-                                 )
+            yield AnalysisResult(
+                Severity.LIKELY_OVERTLY_MALICIOUS,
+                f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file",
+            )
 
 
 class UnusedVariables(Analysis):
@@ -217,10 +228,11 @@ class UnusedVariables(Analysis):
         interpreter = Interpreter(context.pickled)
         for varname, asmt in interpreter.unused_assignments().items():
             shortened, _ = context.shorten_code(asmt.value)
-            yield AnalysisResult(Severity.SUSPICIOUS,
+            yield AnalysisResult(
+                Severity.SUSPICIOUS,
                 f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
-                f"this is suspicious and indicative of a malicious pickle file"
-                                 )
+                f"this is suspicious and indicative of a malicious pickle file",
+            )
 
 
 class AnalysisResults:
@@ -245,9 +257,11 @@ class AnalysisResults:
 
 
 def check_safety(
-    pickled: Pickled, stdout: Optional[TextIO] = None, stderr: Optional[TextIO] = None,
+    pickled: Pickled,
+    stdout: Optional[TextIO] = None,
+    stderr: Optional[TextIO] = None,
     analyzer: Optional[Analyzer] = None,
-    verbosity: Severity = Severity.SUSPICIOUS
+    verbosity: Severity = Severity.SUSPICIOUS,
 ) -> AnalysisResults:
     if stdout is None:
         stdout = sys.stdout
