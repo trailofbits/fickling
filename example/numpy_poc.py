@@ -3,7 +3,7 @@
 import numpy
 import os
 import pickle
-from fickling.pickle import Pickled
+from fickling.fickle import Pickled
 
 
 class Test(object):

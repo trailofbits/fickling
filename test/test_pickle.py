@@ -11,9 +11,9 @@ if version_info >= (3, 9):
 else:
     from astunparse import unparse
 
-from fickling import pickle as fpickle
+from fickling import fickle as fpickle
 from fickling.cli import main
-from fickling.pickle import Pickled, Interpreter, StackedPickle
+from fickling.fickle import Pickled, Interpreter, StackedPickle
 from fickling.analysis import check_safety
 
 
