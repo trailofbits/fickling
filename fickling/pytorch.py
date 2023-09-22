@@ -1,14 +1,9 @@
 import torch
 import zipfile
-import io
 from fickling.fickle import Pickled
-import pickle 
 from pathlib import Path
-import shutil
 from tempfile import TemporaryDirectory
 from typing import Optional
-import warnings
-import tarfile 
 
 class BaseInjection(torch.nn.Module):
     def __init__(self, original_model: torch.nn.Module, payload: str):
