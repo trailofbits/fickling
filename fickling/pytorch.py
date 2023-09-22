@@ -8,9 +8,8 @@ import shutil
 from tempfile import TemporaryDirectory
 from typing import Optional
 import warnings
+import tarfile 
 
-def pytorch_format_detector(path: Path) -> bool:
-    # The PyTorch file format versions are drawn from here: 
 class BaseInjection(torch.nn.Module):
     def __init__(self, original_model: torch.nn.Module, payload: str):
         super().__init__()

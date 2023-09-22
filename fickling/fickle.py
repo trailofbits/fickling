@@ -473,6 +473,8 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Reduce())
                 self.insert(-1, Pop())
                 self.insert(-1, Get.create(memo_id))
+        #if not isinstance(self[-1], Stop):
+        #    self.insert(-1, Stop())
 
     insert_python_eval = insert_python
 
