@@ -19,8 +19,7 @@ class PyTorchTestCase(TestCase):
 
     def test_fallback_injection(self):
         payload = '''print("Hello, World!")'''
-        self.wrapper.inject_payload(payload, self.output_path, 
-                                    injection="fallback")
+        self.wrapper.inject_payload(payload, self.output_path)
         torch.load(self.output_path)
     
     def tearDown(self):

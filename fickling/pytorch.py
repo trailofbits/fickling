@@ -9,9 +9,8 @@ from tempfile import TemporaryDirectory
 from typing import Optional
 import warnings
 
-# Create a PyTorch Model class that uses the original model as a pretrained module 
-# and injects the payload by overriding the reduce method.
-# This class is used for the fallback injection method. 
+def pytorch_format_detector(path: Path) -> bool:
+    # The PyTorch file format versions are drawn from here: 
 class BaseInjection(torch.nn.Module):
     def __init__(self, original_model: torch.nn.Module, payload: str):
         super().__init__()
@@ -33,32 +32,17 @@ class PyTorchModelWrapper:
     @property
     def pickled(self) -> Pickled:
         if self._pickled is None:
-            # Open the zip archive
             with zipfile.ZipFile(self.path, 'r') as zip_ref:
-                # Find the path to data.pkl within the zip archive
                 data_pkl_path = next((name for name in zip_ref.namelist() if name.endswith('/data.pkl')), None)
                 if data_pkl_path is None:
                     raise ValueError("data.pkl not found in the zip archive")
-                # Read the data.pkl file directly using the determined path
                 with zip_ref.open(data_pkl_path, "r") as pickle_file:
                     self._pickled = Pickled.load(pickle_file)
         return self._pickled
     
     def inject_payload(self, payload: str, output_path: Path, injection: str = "all") -> None:
-        # Fallback injection method
-        if "fallback" or "all":
-            injected_model = BaseInjection(self.pickled.dumps(), payload)
-            torch.save(injected_model, output_path)
-
-
-# Uncomment these lines if you no longer have a 'mobilenet_v2.pt' file
-import torchvision.models as models
-model = models.mobilenet_v2()
-torch.save(model, 'mobilenet_v2.pt')
-
-deserialized_model = torch.load('mobilenet_v2.pt')
-file_path = 'path/to/pytorch/model.pth'
-wrapper = PyTorchModelWrapper('mobilenet_v2.pt')
-payload = '''print("Hello, World!")'''
-wrapper.inject_payload(payload, 'altered_model.pt')
-torch.load('altered_model.pt')
+        self.output_path = output_path
+        # TODO Make use of insert_python_exec. This is difficult due to nuances with PyTorch pickle semantics
+        # If more injection methods are added, add an injection argument to allow users to choose
+        injected_model = BaseInjection(self.pickled, payload)
+        torch.save(injected_model, output_path)
