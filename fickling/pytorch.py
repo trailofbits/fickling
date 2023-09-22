@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from typing import Optional
 
 class BaseInjection(torch.nn.Module):
+    # This class allows you to combine the payload and original model 
     def __init__(self, original_model: torch.nn.Module, payload: str):
         super().__init__()
         self.original_model = original_model
