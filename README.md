@@ -17,7 +17,7 @@ and [DEF CON 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
 
 ## Installation
 
-Fickling has been tested on Python 3.6 through Python 3.9 and has very few dependencies.
+Fickling has been tested on Python 3.8 through Python 3.11 and has very few dependencies.
 It can be installed through pip:
 
 ```bash
