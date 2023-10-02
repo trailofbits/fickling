@@ -1,5 +1,6 @@
 import ast
 import distutils.sysconfig as sysconfig
+import re
 import struct
 import sys
 from abc import ABC, abstractmethod
@@ -28,7 +29,6 @@ from typing import (
 from typing import (
     Tuple as TupleType,
 )
-import re
 
 T = TypeVar("T")
 
