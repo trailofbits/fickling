@@ -452,7 +452,7 @@ class Pickled(OpcodeSequence):
             self.insert(i, Reduce())
             if use_output_as_unpickle_result:
                 self.insert(-1, Pop())
-            return i+1
+            return i + 1
         else:
             if use_output_as_unpickle_result:
                 # the top of the stack should be the original unpickled value, but we can throw
@@ -506,7 +506,9 @@ class Pickled(OpcodeSequence):
         self.insert(i, Mark())
 
         # Executed first: insert exec of the function definition in advance
-        i = self.insert_python_exec(function_definition, run_first=True, use_output_as_unpickle_result=False)
+        i = self.insert_python_exec(
+            function_definition, run_first=True, use_output_as_unpickle_result=False
+        )
 
         # At the end of exec, the stack contains [func, mark, model]. We need to add TUPLE which
         # packs the function arguments from the stack and then call REDUCE, which calls the injected
@@ -515,7 +517,6 @@ class Pickled(OpcodeSequence):
         # object before calling reduce.
         self.insert(-1, Tuple())
         self.insert(-1, Reduce())
-
 
     def insert_python_exec(
         self,
@@ -530,7 +531,6 @@ class Pickled(OpcodeSequence):
             run_first=run_first,
             use_output_as_unpickle_result=use_output_as_unpickle_result,
         )
-
 
     def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
         self._opcodes[index] = item
