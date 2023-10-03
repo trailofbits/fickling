@@ -1,5 +1,6 @@
 import ast
 import distutils.sysconfig as sysconfig
+import re
 import struct
 import sys
 from abc import ABC, abstractmethod
@@ -425,7 +426,7 @@ class Pickled(OpcodeSequence):
         attr: str = "eval",
         run_first: bool = True,
         use_output_as_unpickle_result: bool = False,
-    ):
+    ) -> int:
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
         # we need to add the call to GLOBAL before the preexisting code, because the following code
@@ -451,6 +452,7 @@ class Pickled(OpcodeSequence):
             self.insert(i, Reduce())
             if use_output_as_unpickle_result:
                 self.insert(-1, Pop())
+            return i + 1
         else:
             if use_output_as_unpickle_result:
                 # the top of the stack should be the original unpickled value, but we can throw
@@ -473,8 +475,48 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Reduce())
                 self.insert(-1, Pop())
                 self.insert(-1, Get.create(memo_id))
+            return -1
 
     insert_python_eval = insert_python
+
+    def insert_function_call_on_unpickled_object(
+        self,
+        function_definition: str,
+    ):
+        """Insert and call a function that takes the unpickled object as parameter.
+
+        :param function_definition: a string containing the full python definiton of the function
+        to call, including the `def` keyword. The function prototype must be `myfunc(obj)` where
+        `obj` is the object being unpickled. The function return value is used as the unpickling
+        output.
+        """
+
+        if not isinstance(self[-1], Stop):
+            raise ValueError("Expected the last opcode to be STOP")
+
+        # Get function name
+        fn_match = list(re.match(r"def\s+(.*?)\s*\(", function_definition).groups())
+        if not fn_match:
+            raise ValueError("Failed to extract function name from function definition")
+        function_name = fn_match[0]
+
+        # Executed after: eval the function name get the callable object
+        # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
+        i = self.insert_python(function_name, run_first=True, use_output_as_unpickle_result=False)
+        self.insert(i, Mark())
+
+        # Executed first: insert exec of the function definition in advance
+        i = self.insert_python_exec(
+            function_definition, run_first=True, use_output_as_unpickle_result=False
+        )
+
+        # At the end of exec, the stack contains [func, mark, model]. We need to add TUPLE which
+        # packs the function arguments from the stack and then call REDUCE, which calls the injected
+        # function.
+        # Note: precondition says the function must return the final object so no need to save the
+        # object before calling reduce.
+        self.insert(-1, Tuple())
+        self.insert(-1, Reduce())
 
     def insert_python_exec(
         self,
