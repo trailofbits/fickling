@@ -403,6 +403,8 @@ class Pickled(OpcodeSequence):
         self._opcodes: List[Opcode] = list(opcodes)
         self._ast: Optional[ast.Module] = None
         self._properties: Optional[ASTProperties] = None
+        self._vetted_dependencies: Optional[List[str]] = None
+        self._unvetted_dependencies: Optional[List[str]] = None
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -591,6 +593,24 @@ class Pickled(OpcodeSequence):
         return bool(self.properties.imports)
 
     @property
+    def has_unvetted_dependency(self) -> bool:
+        if self._vetted_dependencies is None:
+            raise ValueError("Cannot call has_unvetted_import when vetted_dependencies is not set")
+        if self._unvetted_dependencies is None:
+            self._unvetted_dependencies = []
+            for st in self.ast.body:
+                if isinstance(st, ast.ImportFrom):
+                    for imp in st.names:
+                        import_path = f"{st.module}.{imp.name}"
+                        if import_path not in self._vetted_dependencies:
+                            self._unvetted_dependencies.append(import_path)
+            return len(self._unvetted_dependencies) > 0
+        elif len(self._unvetted_dependencies) > 0:
+            return True
+        else:
+            return False
+
+    @property
     def has_call(self) -> bool:
         """Checks whether unpickling would cause a function call"""
         return bool(self.properties.calls)
@@ -632,6 +652,18 @@ class Pickled(OpcodeSequence):
         if self._ast is None:
             self._ast = Interpreter.interpret(self)
         return self._ast
+
+    @property
+    def vetted_dependencies(self) -> Optional[List[str]]:
+        return self._vetted_dependencies
+
+    @vetted_dependencies.setter
+    def vetted_dependencies(self, dependencies: List[str]):
+        self._vetted_dependencies = dependencies
+
+    @property
+    def unvetted_dependencies(self) -> Optional[List[str]]:
+        return self._unvetted_dependencies
 
 
 class Stack(GenericSequence, Generic[T]):
