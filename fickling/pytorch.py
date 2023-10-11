@@ -63,22 +63,3 @@ class PyTorchModelWrapper:
             output_path = Path(self.output_path)
             if output_path.exists():
                 os.remove(output_path)
-
-
-
-import torchvision.models as models
-file_path = 'mobilenet_v2.pt'
-
-model = models.mobilenet_v2()
-torch.save(model, file_path)
-deserialized_model = torch.load('mobilenet_v2.pt')
-
-temp_file_path = 'temp_mobilenet_v2.pt'
-
-wrapper = PyTorchModelWrapper(file_path)
-wrapper.inject_payload("print('Hello, World!')", temp_file_path, injection="insertion")
-#new_model = torch.load(temp_file_path)
-new_model = torch.load(file_path)
-print(dir(new_model))
-
-
