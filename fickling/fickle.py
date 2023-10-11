@@ -475,12 +475,7 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Reduce())
                 self.insert(-1, Pop())
                 self.insert(-1, Get.create(memo_id))
-<<<<<<< HEAD:fickling/fickle.py
-        #if not isinstance(self[-1], Stop):
-        #    self.insert(-1, Stop())
-=======
             return -1
->>>>>>> b5debefd189310218f24904377207ef25003ce38:fickling/pickle.py
 
     insert_python_eval = insert_python
 
