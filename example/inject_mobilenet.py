@@ -1,7 +1,7 @@
 import torch
 import torchvision.models as models
 import pickle
-from fickling.pickle import Pickled
+from fickling.fickle import Pickled
 import sys
 import torchvision
 import os

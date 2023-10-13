@@ -13,8 +13,8 @@ if version_info >= (3, 9):
 
 from astunparse import unparse
 
-from fickling import pickle as fpickle
-from fickling.pickle import Pickled
+from fickling import fickle as fpickle
+from fickling.fickle import Pickled
 
 
 def unparse_test(pickled: bytes):

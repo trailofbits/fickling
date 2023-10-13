@@ -7,7 +7,7 @@ if sys.version_info >= (3, 9):
 else:
     from astunparse import unparse
 
-from . import __version__, pickle, tracing
+from . import __version__, fickle, tracing
 from .analysis import check_safety
 
 
@@ -100,8 +100,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             file = open(args.PICKLE_FILE, "rb")
         try:
-            stacked_pickled = pickle.StackedPickle.load(file)
-        except pickle.PickleDecodeError as e:
+            stacked_pickled = fickle.StackedPickle.load(file)
+        except fickle.PickleDecodeError as e:
             sys.stderr.write(f"Error: {str(e)}\n")
             return 1
         finally:
@@ -121,7 +121,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             for pickled in stacked_pickled[: args.inject_target]:
                 pickled.dump(buffer)
             pickled = stacked_pickled[args.inject_target]
-            if not isinstance(pickled[-1], pickle.Stop):
+            if not isinstance(pickled[-1], fickle.Stop):
                 sys.stderr.write(
                     "Warning: The last opcode of the input file was expected to be STOP, but was "
                     f"in fact {pickled[-1].info.name}"
@@ -143,7 +143,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         else:
             var_id = 0
             for i, pickled in enumerate(stacked_pickled):
-                interpreter = pickle.Interpreter(
+                interpreter = fickle.Interpreter(
                     pickled, first_variable_id=var_id, result_variable=f"result{i}"
                 )
                 if args.trace:
@@ -153,14 +153,14 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(unparse(interpreter.to_ast()))
                 var_id = interpreter.next_variable_id
     else:
-        pickled = pickle.Pickled(
+        pickled = fickle.Pickled(
             [
-                pickle.Global.create("__builtin__", "eval"),
-                pickle.Mark(),
-                pickle.Unicode(args.create.encode("utf-8")),
-                pickle.Tuple(),
-                pickle.Reduce(),
-                pickle.Stop(),
+                fickle.Global.create("__builtin__", "eval"),
+                fickle.Mark(),
+                fickle.Unicode(args.create.encode("utf-8")),
+                fickle.Tuple(),
+                fickle.Reduce(),
+                fickle.Stop(),
             ]
         )
         if args.PICKLE_FILE == "-":
