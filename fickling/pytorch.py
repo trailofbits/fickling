@@ -1,10 +1,9 @@
+from fickling.fickle import Pickled
+import os
+from pathlib import Path
+from typing import Optional
 import torch
 import zipfile
-from fickling.fickle import Pickled
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Optional
-import os
 
 
 class BaseInjection(torch.nn.Module):
@@ -62,7 +61,7 @@ class PyTorchModelWrapper:
         if injection == "combination":
             injected_model = BaseInjection(self.pickled, payload)
             torch.save(injected_model, output_path)
-        if overwrite == True:
+        if overwrite is True:
             # Rename the new file to replace the original file
             Path(output_path).rename(self.path)
             output_path = Path(self.output_path)
