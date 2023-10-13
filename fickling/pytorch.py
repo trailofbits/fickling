@@ -1,9 +1,11 @@
-from fickling.fickle import Pickled
 import os
+import zipfile
 from pathlib import Path
 from typing import Optional
+
 import torch
-import zipfile
+
+from fickling.fickle import Pickled
 
 
 class BaseInjection(torch.nn.Module):
