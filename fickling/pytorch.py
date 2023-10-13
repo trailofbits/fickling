@@ -6,8 +6,9 @@ from tempfile import TemporaryDirectory
 from typing import Optional
 import os
 
+
 class BaseInjection(torch.nn.Module):
-    # This class allows you to combine the payload and original model 
+    # This class allows you to combine the payload and original model
     def __init__(self, original_model: torch.nn.Module, payload: str):
         super().__init__()
         self.original_model = original_model
@@ -28,15 +29,19 @@ class PyTorchModelWrapper:
     @property
     def pickled(self) -> Pickled:
         if self._pickled is None:
-            with zipfile.ZipFile(self.path, 'r') as zip_ref:
-                data_pkl_path = next((name for name in zip_ref.namelist() if name.endswith('/data.pkl')), None)
+            with zipfile.ZipFile(self.path, "r") as zip_ref:
+                data_pkl_path = next(
+                    (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None
+                )
                 if data_pkl_path is None:
                     raise ValueError("data.pkl not found in the zip archive")
                 with zip_ref.open(data_pkl_path, "r") as pickle_file:
                     self._pickled = Pickled.load(pickle_file)
         return self._pickled
 
-    def inject_payload(self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = True) -> None:
+    def inject_payload(
+        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = True
+    ) -> None:
         self.output_path = output_path
 
         if injection == "insertion":
@@ -46,11 +51,11 @@ class PyTorchModelWrapper:
             pickled.insert_python_exec(payload)
 
             # Create a new ZIP file to store the modified data
-            with zipfile.ZipFile(output_path, 'w') as new_zip_ref:
-                with zipfile.ZipFile(self.path, 'r') as zip_ref:
+            with zipfile.ZipFile(output_path, "w") as new_zip_ref:
+                with zipfile.ZipFile(self.path, "r") as zip_ref:
                     for item in zip_ref.infolist():
                         with zip_ref.open(item.filename) as entry:
-                            if item.filename.endswith('/data.pkl'):
+                            if item.filename.endswith("/data.pkl"):
                                 new_zip_ref.writestr(item.filename, pickled.dumps())
                             else:
                                 new_zip_ref.writestr(item.filename, entry.read())
