@@ -1430,7 +1430,7 @@ class Dict(Opcode):
                 f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
             )
 
-        interpreter.stack.append(ast.Dict(keys=keys, values=values))
+        interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
 
 
 if sys.version_info < (3, 9):
