@@ -1361,6 +1361,21 @@ class ShortBinBytes(DynamicLength, ConstantOpcode):
         return super().validate(obj)
 
 
+class ShortBinString(DynamicLength, ConstantOpcode):
+    name = "SHORT_BINSTRING"
+    priority = Unicode.priority + 1
+    length_bytes = 1
+
+    def encode_body(self) -> bytes:
+        return repr(self.arg).encode("utf-8")
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, str):
+            raise ValueError(f"String must be instantiated from a str, not {obj!r}")
+        return obj
+
+
 class BinBytes(ShortBinBytes):
     name = "BINBYTES"
     priority = ShortBinBytes.priority + 1
