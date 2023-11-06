@@ -198,6 +198,8 @@ class OvertlyBadEvals(Analysis):
                 or shortened.startswith("exec(")
                 or shortened.startswith("compile(")
                 or shortened.startswith("open(")
+                or shortened.startswith("_run_code(")
+                or shortened.startswith("execWrapper(")
             ):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
