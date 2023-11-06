@@ -13,7 +13,7 @@ from torch import nn, optim
 import torch.nn.functional as F
 import torch
 
-from fickling.pickle import Pickled
+from fickling.fickle import Pickled
 
 
 # Define model

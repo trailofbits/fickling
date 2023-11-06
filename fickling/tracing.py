@@ -7,7 +7,7 @@ if version_info >= (3, 9):
 else:
     from astunparse import unparse
 
-from .pickle import Interpreter, MarkObject, Opcode, Stack
+from .fickle import Interpreter, MarkObject, Opcode, Stack
 
 
 class Trace:
