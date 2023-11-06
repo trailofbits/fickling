@@ -655,6 +655,8 @@ class Pickled(OpcodeSequence):
                 "__builtins__",
                 "builtins",
                 "os",
+                "posix",
+                "nt",
                 "subprocess",
                 "sys",
                 "builtins",
