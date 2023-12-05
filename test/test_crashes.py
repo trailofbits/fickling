@@ -2,21 +2,18 @@
 This test module checks against inputs that previously caused crashes
 """
 
+import io
 from base64 import b64decode
 from functools import wraps
-from pickle import dumps, loads
 from sys import version_info
 from unittest import TestCase
-import io
 
 if version_info >= (3, 9):
     from ast import unparse as unparse9
 
 from astunparse import unparse
 
-from fickling import fickle as fpickle
-from fickling.fickle import Pickled, Interpreter
-from fickling.tracing import Trace
+from fickling.fickle import Pickled
 
 
 def unparse_test(pickled: bytes):
@@ -27,8 +24,6 @@ def unparse_test(pickled: bytes):
             if version_info >= (3, 9):
                 _ = unparse9(ast)
             _ = unparse(ast)
-            print(_)
-
         return wrapper
 
     return decorator
@@ -64,5 +59,5 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
     )
     def test_pop_mark(self):
         """Tests the correctness of the POP_MARK opcode by using the bytecode from https://github.com/mindspore-ai/mindspore/issues/183
-        In the future, this could be simplified to allow for the correctness of additional opcodes to be tested"""
+        This can be simplified to allow for the correctness of additional opcodes to be tested"""
         pass
