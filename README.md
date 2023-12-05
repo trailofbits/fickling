@@ -13,7 +13,7 @@ for “fickle,” … or something else. Divining its meaning is a personal jour
 in discretion and is left as an exercise to the reader.
 
 Learn more about it in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
-and [DEF CON 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
+and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
 
 ## Installation
 

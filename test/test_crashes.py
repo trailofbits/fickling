@@ -2,9 +2,9 @@
 This test module checks against inputs that previously caused crashes
 """
 
+import io
 from base64 import b64decode
 from functools import wraps
-from pickle import dumps, loads
 from sys import version_info
 from unittest import TestCase
 
@@ -13,7 +13,6 @@ if version_info >= (3, 9):
 
 from astunparse import unparse
 
-from fickling import fickle as fpickle
 from fickling.fickle import Pickled
 
 
@@ -52,4 +51,14 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
     )
     def test_stable_diffusion(self):
         """Reproduces https://github.com/trailofbits/fickling/issues/22"""
+        pass
+
+    @unparse_test(
+        io.BytesIO(
+            b"\x80\x04\x95\x82\x00\x00\x00\x00\x00\x00\x00(\x8c\x05numpy\x8c\x06poly1d\x93\x94\x8c\x05numpy\x8c\x04size\x93\x94\x8c\x05numpy\x8c\x0c__builtins__\x93\x94h\x00N\x85R\x94h\x03\x94h\x02\x94h\x04(\x8c\x05shapeh\x05dbh\x01h\x04\x8c\x04eval\x86R\x8c\x1d__import__('os').system('id')\x85R1N."
+        )
+    )
+    def test_pop_mark(self):
+        """Tests the correctness of the POP_MARK opcode by using the bytecode from https://github.com/mindspore-ai/mindspore/issues/183
+        This can be simplified to allow for the correctness of additional opcodes to be tested"""
         pass

@@ -12,9 +12,9 @@ else:
     from astunparse import unparse
 
 from fickling import fickle as fpickle
-from fickling.cli import main
-from fickling.fickle import Pickled, Interpreter, StackedPickle
 from fickling.analysis import check_safety
+from fickling.cli import main
+from fickling.fickle import Interpreter, Pickled, StackedPickle
 
 
 def get_result(pickled: Pickled):
@@ -177,7 +177,7 @@ class TestInterpreter(TestCase):
             tmpfile.write(dumps(1234567))
             tmpfile.close()
 
-            # Make sure that it fails if we try and inject into the forth stacked pickle (there are only 3)
+            # Ensure it fails if we try and inject into the fourth stacked pickle (there are only 3)
             self.assertNotEqual(
                 main(["", tmpfile.name, "--inject", 'print("foo")', "--inject-target", "3"]), 0
             )

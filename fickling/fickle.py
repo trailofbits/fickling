@@ -1032,6 +1032,21 @@ class Pop(Opcode):
         interpreter.stack.pop()
 
 
+class PopMark(Opcode):
+    name = "POP_MARK"
+
+    def run(self, interpreter: Interpreter):
+        objs = []
+        while interpreter.stack:
+            obj = interpreter.stack.pop()
+            if isinstance(obj, MarkObject):
+                break
+            objs.append(obj)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+        return objs
+
+
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
     name = "SHORT_BINUNICODE"
     priority = 5000
