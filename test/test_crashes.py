@@ -24,6 +24,7 @@ def unparse_test(pickled: bytes):
             if version_info >= (3, 9):
                 _ = unparse9(ast)
             _ = unparse(ast)
+
         return wrapper
 
     return decorator

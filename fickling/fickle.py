@@ -1031,6 +1031,7 @@ class Pop(Opcode):
     def run(self, interpreter: Interpreter):
         interpreter.stack.pop()
 
+
 class PopMark(Opcode):
     name = "POP_MARK"
 
@@ -1044,7 +1045,6 @@ class PopMark(Opcode):
         else:
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
         return objs
-
 
 
 class ShortBinUnicode(DynamicLength, ConstantOpcode):

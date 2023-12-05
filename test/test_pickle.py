@@ -216,5 +216,3 @@ class TestInterpreter(TestCase):
         loaded.insert(-1, fpickle.Proto.create(1))
         loaded.insert(-1, fpickle.Proto.create(2))
         self.assertFalse(check_safety(loaded))
-
-
