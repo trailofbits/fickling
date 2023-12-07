@@ -30,6 +30,7 @@ class PyTorchModelWrapper:
     @property
     def pickled(self) -> Pickled:
         if self._pickled is None:
+            # TODO Expand to other kinds of pickle files that may be present in PyTorch files
             with zipfile.ZipFile(self.path, "r") as zip_ref:
                 data_pkl_path = next(
                     (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None
