@@ -63,7 +63,6 @@ def check_if_pytorch_legacy_format(file_path):
 
 
 def find_file_characteristics(file, print_characteristics=False):
-    print("\nFinding file characteristics\n")
     characteristics = {}
     with open(file, "rb") as file:
         is_torch_zip = _is_zipfile(file)
@@ -112,7 +111,7 @@ def find_file_characteristics(file, print_characteristics=False):
 
 
 # TODO interface with the PyTorch module
-def detect_pytorch_file_format(file, print_characteristics=False):
+def identify_pytorch_file_format(file, print_characteristics=False):
     characteristics = find_file_characteristics(file, print_characteristics)
     formats = []
     corrupted = False
@@ -138,7 +137,6 @@ def detect_pytorch_file_format(file, print_characteristics=False):
         ):
             corrupted = True
             corrupted_error = "Your file may be corrupted. It contained a model.json file without an attributes.pkl or constants.pkl file."
-    # TODO legacy file format (pickle)
     if characteristics["is_valid_pickle"] or characteristics["is_valid_stacked_pickle"]:
         formats.append("PyTorch v0.1.10")
     if characteristics["is_tar"]:
@@ -150,6 +148,8 @@ def detect_pytorch_file_format(file, print_characteristics=False):
         has_serialized_model = file_exists_in_zip(file, ".pt") or file_exists_in_zip(file, ".pth")
         has_code = file_exists_in_zip(file, ".py")
         if has_json and has_serialized_model and has_code:
+            # Reference: https://pytorch.org/serve/getting_started.html
+            # Reference: https://github.com/pytorch/serve/tree/master/model-archiver
             formats.append("PyTorch model archive format")
     if corrupted:
         print(corrupted_error)
@@ -162,13 +162,13 @@ def detect_pytorch_file_format(file, print_characteristics=False):
             print("The following file formats may also be valid: ", secondary)
     else:
         print("Your file may not be a PyTorch file. No valid file formats were detected.")
-        return formats, corrupted
+    return formats
 
 
-filename = "scriptmodule.pt"
+# filename = "scriptmodule.pt"
 # filename = "legacy_model.pth"
 # filename = "model.pth"
 # filename = "random_data.zip"
 # filename = "pytorch_legacy.tar"
 # filename = "densenet161.mar"
-detect_pytorch_file_format(filename, True)
+# identify_pytorch_file_format(filename, True)

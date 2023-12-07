@@ -6,6 +6,7 @@ from typing import Optional
 import torch
 
 from fickling.fickle import Pickled
+import fickling.polyglot
 
 
 class BaseInjection(torch.nn.Module):
@@ -30,7 +31,16 @@ class PyTorchModelWrapper:
     @property
     def pickled(self) -> Pickled:
         if self._pickled is None:
-            # TODO Expand to other kinds of pickle files that may be present in PyTorch files
+            formats = fickling.polyglot.identify_pytorch_file_format(self.path)
+            if "PyTorch v1.3" not in formats:
+                if "PyTorch v0.1.10" in formats:
+                    raise ValueError(
+                        "This file may be a PyTorch v0.1.10 file. Try Pickled.load() or StackedPickle.load() instead."
+                    )
+                else:
+                    raise NotImplementedError(
+                        "A fickling wrapper and injection method has not been developed for that format. Please raise an issue on our GitHub."
+                    )
             with zipfile.ZipFile(self.path, "r") as zip_ref:
                 data_pkl_path = next(
                     (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None
@@ -42,7 +52,7 @@ class PyTorchModelWrapper:
         return self._pickled
 
     def inject_payload(
-        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = True
+        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
         self.output_path = output_path
 
