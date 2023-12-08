@@ -2,7 +2,7 @@ import os
 import zipfile
 from pathlib import Path
 from typing import Optional
-
+import warnings
 import torch
 
 from fickling.fickle import Pickled
@@ -24,23 +24,56 @@ class BaseInjection(torch.nn.Module):
 
 
 class PyTorchModelWrapper:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, force: bool = False):
         self.path: Path = path
         self._pickled: Optional[Pickled] = None
+        self.force: bool = force
 
     @property
     def pickled(self) -> Pickled:
         if self._pickled is None:
             formats = fickling.polyglot.identify_pytorch_file_format(self.path)
-            if "PyTorch v1.3" not in formats:
-                if "PyTorch v0.1.10" in formats:
-                    raise ValueError(
-                        "This file may be a PyTorch v0.1.10 file. Try Pickled.load() or StackedPickle.load() instead."
+            # One option was to raise an error if PyTorch v1.3 was not found or if any of the TorchScript versions were found.
+            # However, that would prevent polyglots from being loaded.
+            # Therefore, the 'force' argument was created to enable users to do that while loading different warnings.
+            # Another option was to only include the warning if "Pytorch v1.3" was not the most likely format.
+            # Instead, the file formats are directly specified for clarity and independence.
+            if len(formats) == 0:
+                if self.force == True:
+                    warnings.warn(
+                        "This file has not been identified as a PyTorch file. If it is a PyTorch file, raise an issue on GitHub",
+                        UserWarning,
                     )
                 else:
-                    raise NotImplementedError(
-                        "A fickling wrapper and injection method has not been developed for that format. Please raise an issue on our GitHub."
+                    raise ValueError(
+                        "This file has not been identified as a PyTorch file. If it is a PyTorch file, raise an issue on GitHub."
                     )
+            if ("PyTorch v1.3" not in formats) or {
+                "TorchScript v1.4",
+                "TorchScript v1.3",
+                "TorchScript v1.1",
+                "TorchScript v1.0",
+            }.intersection(formats):
+                if "PyTorch v0.1.10" in formats:
+                    if self.force == True:
+                        warnings.warn(
+                            "This file may be a PyTorch v0.1.10 file. Try Pickled.load() or StackedPickle.load() if this fails",
+                            UserWarning,
+                        )
+                    else:
+                        raise ValueError(
+                            "This file may be a PyTorch v0.1.10 file. Try Pickled.load() or StackedPickle.load() instead or use the argument `force=True`."
+                        )
+                else:
+                    if self.force == True:
+                        warnings.warn(
+                            "A fickling wrapper and injection method may not have been developed for that format. Please raise an issue on our GitHub.",
+                            UserWarning,
+                        )
+                    else:
+                        raise NotImplementedError(
+                            "A fickling wrapper and injection method may not have been for that format. Please raise an issue on our GitHub or use the argument `force=True`."
+                        )
             with zipfile.ZipFile(self.path, "r") as zip_ref:
                 data_pkl_path = next(
                     (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None

@@ -110,7 +110,6 @@ def find_file_characteristics(file, print_characteristics=False):
     return characteristics
 
 
-# TODO interface with the PyTorch module
 def identify_pytorch_file_format(file, print_characteristics=False):
     characteristics = find_file_characteristics(file, print_characteristics)
     formats = []
