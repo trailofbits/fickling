@@ -1,15 +1,13 @@
-import torch
 from torch.serialization import _is_zipfile
 import torchvision.models as models
 import zipfile
-import os
-import random
-import string
 import tarfile
 from fickling.fickle import Pickled, StackedPickle
 
 """
-We currently support the following PyTorch file formats: 
+PyTorch file format identification:
+
+We currently support the following PyTorch file formats:
 • PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors
 • PyTorch v0.1.10: Stacked pickle files
 • TorchScript v1.0: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
@@ -19,16 +17,14 @@ We currently support the following PyTorch file formats:
 • PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
 • PyTorch model archive format: ZIP file that includes Python code files and pickle files
 
-This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877. 
-If any inaccuracies in that description are found or new file formats are established, that should be reflected. 
-
-We are intentionally matching the semantics of the PyTorch reference parsers. 
-
-Reference: https://github.com/lutzroeder/netron/blob/main/source/pytorch.js
+This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877.
+If any inaccuracies in that description are found or new file formats are established, that should be reflected.
+Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js. 
 """
 
 
-def file_exists_in_zip(zip_path, file_name_or_extension, extension=False):
+def check_zip_for_file(zip_path, file_name_or_extension, extension=False):
+    # Many of the PyTorch file formats rely on ZIP
     try:
         with zipfile.ZipFile(zip_path) as zip_file:
             if extension:
@@ -43,47 +39,42 @@ def file_exists_in_zip(zip_path, file_name_or_extension, extension=False):
         return False
 
 
-def check_pickle_validity(file, loader):
+def check_pickle(file):
+    # This only checks if the input is pickle-able. It is not a robust verificatication.
     try:
-        loader(file)
+        Pickled.load(file)
         return True
-    except:
-        return False
+    except Exception:
+        try:
+            StackedPickle.load(file)
+            return True
+        except Exception:
+            return False
 
 
-def check_if_pytorch_legacy_format(file_path):
-    required_entries = {"pickle", "storages", "tensors"}
-    try:
-        with tarfile.open(file_path, mode="r:", format=tarfile.PAX_FORMAT) as tar:
-            tar_contents = {member.name for member in tar.getmembers()}
-            print(tar_contents)
-            return required_entries.issubset(tar_contents)
-    except Exception as e:
-        return False
-
-
-def find_file_characteristics(file, print_characteristics=False):
-    characteristics = {}
+def find_file_properties(file, print_properties=False):
+    # We separate format identification and properties to allow for more granular analysis
+    properties = {}
     with open(file, "rb") as file:
+        # PyTorch's torch.load() enforces a specific magic number at offset 0 for ZIP
         is_torch_zip = _is_zipfile(file)
-        characteristics["is_torch_zip"] = is_torch_zip
+        properties["is_torch_zip"] = is_torch_zip
 
         # This tarfile check has many false positivies. It is not a determinant of PyTorch v0.1.1.
         is_tar = tarfile.is_tarfile(file)
-        characteristics["is_tar"] = is_tar
+        properties["is_tar"] = is_tar
 
-        # This is here as a baseline. Custom unpickling in PyTorch makes this check not helpful for PyTorch v0.1.10.
-        # In the future, we can implement these unpicklers for deeper analysis.
-        is_valid_pickle = check_pickle_validity(file, Pickled.load)
-        is_valid_stacked_pickle = check_pickle_validity(file, StackedPickle.load)
-        characteristics["is_valid_pickle"] = is_valid_pickle
-        characteristics["is_valid_stacked_pickle"] = is_valid_stacked_pickle
+        # Similar to tar, this is not a robust verification.
+        is_valid_pickle = check_pickle(file)
+        properties["is_valid_pickle"] = is_valid_pickle
 
+        # PyTorch MAR can be a standard ZIP, but not a PyTorch ZIP
+        # Other non-PyTorch file formats rely on ZIP without PyTorch's limitations
         is_standard_zip = zipfile.is_zipfile(file)
-        characteristics["is_standard_zip"] = is_standard_zip
+        properties["is_standard_zip"] = is_standard_zip
 
         is_standard_not_torch = is_standard_zip and not is_torch_zip
-        characteristics["is_standard_not_torch"] = is_standard_not_torch
+        properties["is_standard_not_torch"] = is_standard_not_torch
 
         torch_zip_results = {
             "has_constants_pkl": False,
@@ -101,21 +92,64 @@ def find_file_characteristics(file, print_characteristics=False):
                 "attribute.pkl",
             ]
             torch_zip_results = {
-                f"has_{'_'.join(f.split('.'))}": file_exists_in_zip(file, f)
+                f"has_{'_'.join(f.split('.'))}": check_zip_for_file(file, f)
                 for f in torch_zip_checks
             }
-        characteristics.update(torch_zip_results)
-    if print_characteristics:
-        print("\nCharacteristics:", characteristics, "\n")
-    return characteristics
+        properties.update(torch_zip_results)
+    if print_properties:
+        print("\nproperties:", properties, "\n")
+    return properties
 
 
-def identify_pytorch_file_format(file, print_characteristics=False):
-    characteristics = find_file_characteristics(file, print_characteristics)
+def check_if_legacy_format(file):
+    required_entries = {"pickle", "storages", "tensors"}
+    try:
+        with tarfile.open(file, mode="r:", format=tarfile.PAX_FORMAT) as tar:
+            tar_contents = {member.name for member in tar.getmembers()}
+            return required_entries.issubset(tar_contents)
+    except Exception as e:
+        return False
+
+
+def check_if_model_archive_format(file, properties):
+    """
+    References for the PyTorch Model Archive Format:
+    1. https://pytorch.org/serve/getting_started.html
+    2. https://github.com/pytorch/serve/tree/master/model-archiver
+    """
+    if properties["is_standard_zip"]:
+        has_json = check_zip_for_file(file, ".json")
+        has_serialized_model = check_zip_for_file(file, ".pt") or check_zip_for_file(file, ".pth")
+        has_code = check_zip_for_file(file, ".py")
+        if has_json and has_serialized_model and has_code:
+            return True
+        else:
+            return False
+
+
+def check_for_corruption(properties):
+    # This can eventually be expanded to more cases
+    corrupted = False
+    reason = ""
+    if properties["is_torch_zip"]:
+        if (
+            properties["has_model_json"]
+            and not properties["has_attribute_pkl"]
+            and not properties["has_constants_pkl"]
+        ):
+            corrupted = True
+            reason = "Your file may be corrupted. It contained a model.json file without an attributes.pkl or constants.pkl file."
+    return corrupted, reason
+
+
+def identify_pytorch_file_format(file, print_properties=False):
+    # We are intentionally matching the semantics of the PyTorch reference parsers
+    # To be polyglot-aware, we show the file formats ranked by likelihood
+    properties = find_file_properties(file, print_properties)
     formats = []
     corrupted = False
 
-    if characteristics["is_torch_zip"]:
+    if properties["is_torch_zip"]:
         format_conditions = [
             (["has_data_pkl", "has_constants_pkl", "has_version"], "TorchScript v1.4"),
             (["has_data_pkl", "has_constants_pkl"], "TorchScript v1.3"),
@@ -126,34 +160,23 @@ def identify_pytorch_file_format(file, print_characteristics=False):
         formats = [
             format_name
             for keys, format_name in format_conditions
-            if all(characteristics[key] for key in keys)
+            if all(properties[key] for key in keys)
         ]
-        # Consider expanding corruption cases to include any case with extraneous files
-        if (
-            characteristics["has_model_json"]
-            and not characteristics["has_attribute_pkl"]
-            and not characteristics["has_constants_pkl"]
-        ):
-            corrupted = True
-            corrupted_error = "Your file may be corrupted. It contained a model.json file without an attributes.pkl or constants.pkl file."
-    if characteristics["is_valid_pickle"] or characteristics["is_valid_stacked_pickle"]:
+    if properties["is_valid_pickle"]:
         formats.append("PyTorch v0.1.10")
-    if characteristics["is_tar"]:
-        is_pytorch_legacy_format = check_if_pytorch_legacy_format(file)
+    if properties["is_tar"]:
+        is_pytorch_legacy_format = check_if_legacy_format(file)
         if is_pytorch_legacy_format:
             formats.append("PyTorch v0.1.1")
-    if characteristics["is_standard_zip"]:
-        has_json = file_exists_in_zip(file, ".json")
-        has_serialized_model = file_exists_in_zip(file, ".pt") or file_exists_in_zip(file, ".pth")
-        has_code = file_exists_in_zip(file, ".py")
-        if has_json and has_serialized_model and has_code:
-            # Reference: https://pytorch.org/serve/getting_started.html
-            # Reference: https://github.com/pytorch/serve/tree/master/model-archiver
+    if properties["is_standard_zip"]:
+        is_model_archive_format = check_if_model_archive_format(file, properties)
+        if is_model_archive_format:
             formats.append("PyTorch model archive format")
+    corrupted, reason = check_for_corruption(properties)
+    # Show results to user
     if corrupted:
-        print(corrupted_error)
+        print(reason)
     if len(formats) != 0:
-        # Show the most likely file format as well as secondary file formats
         primary = formats[0]
         print("Your file is most likely: ", primary, "\n")
         secondary = formats[1:]
@@ -164,10 +187,10 @@ def identify_pytorch_file_format(file, print_characteristics=False):
     return formats
 
 
-# filename = "scriptmodule.pt"
+filename = "scriptmodule.pt"
 # filename = "legacy_model.pth"
 # filename = "model.pth"
 # filename = "random_data.zip"
 # filename = "pytorch_legacy.tar"
 # filename = "densenet161.mar"
-# identify_pytorch_file_format(filename, True)
+identify_pytorch_file_format(filename, True)
