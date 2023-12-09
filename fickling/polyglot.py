@@ -1,7 +1,8 @@
-from torch.serialization import _is_zipfile
-import torchvision.models as models
-import zipfile
 import tarfile
+import zipfile
+
+from torch.serialization import _is_zipfile
+
 from fickling.fickle import Pickled, StackedPickle
 
 """
@@ -18,8 +19,9 @@ We currently support the following PyTorch file formats:
 • PyTorch model archive format: ZIP file that includes Python code files and pickle files
 
 This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877.
-If any inaccuracies in that description are found or new file formats are established, that should be reflected.
-Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js. 
+If any inaccuracies in that description are found, that should be reflected in this code.
+If any new PyTorch file formats are made, that should be added to this code.
+Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js.
 """
 
 
@@ -44,11 +46,11 @@ def check_pickle(file):
     try:
         Pickled.load(file)
         return True
-    except Exception:
+    except Exception:  # noqa
         try:
             StackedPickle.load(file)
             return True
-        except Exception:
+        except Exception:  # noqa
             return False
 
 
@@ -103,11 +105,14 @@ def find_file_properties(file, print_properties=False):
 
 def check_if_legacy_format(file):
     required_entries = {"pickle", "storages", "tensors"}
+    found_entries = set()
     try:
         with tarfile.open(file, mode="r:", format=tarfile.PAX_FORMAT) as tar:
-            tar_contents = {member.name for member in tar.getmembers()}
-            return required_entries.issubset(tar_contents)
-    except Exception as e:
+            for member in iter(tar.next, None):
+                found_entries.add(member.name)
+                if required_entries.issubset(found_entries):
+                    return True
+    except Exception:  # noqa
         return False
 
 
@@ -138,7 +143,8 @@ def check_for_corruption(properties):
             and not properties["has_constants_pkl"]
         ):
             corrupted = True
-            reason = "Your file may be corrupted. It contained a model.json file without an attributes.pkl or constants.pkl file."
+            reason = """Your file may be corrupted. It contained a
+            model.json file without an attributes.pkl or constants.pkl file."""
     return corrupted, reason
 
 
@@ -185,12 +191,3 @@ def identify_pytorch_file_format(file, print_properties=False):
     else:
         print("Your file may not be a PyTorch file. No valid file formats were detected.")
     return formats
-
-
-filename = "scriptmodule.pt"
-# filename = "legacy_model.pth"
-# filename = "model.pth"
-# filename = "random_data.zip"
-# filename = "pytorch_legacy.tar"
-# filename = "densenet161.mar"
-identify_pytorch_file_format(filename, True)
