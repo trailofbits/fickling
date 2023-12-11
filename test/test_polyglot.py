@@ -5,7 +5,7 @@ import os
 import zipfile
 import random
 import string
-from fickling.pytorch import PyTorchModelWrapper
+from fickling.fickle_pytorch import PyTorchModelWrapper
 from fickling.fickle import Pickled
 import fickling.polyglot as polyglot
 import tarfile
