@@ -12,8 +12,8 @@ from fickling.fickle import Pickled
 class TestPyTorchModule(unittest.TestCase):
     def setUp(self):
         model = models.mobilenet_v2()
-        torch.save(model, "test_model.pth")
         self.filename_v1_3 = "test_model.pth"
+        torch.save(model, self.filename_v1_3)
         self.zip_filename = "test_random_data.zip"
 
     def tearDown(self):
