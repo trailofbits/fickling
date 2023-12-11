@@ -1,8 +1,8 @@
+import shutil
 import tarfile
 import zipfile
-import torch
+
 from torch.serialization import _is_zipfile
-import shutil
 
 from fickling.fickle import Pickled, StackedPickle
 
@@ -29,20 +29,30 @@ Another useful reference is https://github.com/lutzroeder/netron/blob/main/sourc
 """
 
 
-def check_zip_for_file(zip_path, file_name_or_extension, extension=False):
-    # Many of the PyTorch file formats rely on ZIP
+def check_and_find_in_zip(
+    zip_path, file_name_or_extension, return_path=False, check_extension=False
+):
+    """Check for a file in the zip and return its path or boolean if found."""
     try:
-        with zipfile.ZipFile(zip_path) as zip_file:
-            if extension:
-                return any(entry.endswith(file_name_or_extension) for entry in zip_file.namelist())
-            else:
-                return any(file_name_or_extension in entry for entry in zip_file.namelist())
+        if not (return_path):
+            with zipfile.ZipFile(zip_path, "r") as zip_file:
+                if check_extension:
+                    return any(
+                        entry.endswith(file_name_or_extension) for entry in zip_file.namelist()
+                    )
+                else:
+                    return any(file_name_or_extension in entry for entry in zip_file.namelist())
+        else:
+            return next(
+                (entry for entry in zip_path.namelist() if entry.endswith(file_name_or_extension)),
+                None,
+            )
     except zipfile.BadZipFile:
         print(f"Invalid ZIP file: {zip_path}")
-        return False
+        return None if return_path else False
     except FileNotFoundError:
         print(f"File not found: {zip_path}")
-        return False
+        return None if return_path else False
 
 
 def check_pickle(file):
@@ -98,7 +108,9 @@ def find_file_properties(file, print_properties=False):
                 "attribute.pkl",
             ]
             torch_zip_results = {
-                f"has_{'_'.join(f.split('.'))}": check_zip_for_file(file, f)
+                f"has_{'_'.join(f.split('.'))}": check_and_find_in_zip(
+                    file, f, check_extension=False
+                )
                 for f in torch_zip_checks
             }
         properties.update(torch_zip_results)
@@ -127,13 +139,12 @@ def check_if_model_archive_format(file, properties):
     2. https://github.com/pytorch/serve/tree/master/model-archiver
     """
     if properties["is_standard_zip"]:
-        has_json = check_zip_for_file(file, ".json")
-        has_serialized_model = check_zip_for_file(file, ".pt") or check_zip_for_file(file, ".pth")
-        has_code = check_zip_for_file(file, ".py")
-        if has_json and has_serialized_model and has_code:
-            return True
-        else:
-            return False
+        has_json = check_and_find_in_zip(file, ".json", check_extension=True)
+        has_serialized_model = check_and_find_in_zip(
+            file, ".pt", check_extension=True
+        ) or check_and_find_in_zip(file, ".pth", check_extension=True)
+        has_code = check_and_find_in_zip(file, ".py", check_extension=True)
+        return has_json and has_serialized_model and has_code
 
 
 def check_for_corruption(properties):
@@ -198,24 +209,14 @@ def identify_pytorch_file_format(file, print_properties=False):
 
 
 def append_file(source_filename, destination_filename):
-    # Open the source file in binary read mode
     with open(source_filename, "rb") as source_file:
         content = source_file.read()
-
-    # Open the destination file in binary append mode and write the content
     with open(destination_filename, "ab") as destination_file:
         destination_file.write(content)
-    return
 
 
-def make_zip_pickle_polyglot(zip_file, pickle_file):
-    # MAR/PyTorch v0.1.10
+def make_zip_pickle_polyglot(zip_file, pickle_file, copy=False):
     append_file(zip_file, pickle_file)
-    return
-
-
-def find_in_zip(zip_file, file_name):
-    return next((entry for entry in zip_file.namelist() if entry.endswith(file_name)), None)
 
 
 def create_polyglot(first_file, second_file):
@@ -223,14 +224,16 @@ def create_polyglot(first_file, second_file):
         (first_file, identify_pytorch_file_format(first_file)[0]),
         (second_file, identify_pytorch_file_format(second_file)[0]),
     ]
-    formats = set(map(lambda x: x[1], files))
+    formats = set(map(lambda x: x[1], files))  # noqa
     polyglot_found = False
     if {"PyTorch model archive format", "PyTorch v0.1.10"}.issubset(formats):
         files.sort(key=lambda x: x[1] != "PyTorch model archive format")
         print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
         polyglot_found = True
-        make_zip_pickle_polyglot(*[file[0] for file in files])
+        make_zip_pickle_polyglot(*[file[0] for file in files], copy=False)
+        return polyglot_found
     if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
+        print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
         print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
         polyglot_found = True
         file_a = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
@@ -238,8 +241,10 @@ def create_polyglot(first_file, second_file):
         shutil.copy(file_a, "polyglot.pt")
 
         with zipfile.ZipFile(file_b, "r") as zip_b:
-            constants_pkl_path = find_in_zip(zip_b, "constants.pkl")
-            version_path = find_in_zip(zip_b, "version")
+            constants_pkl_path = check_and_find_in_zip(
+                zip_b, "constants.pkl", check_extension=False, return_path=True
+            )
+            version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
             if constants_pkl_path and version_path:
                 zip_b.extract(constants_pkl_path, "temp")
                 zip_b.extract(version_path, "temp")
@@ -249,21 +254,16 @@ def create_polyglot(first_file, second_file):
             zip_out.write(f"temp/{version_path}", "version")
 
         shutil.rmtree("temp")
+        return polyglot_found
+    if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
+        polyglot_found = True
+        file_a = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
+        file_b = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
+        append_file(file_a, file_b)
+        return polyglot_found
     if polyglot_found is False:
         print(
-            "Fickling was not able to create any polglots. If you think this is a mistake, raise an issue on our GitHub."
+            """Fickling was not able to create any polglots.
+              If you think this is a mistake, raise an issue on our GitHub."""
         )
-    return
-
-
-# zip_file = 'densenet161.mar'
-# pickle_file = 'legacy_model.pth'
-
-# make_zip_pickle_polyglot(zip_file, pickle_file)
-
-# torch.load(pickle_file)
-# create_polyglot(zip_file, pickle_file)
-
-second_file = "model.pth"
-first_file = "scriptmodule.pt"
-create_polyglot(first_file, second_file)
+        return False
