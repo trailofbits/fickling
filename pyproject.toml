@@ -17,7 +17,7 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Utilities",
 ]
-dependencies = ["astunparse ~= 1.6.3", "torch~=1.9.0", "torchvision~=0.10.0"]
+dependencies = ["astunparse ~= 1.6.3", "torch", "torchvision"]
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
