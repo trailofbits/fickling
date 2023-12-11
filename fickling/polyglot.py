@@ -2,6 +2,7 @@ import tarfile
 import zipfile
 import torch
 from torch.serialization import _is_zipfile
+import shutil
 
 from fickling.fickle import Pickled, StackedPickle
 
@@ -195,37 +196,74 @@ def identify_pytorch_file_format(file, print_properties=False):
         print("Your file may not be a PyTorch file. No valid file formats were detected.")
     return formats
 
+
 def append_file(source_filename, destination_filename):
     # Open the source file in binary read mode
-    with open(source_filename, 'rb') as source_file:
+    with open(source_filename, "rb") as source_file:
         content = source_file.read()
 
     # Open the destination file in binary append mode and write the content
-    with open(destination_filename, 'ab') as destination_file:
+    with open(destination_filename, "ab") as destination_file:
         destination_file.write(content)
-    return 
+    return
+
 
 def make_zip_pickle_polyglot(zip_file, pickle_file):
     # MAR/PyTorch v0.1.10
     append_file(zip_file, pickle_file)
-    return 
-
-def identify_potential_polyglots(file, formats=None):
-    if formats is None:
-        formats = identify_pytorch_file_format(file)
-    if "PyTorch model archive format" in formats:
-        print("""
-              PyTorch model archive format (MAR) found:
-              Use fickling.polyglot.make_zip_pickle_polyglot(zip_file, pickle_file).
-              This appends the MAR file to a pickle file. 
-              You can create MAR/PyTorch v0.1.10 polyglots. 
-              """)
-    pass
+    return
 
 
-zip_file = 'densenet161.mar'
-pickle_file = 'legacy_model.pth'
+def find_in_zip(zip_file, file_name):
+    return next((entry for entry in zip_file.namelist() if entry.endswith(file_name)), None)
 
-make_zip_pickle_polyglot(zip_file, pickle_file)
 
-torch.load(pickle_file)
+def create_polyglot(first_file, second_file):
+    files = [
+        (first_file, identify_pytorch_file_format(first_file)[0]),
+        (second_file, identify_pytorch_file_format(second_file)[0]),
+    ]
+    formats = set(map(lambda x: x[1], files))
+    polyglot_found = False
+    if {"PyTorch model archive format", "PyTorch v0.1.10"}.issubset(formats):
+        files.sort(key=lambda x: x[1] != "PyTorch model archive format")
+        print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
+        polyglot_found = True
+        make_zip_pickle_polyglot(*[file[0] for file in files])
+    if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
+        print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
+        polyglot_found = True
+        file_a = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
+        file_b = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
+        shutil.copy(file_a, "polyglot.pt")
+
+        with zipfile.ZipFile(file_b, "r") as zip_b:
+            constants_pkl_path = find_in_zip(zip_b, "constants.pkl")
+            version_path = find_in_zip(zip_b, "version")
+            if constants_pkl_path and version_path:
+                zip_b.extract(constants_pkl_path, "temp")
+                zip_b.extract(version_path, "temp")
+
+        with zipfile.ZipFile("polyglot.pt", "a") as zip_out:
+            zip_out.write(f"temp/{constants_pkl_path}", "constants.pkl")
+            zip_out.write(f"temp/{version_path}", "version")
+
+        shutil.rmtree("temp")
+    if polyglot_found is False:
+        print(
+            "Fickling was not able to create any polglots. If you think this is a mistake, raise an issue on our GitHub."
+        )
+    return
+
+
+# zip_file = 'densenet161.mar'
+# pickle_file = 'legacy_model.pth'
+
+# make_zip_pickle_polyglot(zip_file, pickle_file)
+
+# torch.load(pickle_file)
+# create_polyglot(zip_file, pickle_file)
+
+second_file = "model.pth"
+first_file = "scriptmodule.pt"
+create_polyglot(first_file, second_file)
