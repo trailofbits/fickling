@@ -63,7 +63,7 @@ class TestPolyglotModule(unittest.TestCase):
 
         # PyTorch v0.1.1
         self.filename_legacy_tar = "model_legacy_tar.pth"
-        create_pytorch_legacy_tar(self.filename_legacy_tar)
+        #create_pytorch_legacy_tar(self.filename_legacy_tar)
 
         # Random ZIP file
         self.zip_filename = "test_random.zip"
@@ -94,6 +94,7 @@ class TestPolyglotModule(unittest.TestCase):
         self.assertEqual(formats[0], "TorchScript v1.4")
 
     def test_legacy_tar(self):
+        create_pytorch_legacy_tar(self.filename_legacy_tar)
         formats = polyglot.identify_pytorch_file_format(self.filename_legacy_tar)
         self.assertEqual(formats[0], "PyTorch v0.1.1")
 
