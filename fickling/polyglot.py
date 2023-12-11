@@ -1,7 +1,8 @@
 import shutil
 import tarfile
 import zipfile
-
+import tempfile
+import os
 from torch.serialization import _is_zipfile
 
 from fickling.fickle import Pickled, StackedPickle
