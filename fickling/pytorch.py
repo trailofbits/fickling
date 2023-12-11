@@ -32,7 +32,8 @@ class PyTorchModelWrapper:
 
     def validate_file_format(self):
         formats = fickling.polyglot.identify_pytorch_file_format(self.path)
-        """One option was to raise an error if PyTorch v1.3 was not found
+        """
+        One option was to raise an error if PyTorch v1.3 was not found
         or if any of the TorchScript versions were found.
         However, that would prevent polyglots from being loaded.
         Therefore, the 'force' argument was created to enable users to do that if needed.
@@ -110,6 +111,7 @@ class PyTorchModelWrapper:
         self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
         self.output_path = output_path
+        # TODO Replace output_path and default injection argument and order of arguments
 
         if injection == "insertion":
             # This does NOT bypass the weights based unpickler

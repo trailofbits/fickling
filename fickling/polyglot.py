@@ -1,6 +1,6 @@
 import tarfile
 import zipfile
-
+import torch
 from torch.serialization import _is_zipfile
 
 from fickling.fickle import Pickled, StackedPickle
@@ -17,6 +17,9 @@ We currently support the following PyTorch file formats:
 • TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
 • PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
 • PyTorch model archive format: ZIP file that includes Python code files and pickle files
+
+Officially, PyTorch v0.1.1 and TorchScript < v1.4 are deprecated.
+However, they are still supported by some legacy parsers
 
 This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877.
 If any inaccuracies in that description are found, that should be reflected in this code.
@@ -191,3 +194,38 @@ def identify_pytorch_file_format(file, print_properties=False):
     else:
         print("Your file may not be a PyTorch file. No valid file formats were detected.")
     return formats
+
+def append_file(source_filename, destination_filename):
+    # Open the source file in binary read mode
+    with open(source_filename, 'rb') as source_file:
+        content = source_file.read()
+
+    # Open the destination file in binary append mode and write the content
+    with open(destination_filename, 'ab') as destination_file:
+        destination_file.write(content)
+    return 
+
+def make_zip_pickle_polyglot(zip_file, pickle_file):
+    # MAR/PyTorch v0.1.10
+    append_file(zip_file, pickle_file)
+    return 
+
+def identify_potential_polyglots(file, formats=None):
+    if formats is None:
+        formats = identify_pytorch_file_format(file)
+    if "PyTorch model archive format" in formats:
+        print("""
+              PyTorch model archive format (MAR) found:
+              Use fickling.polyglot.make_zip_pickle_polyglot(zip_file, pickle_file).
+              This appends the MAR file to a pickle file. 
+              You can create MAR/PyTorch v0.1.10 polyglots. 
+              """)
+    pass
+
+
+zip_file = 'densenet161.mar'
+pickle_file = 'legacy_model.pth'
+
+make_zip_pickle_polyglot(zip_file, pickle_file)
+
+torch.load(pickle_file)
