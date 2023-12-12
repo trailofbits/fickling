@@ -57,7 +57,7 @@ def check_and_find_in_zip(
 
 
 def check_pickle(file):
-    # This only checks if the input is pickle-able. It is not a robust verificatication.
+    """Checks if a file can be pickled; this does not directly determine the file is a pickle"""
     try:
         Pickled.load(file)
         return True
@@ -70,7 +70,7 @@ def check_pickle(file):
 
 
 def find_file_properties(file, print_properties=False):
-    # We separate format identification and properties to allow for more granular analysis
+    """For a more granular analysis, we separate property discover and format identification"""
     properties = {}
     with open(file, "rb") as file:
         # PyTorch's torch.load() enforces a specific magic number at offset 0 for ZIP
@@ -86,7 +86,7 @@ def find_file_properties(file, print_properties=False):
         properties["is_valid_pickle"] = is_valid_pickle
 
         # PyTorch MAR can be a standard ZIP, but not a PyTorch ZIP
-        # Other non-PyTorch file formats rely on ZIP without PyTorch's limitations
+        # Some other non-PyTorch file formats rely on ZIP without PyTorch's limitations
         is_standard_zip = zipfile.is_zipfile(file)
         properties["is_standard_zip"] = is_standard_zip
 
@@ -121,6 +121,7 @@ def find_file_properties(file, print_properties=False):
 
 
 def check_if_legacy_format(file):
+    """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
     required_entries = {"pickle", "storages", "tensors"}
     found_entries = set()
     try:
@@ -135,6 +136,8 @@ def check_if_legacy_format(file):
 
 def check_if_model_archive_format(file, properties):
     """
+    PyTorch model archive format: ZIP file that includes Python code files and pickle files
+
     References for the PyTorch Model Archive Format:
     1. https://pytorch.org/serve/getting_started.html
     2. https://github.com/pytorch/serve/tree/master/model-archiver
@@ -149,9 +152,10 @@ def check_if_model_archive_format(file, properties):
 
 
 def check_for_corruption(properties):
-    # This can eventually be expanded to more cases
+    """Checks for corruption at the PyTorch file format level"""
     corrupted = False
     reason = ""
+    # We expect this to be expanded upon
     if properties["is_torch_zip"]:
         if (
             properties["has_model_json"]
@@ -165,12 +169,14 @@ def check_for_corruption(properties):
 
 
 def identify_pytorch_file_format(file, print_properties=False):
-    # We are intentionally matching the semantics of the PyTorch reference parsers
-    # To be polyglot-aware, we show the file formats ranked by likelihood
+    """
+    We are intentionally matching the semantics of the PyTorch reference parsers.
+    To be polyglot-aware, we show the file formats ranked by likelihood.
+    """
     properties = find_file_properties(file, print_properties)
     formats = []
     corrupted = False
-
+    # The order of this identification is intentional and tries to match PyTorch
     if properties["is_torch_zip"]:
         format_conditions = [
             (["has_data_pkl", "has_constants_pkl", "has_version"], "TorchScript v1.4"),
@@ -184,6 +190,7 @@ def identify_pytorch_file_format(file, print_properties=False):
             for keys, format_name in format_conditions
             if all(properties[key] for key in keys)
         ]
+
     if properties["is_valid_pickle"]:
         formats.append("PyTorch v0.1.10")
     if properties["is_tar"]:
@@ -195,17 +202,18 @@ def identify_pytorch_file_format(file, print_properties=False):
         if is_model_archive_format:
             formats.append("PyTorch model archive format")
     corrupted, reason = check_for_corruption(properties)
+
     # Show results to user
     if corrupted:
         print(reason)
     if len(formats) != 0:
         primary = formats[0]
-        print("Your file is most likely: ", primary, "\n")
+        print("Your file is most likely of this format: ", primary, "\n")
         secondary = formats[1:]
         if len(secondary) != 0:
-            print("The following file formats may also be valid: ", secondary)
+            print("It is also possible that your file can be validly interpreted as: ", secondary)
     else:
-        print("Your file may not be a PyTorch file. No valid file formats were detected.")
+        print("Your file may not be a PyTorch file. No valid file formats were detected. If this is a mistake, raise an issue on our GitHub.")
     return formats
 
 
