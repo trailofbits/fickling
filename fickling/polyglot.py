@@ -3,6 +3,7 @@ import tarfile
 import zipfile
 import tempfile
 import os
+import sys
 from torch.serialization import _is_zipfile
 
 from fickling.fickle import Pickled, StackedPickle
@@ -69,16 +70,19 @@ def check_pickle(file):
             return False
 
 
-def find_file_properties(file, print_properties=False):
+def find_file_properties(file_path, print_properties=False):
     """For a more granular analysis, we separate property discover and format identification"""
     properties = {}
-    with open(file, "rb") as file:
+    with open(file_path, "rb") as file:
         # PyTorch's torch.load() enforces a specific magic number at offset 0 for ZIP
         is_torch_zip = _is_zipfile(file)
         properties["is_torch_zip"] = is_torch_zip
 
         # This tarfile check has many false positivies. It is not a determinant of PyTorch v0.1.1.
-        is_tar = tarfile.is_tarfile(file)
+        if sys.version_info >= (3, 9):
+            is_tar = tarfile.is_tarfile(file)
+        else:
+            is_tar = tarfile.is_tarfile(file_path)
         properties["is_tar"] = is_tar
 
         # Similar to tar, this is not a robust verification.
