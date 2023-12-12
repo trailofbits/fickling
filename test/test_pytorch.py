@@ -23,7 +23,7 @@ class TestPyTorchModule(unittest.TestCase):
     def test_wrapper(self):
         try:
             PyTorchModelWrapper(self.filename_v1_3)
-        except Exception as e: #noqa
+        except Exception as e:  # noqa
             self.fail(f"PyTorchModelWrapper was not able to load a PyTorch v1.3 file: {e}")
 
     def test_pickled(self):
@@ -38,7 +38,7 @@ class TestPyTorchModule(unittest.TestCase):
             result.inject_payload("print('Hello, World!')", temp_filename, injection="insertion")
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
-        except Exception as e:  #noqa
+        except Exception as e:  # noqa
             self.fail(
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
             )
@@ -50,7 +50,7 @@ class TestPyTorchModule(unittest.TestCase):
             result.inject_payload("print('Hello, World!')", temp_filename, injection="combination")
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
-        except Exception as e:  #noqa
+        except Exception as e:  # noqa
             self.fail(
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
             )
