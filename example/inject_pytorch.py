@@ -1,7 +1,7 @@
 import torch
 import torchvision.models as models
 
-from fickling.fickle_pytorch import PyTorchModelWrapper
+from fickling.pytorch import PyTorchModelWrapper
 
 # Load example PyTorch model
 model = models.mobilenet_v2()

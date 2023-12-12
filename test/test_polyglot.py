@@ -1,14 +1,14 @@
-import unittest
-import torch
-import torchvision.models as models
 import os
-import zipfile
 import random
 import string
-from fickling.fickle_pytorch import PyTorchModelWrapper
-from fickling.fickle import Pickled
-import fickling.polyglot as polyglot
 import tarfile
+import unittest
+import zipfile
+
+import torch
+import torchvision.models as models
+
+import fickling.polyglot as polyglot
 
 
 def create_pytorch_legacy_tar(tar_file_name):
@@ -94,7 +94,9 @@ class TestPolyglotModule(unittest.TestCase):
         self.assertEqual(formats[0], "TorchScript v1.4")
 
     def test_legacy_tar(self):
-        formats = polyglot.identify_pytorch_file_format(self.filename_legacy_tar, print_properties=True)
+        formats = polyglot.identify_pytorch_file_format(
+            self.filename_legacy_tar, print_properties=True
+        )
         self.assertEqual(formats[0], "PyTorch v0.1.1")
 
     def test_zip(self):

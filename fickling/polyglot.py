@@ -1,9 +1,9 @@
+import os
 import shutil
+import sys
 import tarfile
 import zipfile
-import tempfile
-import os
-import sys
+
 from torch.serialization import _is_zipfile
 
 from fickling.fickle import Pickled, StackedPickle
@@ -220,7 +220,11 @@ def identify_pytorch_file_format(file, print_properties=False):
         if len(secondary) != 0:
             print("It is also possible that your file can be validly interpreted as: ", secondary)
     else:
-        print("Your file may not be a PyTorch file. No valid file formats were detected. If this is a mistake, raise an issue on our GitHub.")
+        print(
+            """Your file may not be a PyTorch file.
+            No valid file formats were detected.
+            If this is a mistake, raise an issue on our GitHub."""
+        )
     return formats
 
 
@@ -229,6 +233,7 @@ def append_file(source_filename, destination_filename):
         content = source_file.read()
     with open(destination_filename, "ab") as destination_file:
         destination_file.write(content)
+    return destination_filename
 
 
 def make_zip_pickle_polyglot(zip_file, pickle_file, copy=False):
@@ -236,9 +241,13 @@ def make_zip_pickle_polyglot(zip_file, pickle_file, copy=False):
 
 
 def create_polyglot(first_file, second_file):
+    temp_first_file = "temp_" + os.path.basename(first_file)
+    temp_second_file = "temp_" + os.path.basename(second_file)
+    shutil.copy(first_file, temp_first_file)
+    shutil.copy(second_file, temp_second_file)
     files = [
-        (first_file, identify_pytorch_file_format(first_file)[0]),
-        (second_file, identify_pytorch_file_format(second_file)[0]),
+        (temp_first_file, identify_pytorch_file_format(temp_first_file)[0]),
+        (temp_second_file, identify_pytorch_file_format(temp_second_file)[0]),
     ]
     formats = set(map(lambda x: x[1], files))  # noqa
     polyglot_found = False
@@ -246,17 +255,18 @@ def create_polyglot(first_file, second_file):
         files.sort(key=lambda x: x[1] != "PyTorch model archive format")
         print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
         polyglot_found = True
-        make_zip_pickle_polyglot(*[file[0] for file in files], copy=False)
-        return polyglot_found
+        polyglot_file = append_file(*[file[0] for file in files])
+        shutil.copy(polyglot_file, "polyglot.mar.pt")
+        print("The polyglot is contained in polyglot.mar.pt")
     if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
         print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
         print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
         polyglot_found = True
-        file_a = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
-        file_b = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
-        shutil.copy(file_a, "polyglot.pt")
+        standard_pytorch_file = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
+        torchscript_file = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
+        shutil.copy(standard_pytorch_file, "polyglot.pt")
 
-        with zipfile.ZipFile(file_b, "r") as zip_b:
+        with zipfile.ZipFile(torchscript_file, "r") as zip_b:
             constants_pkl_path = check_and_find_in_zip(
                 zip_b, "constants.pkl", check_extension=False, return_path=True
             )
@@ -270,17 +280,19 @@ def create_polyglot(first_file, second_file):
             zip_out.write(f"temp/{version_path}", "version")
 
         shutil.rmtree("temp")
-        return polyglot_found
     if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
         print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
         polyglot_found = True
-        file_a = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
-        file_b = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
-        append_file(file_a, file_b)
-        return polyglot_found
+        mar_file = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
+        tar_file = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
+        polyglot_file = append_file(mar_file, tar_file)
+        shutil.copy(polyglot_file, "polyglot.mar.tar")
+        print("The polyglot is contained in polyglot.mar.tar")
     if polyglot_found is False:
         print(
             """Fickling was not able to create any polglots.
               If you think this is a mistake, raise an issue on our GitHub."""
         )
-        return False
+    os.remove(temp_first_file)
+    os.remove(temp_second_file)
+    return polyglot_found
