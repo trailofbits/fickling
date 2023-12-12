@@ -111,8 +111,6 @@ class PyTorchModelWrapper:
         self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
         self.output_path = output_path
-        # TODO Replace output_path and default injection argument and order of arguments
-
         if injection == "insertion":
             # This does NOT bypass the weights based unpickler
             pickled = self.pickled
