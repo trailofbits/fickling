@@ -19,7 +19,6 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v4
         with:
-          # IMPORTANT: You may need a more specific version here.
           python-version: "3.10"
 
       - name: Install project
