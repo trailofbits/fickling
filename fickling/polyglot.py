@@ -124,13 +124,16 @@ def check_if_legacy_format(file):
     """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
     required_entries = {"pickle", "storages", "tensors"}
     found_entries = set()
+    print("check_if_legacy_format")
     try:
         with tarfile.open(file, mode="r:", format=tarfile.PAX_FORMAT) as tar:
             for member in iter(tar.next, None):
                 found_entries.add(member.name)
                 if required_entries.issubset(found_entries):
+                    print("True")
                     return True
     except Exception:  # noqa
+        print("False")
         return False
 
 
@@ -191,12 +194,12 @@ def identify_pytorch_file_format(file, print_properties=False):
             if all(properties[key] for key in keys)
         ]
 
-    if properties["is_valid_pickle"]:
-        formats.append("PyTorch v0.1.10")
     if properties["is_tar"]:
         is_pytorch_legacy_format = check_if_legacy_format(file)
         if is_pytorch_legacy_format:
             formats.append("PyTorch v0.1.1")
+    if properties["is_valid_pickle"]:
+        formats.append("PyTorch v0.1.10")
     if properties["is_standard_zip"]:
         is_model_archive_format = check_if_model_archive_format(file, properties)
         if is_model_archive_format:
@@ -265,6 +268,7 @@ def create_polyglot(first_file, second_file):
         shutil.rmtree("temp")
         return polyglot_found
     if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
+        print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
         polyglot_found = True
         file_a = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
         file_b = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]

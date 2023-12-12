@@ -94,7 +94,7 @@ class TestPolyglotModule(unittest.TestCase):
         self.assertEqual(formats[0], "TorchScript v1.4")
 
     def test_legacy_tar(self):
-        formats = polyglot.identify_pytorch_file_format(self.filename_legacy_tar)
+        formats = polyglot.identify_pytorch_file_format(self.filename_legacy_tar, print_properties=True)
         self.assertEqual(formats[0], "PyTorch v0.1.1")
 
     def test_zip(self):
