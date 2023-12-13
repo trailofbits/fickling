@@ -1,0 +1,298 @@
+import os
+import shutil
+import sys
+import tarfile
+import zipfile
+
+from torch.serialization import _is_zipfile
+
+from fickling.fickle import Pickled, StackedPickle
+
+"""
+PyTorch file format identification:
+
+We currently support the following PyTorch file formats:
+• PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors
+• PyTorch v0.1.10: Stacked pickle files
+• TorchScript v1.0: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
+• TorchScript v1.1: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
+• TorchScript v1.3: ZIP file with data.pkl and constants.pkl (2 pickle files)
+• TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
+• PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
+• PyTorch model archive format: ZIP file that includes Python code files and pickle files
+
+Officially, PyTorch v0.1.1 and TorchScript < v1.4 are deprecated.
+However, they are still supported by some legacy parsers
+
+This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877.
+If any inaccuracies in that description are found, that should be reflected in this code.
+If any new PyTorch file formats are made, that should be added to this code.
+Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js.
+"""
+
+
+def check_and_find_in_zip(
+    zip_path, file_name_or_extension, return_path=False, check_extension=False
+):
+    """Check for a file in the zip and return its path or boolean if found."""
+    try:
+        if not (return_path):
+            with zipfile.ZipFile(zip_path, "r") as zip_file:
+                if check_extension:
+                    return any(
+                        entry.endswith(file_name_or_extension) for entry in zip_file.namelist()
+                    )
+                else:
+                    return any(file_name_or_extension in entry for entry in zip_file.namelist())
+        else:
+            return next(
+                (entry for entry in zip_path.namelist() if entry.endswith(file_name_or_extension)),
+                None,
+            )
+    except zipfile.BadZipFile:
+        print(f"Invalid ZIP file: {zip_path}")
+        return None if return_path else False
+    except FileNotFoundError:
+        print(f"File not found: {zip_path}")
+        return None if return_path else False
+
+
+def check_pickle(file):
+    """Checks if a file can be pickled; this does not directly determine the file is a pickle"""
+    try:
+        Pickled.load(file)
+        return True
+    except Exception:  # noqa
+        try:
+            StackedPickle.load(file)
+            return True
+        except Exception:  # noqa
+            return False
+
+
+def find_file_properties(file_path, print_properties=False):
+    """For a more granular analysis, we separate property discover and format identification"""
+    properties = {}
+    with open(file_path, "rb") as file:
+        # PyTorch's torch.load() enforces a specific magic number at offset 0 for ZIP
+        is_torch_zip = _is_zipfile(file)
+        properties["is_torch_zip"] = is_torch_zip
+
+        # This tarfile check has many false positivies. It is not a determinant of PyTorch v0.1.1.
+        if sys.version_info >= (3, 9):
+            is_tar = tarfile.is_tarfile(file)
+        else:
+            is_tar = tarfile.is_tarfile(file_path)
+        properties["is_tar"] = is_tar
+
+        # Similar to tar, this is not a robust verification.
+        is_valid_pickle = check_pickle(file)
+        properties["is_valid_pickle"] = is_valid_pickle
+
+        # PyTorch MAR can be a standard ZIP, but not a PyTorch ZIP
+        # Some other non-PyTorch file formats rely on ZIP without PyTorch's limitations
+        is_standard_zip = zipfile.is_zipfile(file)
+        properties["is_standard_zip"] = is_standard_zip
+
+        is_standard_not_torch = is_standard_zip and not is_torch_zip
+        properties["is_standard_not_torch"] = is_standard_not_torch
+
+        torch_zip_results = {
+            "has_constants_pkl": False,
+            "has_data_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attribute_pkl": False,
+        }
+        if is_torch_zip:
+            torch_zip_checks = [
+                "data.pkl",
+                "constants.pkl",
+                "version",
+                "model.json",
+                "attribute.pkl",
+            ]
+            torch_zip_results = {
+                f"has_{'_'.join(f.split('.'))}": check_and_find_in_zip(
+                    file, f, check_extension=False
+                )
+                for f in torch_zip_checks
+            }
+        properties.update(torch_zip_results)
+    if print_properties:
+        print("\nproperties:", properties, "\n")
+    return properties
+
+
+def check_if_legacy_format(file):
+    """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
+    required_entries = {"pickle", "storages", "tensors"}
+    found_entries = set()
+    print("check_if_legacy_format")
+    try:
+        with tarfile.open(file, mode="r:", format=tarfile.PAX_FORMAT) as tar:
+            for member in iter(tar.next, None):
+                found_entries.add(member.name)
+                if required_entries.issubset(found_entries):
+                    print("True")
+                    return True
+    except Exception:  # noqa
+        print("False")
+        return False
+
+
+def check_if_model_archive_format(file, properties):
+    """
+    PyTorch model archive format: ZIP file that includes Python code files and pickle files
+
+    References for the PyTorch Model Archive Format:
+    1. https://pytorch.org/serve/getting_started.html
+    2. https://github.com/pytorch/serve/tree/master/model-archiver
+    """
+    if properties["is_standard_zip"]:
+        has_json = check_and_find_in_zip(file, ".json", check_extension=True)
+        has_serialized_model = check_and_find_in_zip(
+            file, ".pt", check_extension=True
+        ) or check_and_find_in_zip(file, ".pth", check_extension=True)
+        has_code = check_and_find_in_zip(file, ".py", check_extension=True)
+        return has_json and has_serialized_model and has_code
+
+
+def check_for_corruption(properties):
+    """Checks for corruption at the PyTorch file format level"""
+    corrupted = False
+    reason = ""
+    # We expect this to be expanded upon
+    if properties["is_torch_zip"]:
+        if (
+            properties["has_model_json"]
+            and not properties["has_attribute_pkl"]
+            and not properties["has_constants_pkl"]
+        ):
+            corrupted = True
+            reason = """Your file may be corrupted. It contained a
+            model.json file without an attributes.pkl or constants.pkl file."""
+    return corrupted, reason
+
+
+def identify_pytorch_file_format(file, print_properties=False):
+    """
+    We are intentionally matching the semantics of the PyTorch reference parsers.
+    To be polyglot-aware, we show the file formats ranked by likelihood.
+    """
+    properties = find_file_properties(file, print_properties)
+    formats = []
+    corrupted = False
+    # The order of this identification is intentional and tries to match PyTorch
+    if properties["is_torch_zip"]:
+        format_conditions = [
+            (["has_data_pkl", "has_constants_pkl", "has_version"], "TorchScript v1.4"),
+            (["has_data_pkl", "has_constants_pkl"], "TorchScript v1.3"),
+            (["has_model_json", "has_constants_pkl"], "TorchScript v1.0"),
+            (["has_model_json", "has_attribute_pkl"], "TorchScript v1.1"),
+            (["has_data_pkl"], "PyTorch v1.3"),
+        ]
+        formats = [
+            format_name
+            for keys, format_name in format_conditions
+            if all(properties[key] for key in keys)
+        ]
+
+    if properties["is_tar"]:
+        is_pytorch_legacy_format = check_if_legacy_format(file)
+        if is_pytorch_legacy_format:
+            formats.append("PyTorch v0.1.1")
+    if properties["is_valid_pickle"]:
+        formats.append("PyTorch v0.1.10")
+    if properties["is_standard_zip"]:
+        is_model_archive_format = check_if_model_archive_format(file, properties)
+        if is_model_archive_format:
+            formats.append("PyTorch model archive format")
+    corrupted, reason = check_for_corruption(properties)
+
+    # Show results to user
+    if corrupted:
+        print(reason)
+    if len(formats) != 0:
+        primary = formats[0]
+        print("Your file is most likely of this format: ", primary, "\n")
+        secondary = formats[1:]
+        if len(secondary) != 0:
+            print("It is also possible that your file can be validly interpreted as: ", secondary)
+    else:
+        print(
+            """Your file may not be a PyTorch file.
+            No valid file formats were detected.
+            If this is a mistake, raise an issue on our GitHub."""
+        )
+    return formats
+
+
+def append_file(source_filename, destination_filename):
+    with open(source_filename, "rb") as source_file:
+        content = source_file.read()
+    with open(destination_filename, "ab") as destination_file:
+        destination_file.write(content)
+    return destination_filename
+
+
+def make_zip_pickle_polyglot(zip_file, pickle_file, copy=False):
+    append_file(zip_file, pickle_file)
+
+
+def create_polyglot(first_file, second_file):
+    temp_first_file = "temp_" + os.path.basename(first_file)
+    temp_second_file = "temp_" + os.path.basename(second_file)
+    shutil.copy(first_file, temp_first_file)
+    shutil.copy(second_file, temp_second_file)
+    files = [
+        (temp_first_file, identify_pytorch_file_format(temp_first_file)[0]),
+        (temp_second_file, identify_pytorch_file_format(temp_second_file)[0]),
+    ]
+    formats = set(map(lambda x: x[1], files))  # noqa
+    polyglot_found = False
+    if {"PyTorch model archive format", "PyTorch v0.1.10"}.issubset(formats):
+        files.sort(key=lambda x: x[1] != "PyTorch model archive format")
+        print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
+        polyglot_found = True
+        polyglot_file = append_file(*[file[0] for file in files])
+        shutil.copy(polyglot_file, "polyglot.mar.pt")
+        print("The polyglot is contained in polyglot.mar.pt")
+    if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
+        print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
+        print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
+        polyglot_found = True
+        standard_pytorch_file = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
+        torchscript_file = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
+        shutil.copy(standard_pytorch_file, "polyglot.pt")
+
+        with zipfile.ZipFile(torchscript_file, "r") as zip_b:
+            constants_pkl_path = check_and_find_in_zip(
+                zip_b, "constants.pkl", check_extension=False, return_path=True
+            )
+            version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
+            if constants_pkl_path and version_path:
+                zip_b.extract(constants_pkl_path, "temp")
+                zip_b.extract(version_path, "temp")
+
+        with zipfile.ZipFile("polyglot.pt", "a") as zip_out:
+            zip_out.write(f"temp/{constants_pkl_path}", "constants.pkl")
+            zip_out.write(f"temp/{version_path}", "version")
+
+        shutil.rmtree("temp")
+    if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
+        print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
+        polyglot_found = True
+        mar_file = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
+        tar_file = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
+        polyglot_file = append_file(mar_file, tar_file)
+        shutil.copy(polyglot_file, "polyglot.mar.tar")
+        print("The polyglot is contained in polyglot.mar.tar")
+    if polyglot_found is False:
+        print(
+            """Fickling was not able to create any polglots.
+              If you think this is a mistake, raise an issue on our GitHub."""
+        )
+    os.remove(temp_first_file)
+    os.remove(temp_second_file)
+    return polyglot_found

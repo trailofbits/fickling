@@ -67,6 +67,9 @@ Warning: Fickling failed to detect any overtly unsafe code, but the pickle file 
 Do not unpickle this file if it is from an untrusted source!
 ```
 
+We do not recommend relying on the `--check-safety` option for critical use
+cases at this point in time.
+
 You can also safely trace the execution of the Pickle virtual machine without
 exercising any malicious code with the `--trace` option.
 
