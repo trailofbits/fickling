@@ -1,11 +1,6 @@
-from fickling.hook import PickleFinder
-import sys
+from fickling.hook import run_hook
 
-sys.meta_path.insert(0, PickleFinder())  # insert our finder as the first
-
-if 'pickle' in sys.modules:
-    del sys.modules['pickle']
-    pass 
+run_hook()
 
 import pickle
 

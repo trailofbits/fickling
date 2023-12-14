@@ -4,13 +4,15 @@ import sys
 from types import ModuleType
 from typing import Sequence, Union
 import types
-#import builtins
 import fickling.fickle as fickle
+#import builtins
+#import fickling.fickle as fickle
 #original_pickle = builtins.__import__('pickle')
 #import pickle as original_pickle
 
 class FickleLoader(importlib.abc.Loader):
     def create_module(self, spec: importlib.machinery.ModuleSpec) -> types.ModuleType:
+        #import fickling.fickle as fickle
         return None
     
     def exec_module(self, module: types.ModuleType) -> None:
@@ -43,15 +45,21 @@ class PickleFinder(importlib.abc.MetaPathFinder):
         return None
 
 
+def run_hook():
+    sys.meta_path.insert(0, PickleFinder())
+    if 'pickle' in sys.modules:
+        del sys.modules['pickle']
+        
+"""
 if __name__ == "__main__":
-    #sys.meta_path.insert(0, PickleFinder())
+    sys.meta_path.insert(0, PickleFinder())
 
     if 'pickle' in sys.modules:
         del sys.modules['pickle']
         #pass
-    #import pickle
+    import pickle
     
-    #with open("test.pkl", "rb") as file:
-    #    loaded_data = pickle.load(file)
-    #    print("Loaded data:", loaded_data)
-
+    with open("test.pkl", "rb") as file:
+        loaded_data = pickle.load(file)
+        print("Loaded data:", loaded_data)
+"""
