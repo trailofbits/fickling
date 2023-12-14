@@ -9,7 +9,7 @@ if sys.version_info < (3, 9):
 else:
     from ast import unparse
 
-from .fickle import Interpreter, List, Pickled, Proto
+from fickling.fickle import Interpreter, List, Pickled, Proto
 
 
 class AnalyzerMeta(type):

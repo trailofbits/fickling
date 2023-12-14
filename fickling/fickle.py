@@ -8,6 +8,7 @@ from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
+#from fickling.analysis import check_safety
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
@@ -646,6 +647,8 @@ class Pickled(OpcodeSequence):
     @property
     def is_likely_safe(self) -> bool:
         # `self.has_call` is probably safe as long as `not self.has_import`
+        #results = check_safety(self)
+        #print(results)
         return not self.has_import and not self.has_non_setstate_call
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
