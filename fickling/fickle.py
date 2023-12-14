@@ -479,6 +479,42 @@ class Pickled(OpcodeSequence):
 
     insert_python_eval = insert_python
 
+
+    def append_python(
+        self,
+        *args,
+        module: str = "builtins",
+        attr: str = "eval",
+        pop_result: bool = False,
+    ) -> int:
+        """Append python code to run at the end of the pickle.
+
+        :param pop_result: whether to pop the result of the run off the stack. Appends
+        a POP instruction if True"""
+        if not isinstance(self[-1], Stop):
+            raise ValueError("Expected the last opcode to be STOP")
+        # NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
+        # of the pickle, but see comment in 'insert_python'
+        self.insert(-1, Global.create(module, attr))
+        self.insert(-1, Mark())
+        for arg in args:
+            self.insert(-1, ConstantOpcode.new(arg))
+        self.insert(-1, Tuple())
+        self.insert(-1, Reduce())
+        if pop_result:
+            self.insert(-1, Pop())
+
+    def insert_magic_int(self, magic: int, index: int = -1):
+        """Insert and pop a specific integer value. This is used for persistent
+        injections to locate the injection payload in the pickled file. The value
+        is artificially added by using an dummy INT + POP combination that doesn't
+        affect the stack when executed
+
+        :param magic: magic integer value to add
+        :param index: index in opcodes list where to insert the magic"""
+        self.insert(index, Int(magic))
+        self.insert(-1 if index == -1 else index+1, Pop())
+
     def insert_function_call_on_unpickled_object(
         self,
         function_definition: str,
@@ -500,17 +536,27 @@ class Pickled(OpcodeSequence):
             raise ValueError("Failed to extract function name from function definition")
         function_name = fn_match[0]
 
-        # Executed after: eval the function name get the callable object
-        # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
-        i = self.insert_python(function_name, run_first=True, use_output_as_unpickle_result=False)
-        self.insert(i, Mark())
-
-        # Executed first: insert exec of the function definition in advance
-        i = self.insert_python_exec(
-            function_definition, run_first=True, use_output_as_unpickle_result=False
+        # Insert exec of the function definition in advance
+        self.append_python(
+            function_definition, attr="exec", pop_result=True
         )
 
-        # At the end of exec, the stack contains [func, mark, model]. We need to add TUPLE which
+        # Eval the function name get the callable object
+        # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
+        self.append_python(function_name, attr="eval")
+
+        # At the end of exec, the stack contains [model, func]. We
+        # swap them on the stack
+        self.insert(-1, Put(1)) # Put func in memo
+        self.insert(-1, Pop())
+        self.insert(-1, Put(2)) # Put model in memo
+        self.insert(-1, Pop())
+        self.insert(-1, Get.create(1))
+        self.insert(-1, Mark())
+        self.insert(-1, Get.create(2))
+
+        # Now the stack contains [func, mark, model].
+        # We need to add TUPLE which
         # packs the function arguments from the stack and then call REDUCE, which calls the injected
         # function.
         # Note: precondition says the function must return the final object so no need to save the
@@ -551,6 +597,20 @@ class Pickled(OpcodeSequence):
     def dump(self, file: BinaryIO):
         for opcode in self:
             file.write(opcode.data)
+
+    def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
+        """Dump bytecode only between two opcodes
+
+        :param from_idx: index of opcode from which we dump (included)
+        :param to_idx: index of opcode until which we dump (included). If -1, dump to end of file
+        """
+        # Sanity check
+        assert from_idx >= 0 and (to_idx >= from_idx or to_idx == -1)
+
+        b = bytearray()
+        for opcode in self._opcodes[from_idx:to_idx]:
+            b.extend(opcode.data)
+        return bytes(b)
 
     @property
     def opcodes(self) -> Iterator[Opcode]:
@@ -677,6 +737,9 @@ class Pickled(OpcodeSequence):
             self._ast = Interpreter.interpret(self)
         return self._ast
 
+    @property
+    def nb_opcodes(self) -> int:
+        return len(self._opcodes)
 
 class Stack(GenericSequence, Generic[T]):
     def __init__(self, initial_value: Iterable[T] = ()):
@@ -931,6 +994,10 @@ class Put(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.memory[self.arg] = interpreter.stack[-1]
+
+    def encode_body(self) -> bytes:
+        # Encode memo_id as decimal \n terminated string
+        return f"{self.arg}\n".encode()
 
 
 class BinPut(Opcode):
