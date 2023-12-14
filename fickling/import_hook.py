@@ -14,7 +14,7 @@ class FickleLoader(importlib.abc.Loader):
         return None
     
     def exec_module(self, module: types.ModuleType) -> None:
-        module.load = hook.wrapped_load 
+        module.load = hook.core 
         
 
 class PickleFinder(importlib.abc.MetaPathFinder):
@@ -36,10 +36,8 @@ def run_import_hook():
     sys.meta_path.insert(0, PickleFinder())
 
 
-""" #Uncomment the following lines to test the code
+"""#Uncomment the following lines to test the code
 if __name__ == "__main__":
-    from fickling.import_hook import run_hook
-
     run_import_hook()
 
     import pickle
