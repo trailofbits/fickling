@@ -479,7 +479,6 @@ class Pickled(OpcodeSequence):
 
     insert_python_eval = insert_python
 
-
     def append_python(
         self,
         *args,
@@ -513,7 +512,7 @@ class Pickled(OpcodeSequence):
         :param magic: magic integer value to add
         :param index: index in opcodes list where to insert the magic"""
         self.insert(index, Int(magic))
-        self.insert(-1 if index == -1 else index+1, Pop())
+        self.insert(-1 if index == -1 else index + 1, Pop())
 
     def insert_function_call_on_unpickled_object(
         self,
@@ -537,9 +536,7 @@ class Pickled(OpcodeSequence):
         function_name = fn_match[0]
 
         # Insert exec of the function definition in advance
-        self.append_python(
-            function_definition, attr="exec", pop_result=True
-        )
+        self.append_python(function_definition, attr="exec", pop_result=True)
 
         # Eval the function name get the callable object
         # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
@@ -547,9 +544,9 @@ class Pickled(OpcodeSequence):
 
         # At the end of exec, the stack contains [model, func]. We
         # swap them on the stack
-        self.insert(-1, Put(1)) # Put func in memo
+        self.insert(-1, Put(1))  # Put func in memo
         self.insert(-1, Pop())
-        self.insert(-1, Put(2)) # Put model in memo
+        self.insert(-1, Put(2))  # Put model in memo
         self.insert(-1, Pop())
         self.insert(-1, Get.create(1))
         self.insert(-1, Mark())
@@ -740,6 +737,7 @@ class Pickled(OpcodeSequence):
     @property
     def nb_opcodes(self) -> int:
         return len(self._opcodes)
+
 
 class Stack(GenericSequence, Generic[T]):
     def __init__(self, initial_value: Iterable[T] = ()):
