@@ -46,10 +46,11 @@ class PickleFinder(importlib.abc.MetaPathFinder):
 
 
 def run_hook():
-    sys.meta_path.insert(0, PickleFinder())
+    import sys
     if 'pickle' in sys.modules:
         del sys.modules['pickle']
-        
+    sys.meta_path.insert(0, PickleFinder())
+
 """
 if __name__ == "__main__":
     sys.meta_path.insert(0, PickleFinder())
