@@ -1,8 +1,11 @@
-import unittest
-import fickling.hook as hook
-import pickle
-import numpy
 import os
+import pickle
+import unittest
+
+import numpy
+
+import fickling.hook as hook
+
 
 class TestHook(unittest.TestCase):
     def setUp(self):
@@ -14,19 +17,19 @@ class TestHook(unittest.TestCase):
         test_list = [1, 2, 3]
 
         # Create "safe" pickle file
-        with open('safe.pkl', 'wb') as file:
+        with open("safe.pkl", "wb") as file:
             pickle.dump(test_list, file)
 
         # Load the safe pickle file
         with open("safe.pkl", "rb") as file:
             loaded_data = pickle.load(file)
-        
+
         # Assert that the loaded data matches the original data
         self.assertEqual(loaded_data, test_list)
 
     def test_unsafe_pickle(self):
         # Create "unsafe" pickle file
-        class Payload(object):
+        class Payload:
             def __init__(self):
                 self.a = 1
 

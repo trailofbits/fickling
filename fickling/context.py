@@ -1,5 +1,7 @@
 import pickle
+
 from fickling.hook import core_load, hook_pickle_load
+
 
 class FicklingContextManager:
     def __init__(self, run_after_analysis=True, block=[3, 4, 5]):
@@ -9,7 +11,9 @@ class FicklingContextManager:
 
     def __enter__(self):
         # Modify the `hook_pickle_load` function to use the imported `core_load`
-        wrapped_load = lambda file, *args, **kwargs: core_load(file, run_after_analysis=self.run_after_analysis, block=self.block)
+        wrapped_load = lambda file, *args, **kwargs: core_load( #noqa
+            file, run_after_analysis=self.run_after_analysis, block=self.block
+        )
         pickle.load = hook_pickle_load(wrapped_load)
         return self
 

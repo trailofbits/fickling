@@ -3,12 +3,12 @@ import distutils.sysconfig as sysconfig
 import re
 import struct
 import sys
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
 from pathlib import Path
-import warnings
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
@@ -643,18 +643,23 @@ class Pickled(OpcodeSequence):
         """Checks whether unpickling would cause a call to a function other than
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
-    
+
     @property
     def check_safety(self):
-        from fickling.analysis import check_safety #noqa
+        from fickling.analysis import check_safety  # noqa
+
         safety_results = check_safety(self)
         return safety_results.severity
 
     @property
     def is_likely_safe(self):
-        warnings.warn("The method .is_likely_safe will be deprecated. Use the method .check_safety instead.", DeprecationWarning, stacklevel=2,)
+        warnings.warn(
+            "The method .is_likely_safe will be deprecated. Use the method .check_safety instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.check_safety
-    
+
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
             if node.module in (

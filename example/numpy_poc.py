@@ -1,12 +1,14 @@
 # This PoC has been adapted from https://snyk.io/vuln/SNYK-PYTHON-NUMPY-73513 (CVE-2019-6446)
 
-import numpy
 import os
 import pickle
+
+import numpy
+
 from fickling.fickle import Pickled
 
 
-class Test(object):
+class Test:
     def __init__(self):
         self.a = 1
 

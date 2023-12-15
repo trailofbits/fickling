@@ -31,7 +31,7 @@ class PyTorchModelWrapper:
         self.force: bool = force
 
     def validate_file_format(self):
-        formats = fickling.polyglot.identify_pytorch_file_format(self.path)
+        self.formats = fickling.polyglot.identify_pytorch_file_format(self.path)
         """
         One option was to raise an error if PyTorch v1.3 was not found
         or if any of the TorchScript versions were found.
@@ -40,7 +40,7 @@ class PyTorchModelWrapper:
         Another option was to warn only if "PyTorch v1.3" was not the most likely format.
         Instead, the file formats are directly specified for clarity and independence.
         """
-        if len(formats) == 0:
+        if len(self.formats) == 0:
             if self.force is True:
                 warnings.warn(
                     """
@@ -56,13 +56,13 @@ class PyTorchModelWrapper:
                     If it is a PyTorch file, raise an issue on GitHub.
                     """
                 )
-        if ("PyTorch v1.3" not in formats) or {
+        if ("PyTorch v1.3" not in self.formats) or {
             "TorchScript v1.4",
             "TorchScript v1.3",
             "TorchScript v1.1",
             "TorchScript v1.0",
-        }.intersection(formats):
-            if "PyTorch v0.1.10" in formats:
+        }.intersection(self.formats):
+            if "PyTorch v0.1.10" in self.formats:
                 if self.force is True:
                     warnings.warn(
                         """

@@ -2,15 +2,13 @@
 This is tutorial code for performing fault injections with PyTorchFi:
 https://colab.research.google.com/drive/1BMB4LbsTU_K_YXUFzRyfIynpGu5Yhr1Y
 """
+import pickle
+
 import torch
 import torchvision.models as models
-import pickle
-from fickling.fickle import Pickled
-import sys
-import torchvision
-import os
-import ast
 from pytorchfi.core import fault_injection
+
+from fickling.fickle import Pickled
 
 # Load AlexNet
 

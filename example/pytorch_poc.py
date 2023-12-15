@@ -4,14 +4,14 @@ This is tutorial code for generating, saving, and loading models in Pytorch
 https://pytorch.org/tutorials/beginner/saving_loading_models.html
 """
 
-from pathlib import Path
 import shutil
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
 
-from torch import nn, optim
-import torch.nn.functional as F
 import torch
+import torch.nn.functional as F
+from torch import nn, optim
 
 from fickling.fickle import Pickled
 
@@ -153,7 +153,7 @@ for file in os.listdir():
     print(f"Created PyTorch exfiltration exploit payload PoC {exfil_model.path.absolute()!s}")
 
     is_safe = exfil_model.pickled.is_likely_safe
-    sys.stdout.write(f"Fickling correctly classifies this model as unsafe? ")
+    sys.stdout.write("Fickling correctly classifies this model as unsafe? ")
     if not is_safe:
         print("✅")
     else:
