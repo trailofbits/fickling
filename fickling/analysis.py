@@ -244,7 +244,8 @@ class AnalysisResults:
     @property
     def severity(self) -> Severity:
         if not self.results:
-            return Severity.UNKNOWN
+            #return Severity.UNKNOWN
+            return Severity.LIKELY_SAFE
         return max(r.severity for r in self.results)
 
     def __bool__(self):
@@ -279,7 +280,7 @@ def check_safety(
     if results.severity >= Severity.LIKELY_SAFE:
         stderr.write(
             "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
-            "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n"
+            "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n"
         )
 
     return results
