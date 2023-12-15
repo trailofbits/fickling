@@ -2,6 +2,7 @@ from fickling.fickle import Pickled
 import pickle 
 
 def core_load(file, run_after_analysis=True, block=[3, 4, 5]):
+    print("Inside core_load")
     pickled_data = Pickled.load(file)
     result = pickled_data.check_safety.severity
     if not(result in block):
