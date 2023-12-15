@@ -1,12 +1,10 @@
 from fickling.fickle import Pickled
 import pickle 
 
-def core_load(file, run_after_analysis=True):
+def core_load(file, run_after_analysis=True, block=[3, 4, 5]):
     pickled_data = Pickled.load(file)
-    results = pickled_data.check_safety
-    #print(results)
-    if pickled_data.is_likely_safe is True:
-        #print("This is likely safe")
+    result = pickled_data.check_safety.severity
+    if not(result in block):
         # Apply a fallback in case of custom unpicklers unknown to the user
         if run_after_analysis is True:
             try:
@@ -18,7 +16,6 @@ def core_load(file, run_after_analysis=True):
         else:
             return True
     else:
-        #print("This is unsafe!")
         return False
 
 def hook_pickle_load(pickle_load_function):
