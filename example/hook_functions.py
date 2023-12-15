@@ -2,6 +2,7 @@ import fickling.hook as hook
 import pickle
 import numpy 
 import os
+from fickling.context import FicklingContextManager
 
 # Set up global fickling hook
 hook.run_hook()
@@ -12,6 +13,21 @@ test_list = [1, 2, 3]
 # Create "safe" pickle file
 with open('safe.pkl', 'wb') as file:
     pickle.dump(test_list, file)
+
+
+class Payload(object):
+    def __init__(self):
+        self.a = 1
+
+    def __reduce__(self):
+        return (os.system, ("echo 'I should have been stopped by the hook'",))
+
+payload = Payload()
+
+print("\n\nLoading unsafe file using numpy.load:\n\n")
+with open("unsafe.pickle", "wb") as f:
+    pickle.dump(payload, f)
+
 
 print("\n\nLoading safe file:\n\n")
 with open("safe.pkl", "rb") as file:
