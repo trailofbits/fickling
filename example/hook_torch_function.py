@@ -1,9 +1,9 @@
 import torch
 import torchvision.models as models
 import fickling.hook as hook
-# Set up global fickling hook
 
-hook.run_hook()
+# TODO Determine whether to keep this or not
+hook.run_hook_with_torch()
 model = models.mobilenet_v2()
 
 torch.save(model, "model.pt")
