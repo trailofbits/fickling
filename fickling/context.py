@@ -11,7 +11,7 @@ class FicklingContextManager:
 
     def __enter__(self):
         # Modify the `hook_pickle_load` function to use the imported `core_load`
-        wrapped_load = lambda file, *args, **kwargs: core_load( #noqa
+        wrapped_load = lambda file, *args, **kwargs: core_load(  # noqa
             file, run_after_analysis=self.run_after_analysis, block=self.block
         )
         pickle.load = hook_pickle_load(wrapped_load)

@@ -16,7 +16,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         argv = sys.argv
 
     parser = ArgumentParser(
-        description="fickle is a static analyzer and interpreter for Python pickle data"
+        description="fickling is a static analyzer and interpreter for Python pickle data"
     )
     parser.add_argument(
         "PICKLE_FILE",
@@ -74,6 +74,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             "even if this check exits with code zero."
         ),
     )
+
+    parser.add_argument(
+    "--json-output",
+    type=str,
+    default=None,
+    help="path to the output JSON file to store the analysis results. If not provided, a default name will be used."
+)
+
     parser.add_argument(
         "--trace",
         "-t",
@@ -136,8 +144,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 pickled.dump(buffer)
         elif args.check_safety:
             was_safe = True
+            json_output_path = args.json_output or f"safety_results.json"
             for pickled in stacked_pickled:
-                if not check_safety(pickled):
+                 if not check_safety(pickled, json_output_path=json_output_path):
                     was_safe = False
             return [1, 0][was_safe]
         else:

@@ -1,3 +1,4 @@
+import json
 import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -97,9 +98,19 @@ class Severity(Enum):
 
 
 class AnalysisResult:
-    def __init__(self, severity: Severity, message: Optional[str] = None):
+    def __init__(
+        self,
+        severity: Severity,
+        message: Optional[str] = None,
+        analysis_name: str = None,
+        trigger: Optional[str] = None,
+    ):
         self.severity: Severity = severity
         self.message: Optional[str] = message
+        self.analysis_name: str = analysis_name  # Store the name of the analysis
+        self.trigger: Optional[
+            str
+        ] = trigger  # New field to store the trigger code fragment or artifact
 
     def __lt__(self, other):
         return isinstance(other, AnalysisResult) and (
@@ -113,7 +124,7 @@ class AnalysisResult:
 
     def __str__(self):
         if self.message is None:
-            return ""
+            return "No message"  # Return a default string if message is None
         else:
             return self.message
 
@@ -129,26 +140,21 @@ class Analysis(ABC):
         raise NotImplementedError()
 
 
-class ProtoAnalysis(Analysis):
+class DuplicateProtoAnalysis(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         had_proto = False
         proto_versions: Set[int] = set()
         for i, opcode in enumerate(context.pickled):
             if isinstance(opcode, Proto):
                 if had_proto:
-                    if i == 2:
-                        suffix = "rd"
-                    elif i == 1:
-                        suffix = "nd"
-                    elif i == 0:
-                        suffix = "st"
-                    else:
-                        suffix = "th"
+                    suffix = self._get_suffix(i)
                     if opcode.version in proto_versions:
                         yield AnalysisResult(
                             Severity.LIKELY_UNSAFE,
                             f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual "
                             f"and may be indicative of a tampered pickle",
+                            "DuplicateProtoAnalysis",
+                            trigger=i + 1,
                         )
                     else:
                         yield AnalysisResult(
@@ -156,17 +162,31 @@ class ProtoAnalysis(Analysis):
                             f"The {i + 1}{suffix} opcode is a duplicate PROTO with a different "
                             f"version than reported in the previous PROTO opcode, which is almost "
                             f"certainly a sign of a tampered pickle",
+                            "DuplicateProtoAnalysis",
+                            trigger=i + 1,
                         )
                 else:
                     had_proto = True
+                proto_versions.add(opcode.version)
+
+    @staticmethod
+    def _get_suffix(index: int) -> str:
+        return {0: "st", 1: "nd", 2: "rd"}.get(index, "th")
+
+
+class MisplacedProtoAnalysis(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for i, opcode in enumerate(context.pickled):
+            if isinstance(opcode, Proto):
                 if opcode.version >= 2 and i > 0:
                     yield AnalysisResult(
                         Severity.LIKELY_UNSAFE,
                         f"The protocol version is {opcode.version}, but the PROTO opcode is not "
                         f"the first opcode in the pickle, as required for versions 2 and later; "
                         f"this may be indicative of a tampered pickle",
+                        "MisplacedProtoAnalysis",
+                        trigger=opcode.version,
                     )
-                proto_versions.add(opcode.version)
 
 
 class NonStandardImports(Analysis):
@@ -179,6 +199,8 @@ class NonStandardImports(Analysis):
                     f"`{shortened}` imports a Python module that is not a part of "
                     "the standard library; this can execute arbitrary code and is "
                     "inherently unsafe",
+                    "NonStandardImports",
+                    trigger=shortened,
                 )
 
 
@@ -206,11 +228,15 @@ class OvertlyBadEvals(Analysis):
                     Severity.OVERTLY_MALICIOUS,
                     f"Call to `{shortened}` is almost certainly evidence of a "
                     "malicious pickle file",
+                    "OvertlyBadEval",
+                    trigger=shortened,
                 )
             elif not already_reported:
                 yield AnalysisResult(
                     Severity.LIKELY_UNSAFE,
                     f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe",
+                    "OvertlyBadEval",
+                    trigger=shortened,
                 )
 
 
@@ -221,6 +247,8 @@ class UnsafeImports(Analysis):
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
                 f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file",
+                "UnsafeImports",
+                trigger=shortened,
             )
 
 
@@ -233,6 +261,8 @@ class UnusedVariables(Analysis):
                 Severity.SUSPICIOUS,
                 f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
                 f"this is suspicious and indicative of a malicious pickle file",
+                "UnusedVariables",
+                trigger=(varname, shortened),
             )
 
 
@@ -252,6 +282,13 @@ class AnalysisResults:
         """Returns True if all analyses failed to find any unsafe operations"""
         return all(map(bool, sorted(self.results)))
 
+    def detailed_results(self) -> Dict[str, Dict[str, str]]:
+        detailed = defaultdict(dict)
+        for result in self.results:
+            if result.trigger:
+                detailed["AnalysisResult"][result.analysis_name] = result.trigger
+        return dict(detailed)
+
     def to_string(self, verbosity: Severity = Severity.SUSPICIOUS):
         return "\n".join(str(r) for r in self.results if verbosity <= r.severity)
 
@@ -264,6 +301,7 @@ def check_safety(
     stderr: Optional[TextIO] = None,
     analyzer: Optional[Analyzer] = None,
     verbosity: Severity = Severity.SUSPICIOUS,
+    json_output_path: Optional[str] = None,
 ) -> AnalysisResults:
     if stdout is None:
         stdout = sys.stdout
@@ -274,13 +312,30 @@ def check_safety(
         analyzer = Analyzer.default_instance
 
     results = analyzer.analyze(pickled)
-
-    stdout.write(results.to_string(verbosity))
+    print("hello")
+    analysis_message = results.to_string(verbosity)
+    stdout.write(analysis_message)
+    # stdout.write(results.to_string(verbosity))
 
     if results.severity >= Severity.LIKELY_SAFE:
         stderr.write(
             "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
             "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n"
         )
+    if json_output_path:
+        print("if json_output_path")
+        severity_data = {
+            "severity": results.severity.name,
+            "analysis": analysis_message
+            if analysis_message.strip()
+            else "Fickling failed to detect any overtly unsafe code",
+            "detailed_results": results.detailed_results(),
+        }
+
+        try:
+            with open(json_output_path, "w") as json_file:
+                json.dump(severity_data, json_file, indent=4)
+        except OSError as e:
+            stderr.write(f"Error writing to JSON file: {e}\n")
 
     return results

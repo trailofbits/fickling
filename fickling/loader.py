@@ -1,5 +1,7 @@
-from fickling.fickle import Pickled
 import pickle
+
+from fickling.fickle import Pickled
+
 
 def load(file, run_after_analysis=True, block=[3, 4, 5]):
     """Exposed as fickling.load()"""
@@ -11,7 +13,7 @@ def load(file, run_after_analysis=True, block=[3, 4, 5]):
         if run_after_analysis is True:
             try:
                 return pickle.loads(pickled_data.dumps())
-            except Exception: # noqa
+            except Exception:  # noqa
                 raise ValueError(
                     """The data could not be dumped and pickled.
                                  Try `run_after_analysis=False` and run

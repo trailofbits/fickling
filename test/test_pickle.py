@@ -1,3 +1,4 @@
+import os
 from contextlib import redirect_stdout
 from functools import wraps
 from pathlib import Path
@@ -163,7 +164,8 @@ class TestInterpreter(TestCase):
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
-        self.assertFalse(check_safety(loaded))
+        self.assertFalse(check_safety(loaded, json_output_path="test_unused_variables.json"))
+        os.remove("test_unused_variables.json")
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
@@ -212,7 +214,9 @@ class TestInterpreter(TestCase):
     def test_duplicate_proto(self):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
-        self.assertTrue(check_safety(loaded))
+        self.assertTrue(check_safety(loaded, json_output_path="test_duplicate_proto_one.json"))
+        os.remove("test_duplicate_proto_one.json")
         loaded.insert(-1, fpickle.Proto.create(1))
         loaded.insert(-1, fpickle.Proto.create(2))
-        self.assertFalse(check_safety(loaded))
+        self.assertFalse(check_safety(loaded, json_output_path="test_duplicate_proto_two.json"))
+        os.remove("test_duplicate_proto_two.json")

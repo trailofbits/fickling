@@ -32,7 +32,7 @@ class PyTorchModelWrapper:
         self._formats: Set[str] = set()
 
     def validate_file_format(self):
-        self._formats  = fickling.polyglot.identify_pytorch_file_format(self.path)
+        self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)
         """
         One option was to raise an error if PyTorch v1.3 was not found
         or if any of the TorchScript versions were found.
@@ -93,7 +93,7 @@ class PyTorchModelWrapper:
                         Please raise an issue on our GitHub or use the argument `force=True`."""
                     )
         return self._formats
-    
+
     @property
     def formats(self):
         if not self._formats:
