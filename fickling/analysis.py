@@ -312,18 +312,16 @@ def check_safety(
         analyzer = Analyzer.default_instance
 
     results = analyzer.analyze(pickled)
-    print("hello")
     analysis_message = results.to_string(verbosity)
     stdout.write(analysis_message)
     # stdout.write(results.to_string(verbosity))
 
-    if results.severity >= Severity.LIKELY_SAFE:
+    if results.severity == Severity.LIKELY_SAFE:
         stderr.write(
             "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
             "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n"
         )
     if json_output_path:
-        print("if json_output_path")
         severity_data = {
             "severity": results.severity.name,
             "analysis": analysis_message
