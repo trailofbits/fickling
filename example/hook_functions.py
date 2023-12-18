@@ -42,17 +42,3 @@ with open("unsafe.pickle", "wb") as f:
 # This hook works when pickle.load is called under the hood in Python as well
 # Note that this does not always work for torch.load()
 numpy.load("unsafe.pickle", allow_pickle=True)
-
-# TODO This is throwaway code meant to temporarily demo how this works on torch.load()
-
-import torch
-import torchvision.models as models
-
-model = models.mobilenet_v2()
-
-torch.save(model, "model.pt")
-torch.save(model, "legacy_model.pt", _use_new_zipfile_serialization=False)
-print("\n\nMODEL\n\n")
-torch.load("model.pt")
-print("LEGACY MODEL")
-torch.load("legacy_model.pt")

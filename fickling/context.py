@@ -1,23 +1,26 @@
 import pickle
 
-from fickling.hook import hook_pickle_load
 import fickling.loader as loader
+from fickling.analysis import Severity
+from fickling.hook import hook_pickle_load
 
 
 class FicklingContextManager:
-    def __init__(self, run_after_analysis=True, block=[3, 4, 5]):
-        # TODO Determine what the best defaults for block are
+    def __init__(self, max_acceptable_severity=Severity.LIKELY_UNSAFE):
         self.original_pickle_load = pickle.load
-        self.run_after_analysis = run_after_analysis
-        self.block = block
+        self.max_acceptable_severity = max_acceptable_severity
 
     def __enter__(self):
         # Modify the `hook_pickle_load` function to use the imported loader
         wrapped_load = lambda file, *args, **kwargs: loader.load(  # noqa
-            file, run_after_analysis=self.run_after_analysis, block=self.block
+            file, max_acceptable_severity=self.max_acceptable_severity
         )
         pickle.load = hook_pickle_load(wrapped_load)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         pickle.load = self.original_pickle_load
+
+
+def check_safety():
+    return FicklingContextManager()

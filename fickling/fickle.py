@@ -644,18 +644,16 @@ class Pickled(OpcodeSequence):
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
 
-    @property
     def check_safety(self):
         from fickling.analysis import check_safety  # noqa
 
         safety_results = check_safety(self)
         return safety_results.severity
 
-    @property
     def is_likely_safe(self):
-        # TODO Should I name a specific version?
         warnings.warn(
-            "The method .is_likely_safe will be deprecated. Use the method .check_safety instead.",
+            "The attribute .is_likely_safe will be deprecated."
+            "Use the attribute .check_safety instead.",
             DeprecationWarning,
             stacklevel=2,
         )

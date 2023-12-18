@@ -10,6 +10,8 @@ else:
 from . import __version__, fickle, tracing
 from .analysis import check_safety
 
+DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
+
 
 def main(argv: Optional[List[str]] = None) -> int:
     if argv is None:
@@ -80,7 +82,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         type=str,
         default=None,
         help="path to the output JSON file to store the analysis results."
-        "If not provided, a default name will be used.",
+        f"If not provided, a default file named {DEFAULT_JSON_OUTPUT_FILE} will be used.",
     )
 
     parser.add_argument(

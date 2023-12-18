@@ -2,17 +2,23 @@ import importlib.abc
 import importlib.machinery
 import sys
 import types
+import warnings
 from types import ModuleType
 from typing import Sequence, Union
 
-import fickling.hook as hook
 import fickling.loader as loader
+
+warnings.warn(
+    "This feature is experimental and should not be used for safety-critical endeavors.",
+    category=UserWarning,
+    stacklevel=2,
+)
 
 """
 This is a Python import hook that will halt pickling if a file is high severity.
-This MUST be run BEFORE importing pickle. 
+This MUST be run BEFORE importing pickle.
 
-Example Code: 
+Example Code:
 ```
 run_import_hook()
 
@@ -48,6 +54,8 @@ class PickleFinder(importlib.abc.MetaPathFinder):
 
 
 def run_import_hook():
+    # TODO Should I include print messages for all the hooks?
+    # print("run_import_hook")
     if "pickle" in sys.modules:
         del sys.modules["pickle"]
     sys.meta_path.insert(0, PickleFinder())

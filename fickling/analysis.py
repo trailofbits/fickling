@@ -107,7 +107,7 @@ class AnalysisResult:
     ):
         self.severity: Severity = severity
         self.message: Optional[str] = message
-        self.analysis_name: str = analysis_name  # Store the name of the analysis
+        self.analysis_name: str = analysis_name
         self.trigger: Optional[
             str
         ] = trigger  # New field to store the trigger code fragment or artifact
@@ -124,7 +124,7 @@ class AnalysisResult:
 
     def __str__(self):
         if self.message is None:
-            return "No message"  # Return a default string if message is None
+            return "No issues found"
         else:
             return self.message
 
@@ -274,8 +274,6 @@ class AnalysisResults:
     @property
     def severity(self) -> Severity:
         if not self.results:
-            # TODO Consider adding an argument here to toggle sensitivity
-            # return Severity.UNKNOWN
             return Severity.LIKELY_SAFE
         return max(r.severity for r in self.results)
 

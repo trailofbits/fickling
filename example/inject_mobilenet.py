@@ -22,9 +22,6 @@ print("Running eval()")
 model.eval()
 print("Finished running eval()")
 
-print("\n\nIs this is_likely_safe?")
-safety = fickled_model.is_likely_safe
-if safety is False:
-    print("❌")
-else:
-    print("✅")
+print("\n\nIs this safe?")
+safety_results = fickled_model.check_safety()
+print(safety_results.severity)

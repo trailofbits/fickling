@@ -31,6 +31,6 @@ print("\n\nWith fickling\n\n")
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
 print("\n\nHow likely is this to be safe?\n\n")
-safety = fickled_payload.check_safety
+safety_results = fickled_payload.check_safety()
 
-print(safety)
+print(safety_results)
