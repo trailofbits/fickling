@@ -314,7 +314,6 @@ def check_safety(
     results = analyzer.analyze(pickled)
     analysis_message = results.to_string(verbosity)
     stdout.write(analysis_message)
-    # stdout.write(results.to_string(verbosity))
 
     if results.severity == Severity.LIKELY_SAFE:
         stderr.write(

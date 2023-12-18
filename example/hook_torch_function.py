@@ -1,11 +1,14 @@
 import torch
 import torchvision.models as models
 
-import fickling.hook as hook
+from fickling.hook import HookManager
 
 # TODO Determine whether to keep this or not
 
-hook.run_hook_with_torch()
+hook_manager = HookManager()
+hook_manager.run_hook_with_torch()
+
+#hook.run_hook_with_torch()
 model = models.mobilenet_v2()
 
 torch.save(model, "model.pt")
@@ -15,3 +18,7 @@ print("MODEL")
 torch.load("model.pt")
 print("LEGACY MODEL")
 torch.load("legacy_model.pt")
+
+#from fickling.fickle import Pickled, StackedPickle
+
+#result = StackedPickle.load('legacy_model.pt')
