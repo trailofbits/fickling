@@ -164,7 +164,10 @@ class TestInterpreter(TestCase):
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
-        self.assertFalse(check_safety(loaded, json_output_path="test_unused_variables.json"))
+        test_unused_variables_results = check_safety(
+            loaded, json_output_path="test_unused_variables.json"
+        )
+        self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
         os.remove("test_unused_variables.json")
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
@@ -212,6 +215,7 @@ class TestInterpreter(TestCase):
             Path(tmpfile.name).unlink()
 
     def test_duplicate_proto(self):
+        """
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertTrue(check_safety(loaded, json_output_path="test_duplicate_proto_one.json"))
@@ -219,4 +223,20 @@ class TestInterpreter(TestCase):
         loaded.insert(-1, fpickle.Proto.create(1))
         loaded.insert(-1, fpickle.Proto.create(2))
         self.assertFalse(check_safety(loaded, json_output_path="test_duplicate_proto_two.json"))
+        os.remove("test_duplicate_proto_two.json")
+        """
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        test_duplicate_proto_one_results = check_safety(
+            loaded, json_output_path="test_duplicate_proto_one.json"
+        )
+        print(test_duplicate_proto_one_results)
+        self.assertEqual(test_duplicate_proto_one_results["severity"], "LIKELY_SAFE")
+        os.remove("test_duplicate_proto_one.json")
+        loaded.insert(-1, fpickle.Proto.create(1))
+        loaded.insert(-1, fpickle.Proto.create(2))
+        test_duplicate_proto_two_results = check_safety(
+            loaded, json_output_path="test_duplicate_proto_two.json"
+        )
+        self.assertEqual(test_duplicate_proto_two_results["severity"], "LIKELY_UNSAFE")
         os.remove("test_duplicate_proto_two.json")

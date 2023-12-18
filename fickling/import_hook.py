@@ -37,7 +37,6 @@ class FickleLoader(importlib.abc.Loader):
 
     def exec_module(self, module: types.ModuleType) -> None:
         module.load = loader.load
-        # TODO Determine whether I should expose extra loader args
 
 
 class PickleFinder(importlib.abc.MetaPathFinder):
@@ -54,8 +53,6 @@ class PickleFinder(importlib.abc.MetaPathFinder):
 
 
 def run_import_hook():
-    # TODO Should I include print messages for all the hooks?
-    # print("run_import_hook")
     if "pickle" in sys.modules:
         del sys.modules["pickle"]
     sys.meta_path.insert(0, PickleFinder())

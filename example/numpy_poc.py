@@ -31,6 +31,4 @@ print("\n\nWith fickling\n\n")
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
 print("\n\nHow likely is this to be safe?\n\n")
-safety_results = fickled_payload.check_safety()
-
-print(safety_results)
+safety_results = fickled_payload.check_safety(print_results=True, json_output_path="numpy_poc.json")

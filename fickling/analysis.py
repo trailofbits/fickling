@@ -301,6 +301,8 @@ def check_safety(
     analyzer: Optional[Analyzer] = None,
     verbosity: Severity = Severity.SUSPICIOUS,
     json_output_path: Optional[str] = None,
+    return_result: bool = False,
+    print_results: bool = False,
 ) -> AnalysisResults:
     if stdout is None:
         stdout = sys.stdout
@@ -312,26 +314,34 @@ def check_safety(
 
     results = analyzer.analyze(pickled)
     analysis_message = results.to_string(verbosity)
-    stdout.write(analysis_message)
+    if print_results:
+        stdout.write(analysis_message)
 
-    if results.severity == Severity.LIKELY_SAFE:
+    if results.severity == Severity.LIKELY_SAFE and print_results:
         stderr.write(
             "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
             "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n"
         )
-    if json_output_path:
-        severity_data = {
-            "severity": results.severity.name,
-            "analysis": analysis_message
-            if analysis_message.strip()
-            else "Fickling failed to detect any overtly unsafe code",
-            "detailed_results": results.detailed_results(),
-        }
 
+    severity_data = {
+        "severity": results.severity.name,
+        "analysis": analysis_message
+        if analysis_message.strip()
+        else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
+        "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n",
+        "detailed_results": results.detailed_results(),
+    }
+
+    if json_output_path:
         try:
             with open(json_output_path, "w") as json_file:
                 json.dump(severity_data, json_file, indent=4)
         except OSError as e:
-            stderr.write(f"Error writing to JSON file: {e}\n")
+            if print_results:
+                stderr.write(f"Error writing to JSON file: {e}\n")
 
-    return results
+    # We usually want to return severity_data BUT comparisons are easier with results
+    if return_result:
+        return results
+    else:
+        return severity_data

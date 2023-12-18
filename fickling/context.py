@@ -22,5 +22,5 @@ class FicklingContextManager:
         pickle.load = self.original_pickle_load
 
 
-def check_safety():
-    return FicklingContextManager()
+def check_safety(print_results=False):
+    return FicklingContextManager(print_results)
