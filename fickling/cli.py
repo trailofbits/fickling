@@ -76,12 +76,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
 
     parser.add_argument(
-    "--json-output",
-    type=str,
-    default=None,
-    help="path to the output JSON file to store the analysis results."
-    "If not provided, a default name will be used."
-)
+        "--json-output",
+        type=str,
+        default=None,
+        help="path to the output JSON file to store the analysis results."
+        "If not provided, a default name will be used.",
+    )
 
     parser.add_argument(
         "--trace",
@@ -145,9 +145,10 @@ def main(argv: Optional[List[str]] = None) -> int:
                 pickled.dump(buffer)
         elif args.check_safety:
             was_safe = True
+            # Set a default JSON output file
             json_output_path = args.json_output or "safety_results.json"
             for pickled in stacked_pickled:
-                 if not check_safety(pickled, json_output_path=json_output_path):
+                if not check_safety(pickled, json_output_path=json_output_path):
                     was_safe = False
             return [1, 0][was_safe]
         else:

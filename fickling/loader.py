@@ -3,9 +3,9 @@ import pickle
 from fickling.fickle import Pickled
 
 
+# TODO Determine what the best defaults for block are
 def load(file, run_after_analysis=True, block=[3, 4, 5]):
     """Exposed as fickling.load()"""
-    print("Inside core_load")
     pickled_data = Pickled.load(file)
     result = pickled_data.check_safety.severity
     if result not in block:

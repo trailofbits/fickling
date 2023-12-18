@@ -653,6 +653,7 @@ class Pickled(OpcodeSequence):
 
     @property
     def is_likely_safe(self):
+        # TODO Should I name a specific version?
         warnings.warn(
             "The method .is_likely_safe will be deprecated. Use the method .check_safety instead.",
             DeprecationWarning,

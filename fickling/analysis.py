@@ -274,6 +274,7 @@ class AnalysisResults:
     @property
     def severity(self) -> Severity:
         if not self.results:
+            # TODO Consider adding an argument here to toggle sensitivity
             # return Severity.UNKNOWN
             return Severity.LIKELY_SAFE
         return max(r.severity for r in self.results)
