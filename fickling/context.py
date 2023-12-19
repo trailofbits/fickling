@@ -6,7 +6,7 @@ from fickling.hook import hook_pickle_load
 
 
 class FicklingContextManager:
-    def __init__(self, max_acceptable_severity=Severity.LIKELY_UNSAFE):
+    def __init__(self, max_acceptable_severity=Severity.LIKELY_SAFE):
         self.original_pickle_load = pickle.load
         self.max_acceptable_severity = max_acceptable_severity
 
