@@ -24,4 +24,4 @@ print("Finished running eval()")
 
 print("\n\nIs this safe?")
 safety_results = fickled_model.check_safety()
-print(safety_results['severity'])
+print(safety_results["severity"])

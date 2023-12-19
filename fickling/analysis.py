@@ -76,7 +76,6 @@ class Severity(Enum):
     LIKELY_OVERTLY_MALICIOUS = (3, "Likely Overtly Malicious")
     OVERTLY_MALICIOUS = (4, "Overtly Malicious")
 
-
     def __lt__(self, other):
         return isinstance(other, Severity) and self.value < other.value
 
