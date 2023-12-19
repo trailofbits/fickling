@@ -71,11 +71,11 @@ class Analyzer(metaclass=AnalyzerMeta):
 
 class Severity(Enum):
     LIKELY_SAFE = (0, "No Unsafe Operations Discovered")
-    UNKNOWN = (1, "Unknown")
-    SUSPICIOUS = (2, "Suspicious")
-    LIKELY_UNSAFE = (3, "Likely Unsafe")
-    LIKELY_OVERTLY_MALICIOUS = (4, "Likely Overtly Malicious")
-    OVERTLY_MALICIOUS = (5, "Overtly Malicious")
+    SUSPICIOUS = (1, "Suspicious")
+    LIKELY_UNSAFE = (2, "Likely Unsafe")
+    LIKELY_OVERTLY_MALICIOUS = (3, "Likely Overtly Malicious")
+    OVERTLY_MALICIOUS = (4, "Overtly Malicious")
+
 
     def __lt__(self, other):
         return isinstance(other, Severity) and self.value < other.value
