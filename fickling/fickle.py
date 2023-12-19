@@ -3,6 +3,7 @@ import distutils.sysconfig as sysconfig
 import re
 import struct
 import sys
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
@@ -700,10 +701,20 @@ class Pickled(OpcodeSequence):
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
 
-    @property
-    def is_likely_safe(self) -> bool:
-        # `self.has_call` is probably safe as long as `not self.has_import`
-        return not self.has_import and not self.has_non_setstate_call
+    def check_safety(self):
+        from fickling.analysis import check_safety  # noqa
+
+        safety_results = check_safety(self)
+        return safety_results
+
+    def is_likely_safe(self):
+        warnings.warn(
+            "The attribute .is_likely_safe will be deprecated."
+            "Use the attribute .check_safety instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.check_safety(self)
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:

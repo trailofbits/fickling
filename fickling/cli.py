@@ -8,7 +8,9 @@ else:
     from astunparse import unparse
 
 from . import __version__, fickle, tracing
-from .analysis import check_safety
+from .analysis import Severity, check_safety
+
+DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -16,7 +18,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         argv = sys.argv
 
     parser = ArgumentParser(
-        description="fickle is a static analyzer and interpreter for Python pickle data"
+        description="fickling is a static analyzer and interpreter for Python pickle data"
     )
     parser.add_argument(
         "PICKLE_FILE",
@@ -74,6 +76,21 @@ def main(argv: Optional[List[str]] = None) -> int:
             "even if this check exits with code zero."
         ),
     )
+
+    parser.add_argument(
+        "--json-output",
+        type=str,
+        default=None,
+        help="path to the output JSON file to store the analysis results from check-safety."
+        f"If not provided, a default file named {DEFAULT_JSON_OUTPUT_FILE} will be used.",
+    )
+
+    parser.add_argument(
+        "--print-results",
+        action="store_true",
+        help="Print the analysis results to the console when checking safety.",
+    )
+
     parser.add_argument(
         "--trace",
         "-t",
@@ -136,10 +153,24 @@ def main(argv: Optional[List[str]] = None) -> int:
                 pickled.dump(buffer)
         elif args.check_safety:
             was_safe = True
+            json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
             for pickled in stacked_pickled:
-                if not check_safety(pickled):
+                safety_results = check_safety(pickled, json_output_path=json_output_path)
+
+                # Print results if requested
+                if args.print_results:
+                    print(safety_results.to_string())
+
+                if safety_results.severity > Severity.LIKELY_SAFE:
                     was_safe = False
+                    if args.print_results:
+                        sys.stderr.write(
+                            "Warning: Fickling detected that the pickle file may be unsafe.\n\n"
+                            "Do not unpickle this file if it is from an untrusted source!\n\n"
+                        )
+
             return [1, 0][was_safe]
+
         else:
             var_id = 0
             for i, pickled in enumerate(stacked_pickled):
