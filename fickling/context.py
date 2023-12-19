@@ -1,10 +1,9 @@
-
 import pickle
 
+import fickling.hook as hook
 import fickling.loader as loader
 from fickling.analysis import Severity
-#from fickling.hook import hook_pickle_load
-from fickling.hook import run_hook
+
 
 class FicklingContextManager:
     def __init__(self, max_acceptable_severity=Severity.LIKELY_SAFE):
@@ -16,7 +15,7 @@ class FicklingContextManager:
         wrapped_load = lambda file, *args, **kwargs: loader.load(  # noqa
             file, max_acceptable_severity=self.max_acceptable_severity
         )
-        run_hook()
+        hook.run_hook()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

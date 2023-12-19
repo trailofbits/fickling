@@ -26,7 +26,7 @@ class Payload:
 
 payload = Payload()
 
-with open("unsafe.pickle", "wb") as f:
+with open("unsafe.pkl", "wb") as f:
     pickle.dump(payload, f)
 
 
@@ -36,10 +36,10 @@ with open("safe.pkl", "rb") as file:
     print("Loaded data:", loaded_data)
 
 print("\n\nLoading unsafe file using numpy.load:\n\n")
-with open("unsafe.pickle", "wb") as f:
+with open("unsafe.pkl", "wb") as f:
     pickle.dump(payload, f)
 
 # This hook works when pickle.load is called under the hood in Python as well
 # Note that this does not always work for torch.load()
 # This should raise "SafetyError"
-numpy.load("unsafe.pickle", allow_pickle=True)
+numpy.load("unsafe.pkl", allow_pickle=True)

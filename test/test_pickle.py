@@ -168,7 +168,7 @@ class TestInterpreter(TestCase):
             loaded, json_output_path="test_unused_variables.json"
         ).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
-        # os.remove("test_unused_variables.json")
+        os.remove("test_unused_variables.json")
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):

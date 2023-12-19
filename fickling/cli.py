@@ -152,18 +152,6 @@ def main(argv: Optional[List[str]] = None) -> int:
             for pickled in stacked_pickled[args.inject_target + 1 :]:
                 pickled.dump(buffer)
         elif args.check_safety:
-            # was_safe = True
-            """
-            # Set a default JSON output file
-            json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
-            for pickled in stacked_pickled:
-                safety_results = check_safety(pickled, json_output_path=json_output_path)
-                #if not check_safety(
-                #    pickled, json_output_path=json_output_path, print_results=args.print_results
-                #):
-                    #was_safe = False
-            #return [1, 0][was_safe]
-            """
             was_safe = True
             json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
             for pickled in stacked_pickled:

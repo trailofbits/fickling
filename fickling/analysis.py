@@ -298,9 +298,9 @@ class AnalysisResults:
             "severity": self.severity.name,
             "analysis": analysis_message
             if analysis_message.strip()
-            else
-            "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
-            "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n",
+            else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file"
+            "may still be unsafe."
+            "Do not unpickle this file if it is from an untrusted source!\n\n",
             "detailed_results": self.detailed_results(),
         }
         return severity_data
@@ -308,54 +308,17 @@ class AnalysisResults:
 
 def check_safety(
     pickled: Pickled,
-    # stdout: Optional[TextIO] = None,
-    # stderr: Optional[TextIO] = None,
     analyzer: Optional[Analyzer] = None,
     verbosity: Severity = Severity.SUSPICIOUS,
     json_output_path: Optional[str] = None,
-    # return_result: bool = False,
-    # print_results: bool = False,
 ) -> AnalysisResults:
-    """
-    if stdout is None:
-        stdout = sys.stdout
-    if stderr is None:
-        stderr = sys.stderr
-    """
     if analyzer is None:
         analyzer = Analyzer.default_instance
 
     results = analyzer.analyze(pickled)
-    """
-    analysis_message = results.to_string(verbosity)
-    # We want nothing printed by DEFAULT but we want users to enable if needed
-    if print_results:
-        stdout.write(analysis_message)
-
-    if results.severity == Severity.LIKELY_SAFE and print_results:
-        stderr.write(
-            "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
-            "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n"
-        )
-
-    severity_data = {
-        "severity": results.severity.name,
-        "analysis": analysis_message
-        if analysis_message.strip()
-        else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may "
-        "still be unsafe.\n\nDo not unpickle this file if it is from an untrusted source!\n\n",
-        "detailed_results": results.detailed_results(),
-    }
-    """
     severity_data = results.to_dict(verbosity)
     if json_output_path:
         # This is intentionally "a" to handle the case of stacked pickles
         with open(json_output_path, "a") as json_file:
             json.dump(severity_data, json_file, indent=4)
     return results
-
-    # We usually want to return severity_data BUT comparisons are easier with results
-    # if return_result:
-    #    return results
-    # else:
-    #    return severity_data
