@@ -8,7 +8,7 @@ else:
     from astunparse import unparse
 
 from . import __version__, fickle, tracing
-from .analysis import check_safety
+from .analysis import Severity, check_safety
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
@@ -152,15 +152,37 @@ def main(argv: Optional[List[str]] = None) -> int:
             for pickled in stacked_pickled[args.inject_target + 1 :]:
                 pickled.dump(buffer)
         elif args.check_safety:
-            was_safe = True
+            # was_safe = True
+            """
             # Set a default JSON output file
             json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
             for pickled in stacked_pickled:
-                if not check_safety(
-                    pickled, json_output_path=json_output_path, print_results=args.print_results
-                ):
+                safety_results = check_safety(pickled, json_output_path=json_output_path)
+                #if not check_safety(
+                #    pickled, json_output_path=json_output_path, print_results=args.print_results
+                #):
+                    #was_safe = False
+            #return [1, 0][was_safe]
+            """
+            was_safe = True
+            json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
+            for pickled in stacked_pickled:
+                safety_results = check_safety(pickled, json_output_path=json_output_path)
+
+                # Print results if requested
+                if args.print_results:
+                    print(safety_results.to_string())
+
+                if safety_results.severity > Severity.LIKELY_SAFE:
                     was_safe = False
+                    if args.print_results:
+                        sys.stderr.write(
+                            "Warning: Fickling detected that the pickle file may be unsafe.\n\n"
+                            "Do not unpickle this file if it is from an untrusted source!\n\n"
+                        )
+
             return [1, 0][was_safe]
+
         else:
             var_id = 0
             for i, pickled in enumerate(stacked_pickled):

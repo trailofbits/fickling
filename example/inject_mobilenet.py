@@ -23,5 +23,5 @@ model.eval()
 print("Finished running eval()")
 
 print("\n\nIs this safe?")
-safety_results = fickled_model.check_safety()
+safety_results = fickled_model.check_safety().to_dict()
 print(safety_results["severity"])

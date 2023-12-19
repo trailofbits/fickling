@@ -1,10 +1,12 @@
 import pickle
 
-from fickling.analysis import Severity
+from fickling.analysis import Severity, check_safety
 from fickling.fickle import Pickled
+
 
 class SafetyError(Exception):
     """Exception raised when a file is deemed unsafe by fickling."""
+
     pass
 
 
@@ -18,9 +20,7 @@ def load(
 ):
     """Exposed as fickling.load()"""
     pickled_data = Pickled.load(file)
-    result = pickled_data.check_safety(
-        return_result=True, print_results=print_results, json_output_path=json_output_path
-    )
+    result = check_safety(pickled=pickled_data, json_output_path=json_output_path)
     if result.severity <= max_acceptable_severity:
         # We don't do pickle.load(file) because it could allow for a race
         # condition where the file we check is not the same that gets

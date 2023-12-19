@@ -644,20 +644,20 @@ class Pickled(OpcodeSequence):
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
 
-    def check_safety(self, *args, **kwargs):
+    def check_safety(self):
         from fickling.analysis import check_safety  # noqa
 
-        safety_results = check_safety(self, *args, **kwargs)
+        safety_results = check_safety(self)
         return safety_results
 
-    def is_likely_safe(self, *args, **kwargs):
+    def is_likely_safe(self):
         warnings.warn(
             "The attribute .is_likely_safe will be deprecated."
             "Use the attribute .check_safety instead.",
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.check_safety(self, *args, **kwargs)
+        return self.check_safety(self)
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:

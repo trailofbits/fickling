@@ -1,12 +1,12 @@
 import os
 import pickle
 import unittest
+from pickle import UnpicklingError
 
 import numpy
 
 import fickling.hook as hook
 from fickling.loader import SafetyError
-from pickle import UnpicklingError
 
 
 class TestHook(unittest.TestCase):
@@ -51,4 +51,3 @@ class TestHook(unittest.TestCase):
                 pass
             else:
                 self.fail(e)
-
