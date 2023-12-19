@@ -3,6 +3,10 @@ import pickle
 from fickling.analysis import Severity
 from fickling.fickle import Pickled
 
+class SafetyError(Exception):
+    """Exception raised when a file is deemed unsafe by fickling."""
+    pass
+
 
 def load(
     file,
@@ -23,4 +27,4 @@ def load(
         # loaded after the analysis.
         return pickle.loads(pickled_data.dumps(), *args, **kwargs)
     else:
-        return False
+        raise SafetyError(f"File is unsafe: {result.severity.name}")
