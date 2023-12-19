@@ -110,7 +110,7 @@ class AnalysisResult:
         self.analysis_name: str = analysis_name
         self.trigger: Optional[
             str
-        ] = trigger  # New field to store the trigger code fragment or artifact
+        ] = trigger  # Field to store the trigger code fragment or artifact
 
     def __lt__(self, other):
         return isinstance(other, AnalysisResult) and (
@@ -314,6 +314,7 @@ def check_safety(
 
     results = analyzer.analyze(pickled)
     analysis_message = results.to_string(verbosity)
+    # We want nothing printed by DEFAULT but we want users to enable if needed
     if print_results:
         stdout.write(analysis_message)
 

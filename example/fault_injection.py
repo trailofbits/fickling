@@ -62,11 +62,7 @@ unsafe_props = fickled_unsafe_model.properties
 print("\n\nIs this is_likely_safe?")
 
 safety = fickled_unsafe_model.is_likely_safe
-if safety:
-    print("✅")
-else:
-    print("❌")
-
+print(safety)
 
 # Test more safety checks
 

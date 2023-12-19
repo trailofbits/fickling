@@ -12,3 +12,4 @@ with open("safe.pkl", "wb") as file:
 with context.check_safety():
     with open("safe.pkl", "rb") as file:
         safe_data = pickle.load(file)
+        print(safe_data)

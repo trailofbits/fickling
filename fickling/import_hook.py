@@ -40,6 +40,9 @@ class FickleLoader(importlib.abc.Loader):
 
 
 class PickleFinder(importlib.abc.MetaPathFinder):
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
     def find_spec(
         self,
         fullname: str,
@@ -47,12 +50,13 @@ class PickleFinder(importlib.abc.MetaPathFinder):
         target: ModuleType | None = None,
     ):
         if fullname == "pickle":
-            print("Pickle module found: Running import hook")
+            if self.verbose:
+                print("Pickle module found: Running import hook")
             return importlib.machinery.ModuleSpec(fullname, FickleLoader())
         return None
 
 
-def run_import_hook():
+def run_import_hook(verbose=False):
     if "pickle" in sys.modules:
         del sys.modules["pickle"]
-    sys.meta_path.insert(0, PickleFinder())
+    sys.meta_path.insert(0, PickleFinder(verbose=verbose))
