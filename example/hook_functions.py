@@ -41,4 +41,5 @@ with open("unsafe.pickle", "wb") as f:
 
 # This hook works when pickle.load is called under the hood in Python as well
 # Note that this does not always work for torch.load()
+# This should raise "SafetyError"
 numpy.load("unsafe.pickle", allow_pickle=True)

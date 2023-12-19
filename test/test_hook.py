@@ -5,6 +5,8 @@ import unittest
 import numpy
 
 import fickling.hook as hook
+from fickling.loader import SafetyError
+from pickle import UnpicklingError
 
 
 class TestHook(unittest.TestCase):
@@ -42,5 +44,11 @@ class TestHook(unittest.TestCase):
         with open("unsafe.pickle", "wb") as f:
             pickle.dump(payload, f)
 
-        result = numpy.load("unsafe.pickle", allow_pickle=True)
-        self.assertEqual(result, False)
+        try:
+            numpy.load("unsafe.pickle", allow_pickle=True)
+        except UnpicklingError as e:
+            if isinstance(e.__cause__, SafetyError):
+                pass
+            else:
+                self.fail(e)
+
