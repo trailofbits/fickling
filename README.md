@@ -174,3 +174,7 @@ It is licensed under the [GNU Lesser General Public License v3.0](LICENSE).
 exception to the terms.
 
 © 2021, Trail of Bits.
+
+<p align="center">
+<strong><i>We relish the thought of a day when pickling will no longer be used to deserialize untrusted files.</i></strong>
+</p>
