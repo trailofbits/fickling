@@ -5,13 +5,22 @@ Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
 You can use fickling to detect, analyze, reverse engineer, or even create 
 malicious pickle or pickle-based files, including PyTorch files. 
 
+<p align="center">
+<a href="https://github.com/trailofbits/fickling/edit/sh/readme/README.md#key-features">Key Features</a> | 
+<a href="#">Background</a> | TODO rest of ToC 
+</p>
+
 ## Key Features
 - **Static Analysis**: Report detailed results of fickling’s `check_safety` in an easy-to-use JSON output 
-- **Easy Integration**: Detect malicious files and halt processing using features like fickling.load(), a global function hook, and a context manager that streamlines integration into existing infrastructure 
+  - **Easy Integration**: Detect malicious files and halt processing using features like `fickling.load()`,
+a global function hook, and a context manager that streamlines integration into existing infrastructure 
 - **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object 
 - **Injection**: Rewrites bytecode to inject code into pickle and PyTorch files, aiding in exploit development and testing 
 - **PyTorch Support**: Inspect and inject code into PyTorch files
-- **Polyglot Support**: Identifies and creates polyglots for 7 PyTorch file formats
+  - **Polyglot Support**: Identifies and creates polyglots for 7 PyTorch file formats
+
+TODO Fix last three key features 
+TODO Add image
 
 ## Background 
 Pickled Python objects are in fact bytecode that is interpreted by a stack-based
@@ -65,6 +74,8 @@ Do not unpickle this file if it is from an untrusted source!
 We do not recommend relying on the `--check-safety` option for critical use
 cases at this point in time.
 
+TODO Add JSON output 
+
 You can also safely trace the execution of the Pickle virtual machine without
 exercising any malicious code with the `--trace` option.
 
@@ -99,7 +110,7 @@ Module(
 
 ### Detection 
 
-While we recommend relying on a safer file format such as safetensors, 
+[While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit), 
 fickling can easily be integrated into existing infrastructure to halt 
 pickling after detecting a malicious file. 
 
@@ -127,14 +138,14 @@ pickling after detecting a malicious file.
 
 ### PyTorch Polyglots 
 We currently support the following PyTorch file formats:
-- PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors
-- PyTorch v0.1.10: Stacked pickle files
-- TorchScript v1.0: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
-- TorchScript v1.1: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
-- TorchScript v1.3: ZIP file with data.pkl and constants.pkl (2 pickle files)
-- TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
-- PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
-- PyTorch model archive format: ZIP file that includes Python code files and pickle files
+- **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
+- **PyTorch v0.1.10**: Stacked pickle files
+- **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
+- **TorchScript v1.1**: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
+- **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
+- **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
+- **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
+- **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
 ```python
 >> import torch
 >> import torchvision.models as models
@@ -152,6 +163,8 @@ Your file is most likely of this format:  PyTorch v1.3
 ## Contributing 
 If you find a bug in fickling or want to implement new features, please 
 raise an issue on our GitHub or contact us. 
+
+TODO Find better phrasing 
 
 ## License
 
