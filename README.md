@@ -16,14 +16,16 @@ malicious pickle or pickle-based files, including PyTorch files.
 
 * **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format
   * **Easy Integration**: Detect malicious files and halt deserialization using
-features like the context mananger, global hook, and `fickling.load()` that streamline integration into existing infrastructure
+features like the context mananger, global hook, and `fickling.load()` that
+streamline integration into existing infrastructure
 * **Decompilation**: Decompiles pickled data streams into readable Python code,
 revealing the original serialized object
 * **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits
 in which anonymously shared pickle files are an attack vector
 * **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
-  * **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
-  * **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types 
+  * **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is
+without directly loading it
+  * **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types
 
 
 ## Background 
@@ -31,15 +33,16 @@ Pickled Python objects are in fact bytecode that is interpreted by a stack-based
 virtual machine built into Python called the "Pickle Machine". Fickling can take
 pickled data streams and decompile them into human-readable Python code that,
 when executed, will deserialize to the original serialized object. This is made
-possible by Fickling’s custom implementation of the PM. Fickling is safe to run 
-on potentially malicious files because its PM symbolically executes code rather 
+possible by Fickling’s custom implementation of the PM. Fickling is safe to run
+on potentially malicious files because its PM symbolically executes code rather
 than overtly executing it.
 
 The authors do not prescribe any meaning to the “F” in Fickling; it could stand
 for “fickle,” … or something else. Divining its meaning is a personal journey
 in discretion and is left as an exercise to the reader.
 
-Learn more about fickling in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
+Learn more about fickling in our
+[blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
 and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
 
 
@@ -78,7 +81,7 @@ Do not unpickle this file if it is from an untrusted source!
 The results of this analysis are saved in a JSON file by default.
 Here's an an example of the JSON output from an analysis conducted on a malicious pickle file.
 
-```
+```console
 {
     "severity": "OVERTLY_MALICIOUS",
     "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file.
