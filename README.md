@@ -9,16 +9,18 @@ Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
 You can use fickling to detect, analyze, reverse engineer, or even create
 malicious pickle or pickle-based files, including PyTorch files.
 
-[Key Features]() | [Background]() | [Installation]() | [Usage]() 
+[Key Features]() | [Background]() | [Installation]() | [Usage]()
 ([CLI](), [Python API](), [Detection](), [PyTorch Polyglots]()) | [Getting Help]() | [License]()
 
-
 ## Key Features
+
 * **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format
-  * **Easy Integration**: Detect malicious files and halt deserialization using features like the context mananger, global hook,
-and `fickling.load()` that streamline integration into existing infrastructure
-* **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object
-* **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits in which anonymously shared pickle files can be an attack vector
+  * **Easy Integration**: Detect malicious files and halt deserialization using
+features like the context mananger, global hook, and `fickling.load()` that streamline integration into existing infrastructure
+* **Decompilation**: Decompiles pickled data streams into readable Python code,
+revealing the original serialized object
+* **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits
+in which anonymously shared pickle files are an attack vector
 * **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
   * **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
   * **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types 
