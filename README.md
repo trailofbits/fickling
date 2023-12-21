@@ -103,7 +103,7 @@ exercising any malicious code with the `--trace` option.
 Finally, you can inject arbitrary Python code that will be run on unpickling
 into an existing pickle file with the `--inject` option.
 
-### Python API 
+### Python API
 
 Similar to the CLI, you can use `check_safety` to analyze a pickle file
 and even save the results as a JSON file. Ficking supports additional
@@ -133,7 +133,7 @@ Module(
     type_ignores=[])
 ```
 
-### Detection 
+### Detection
 
 [While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit),
 fickling can easily be integrated into existing infrastructure to halt
@@ -161,7 +161,7 @@ deserialization after detecting a malicious file.
 [1, 2, 3]
 ```
 
-### PyTorch Polyglots 
+### PyTorch Polyglots
 
 We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
@@ -172,6 +172,7 @@ We currently support inspecting, identifying, and creating polyglots between the
 * **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
 * **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
 * **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
+
 ```python
 >> import torch
 >> import torchvision.models as models
@@ -180,7 +181,7 @@ We currently support inspecting, identifying, and creating polyglots between the
 >> torch.save(model, "mobilenet.pth")
 >> fickled_model = PyTorchModelWrapper("mobilenet.pth")
 >> print(fickled_model.formats)
-Your file is most likely of this format:  PyTorch v1.3 
+Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 
@@ -188,8 +189,10 @@ Your file is most likely of this format:  PyTorch v1.3
 
 ## Getting Help
 
-If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page.
-Feel free to contact us or reach out in [Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
+If you'd like to file a bug report or feature request,
+please use our [issues](https://github.com/trailofbits/fickling/issues) page.
+Feel free to contact us or reach out in
+[Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
 
 ## License
 
@@ -201,5 +204,6 @@ exception to the terms.
 © 2021, Trail of Bits.
 
 <p align="center">
-<strong><i>We relish the thought of a day when pickling will no longer be used to deserialize untrusted files.</i></strong>
+<strong><i>We relish the thought of a day when pickling will no longer be
+used to deserialize untrusted files.</i></strong>
 </p>
