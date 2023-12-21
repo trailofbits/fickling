@@ -27,8 +27,8 @@ in which anonymously shared pickle files are an attack vector
 without directly loading it
   * **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types
 
+## Background
 
-## Background 
 Pickled Python objects are in fact bytecode that is interpreted by a stack-based
 virtual machine built into Python called the "Pickle Machine". Fickling can take
 pickled data streams and decompile them into human-readable Python code that,
@@ -45,7 +45,6 @@ Learn more about fickling in our
 [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
 and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
 
-
 ## Installation
 
 Fickling has been tested on Python 3.8 through Python 3.11 and has very few dependencies.
@@ -58,7 +57,6 @@ python -m pip install fickling
 ## Usage
 
 Fickling is available as a CLI and Python API. 
-
 
 ### CLI
 
@@ -85,7 +83,8 @@ Here's an an example of the JSON output from an analysis conducted on a maliciou
 {
     "severity": "OVERTLY_MALICIOUS",
     "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file.
-Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward; this is suspicious and indicative of a malicious pickle file",
+Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward;
+this is suspicious and indicative of a malicious pickle file",
     "detailed_results": {
         "AnalysisResult": {
             "OvertlyBadEval": "eval(b'[5, 6, 7, 8]')",
@@ -103,7 +102,6 @@ exercising any malicious code with the `--trace` option.
 
 Finally, you can inject arbitrary Python code that will be run on unpickling
 into an existing pickle file with the `--inject` option.
-
 
 ### Python API 
 
@@ -164,6 +162,7 @@ deserialization after detecting a malicious file.
 ```
 
 ### PyTorch Polyglots 
+
 We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
 * **PyTorch v0.1.10**: Stacked pickle files
@@ -187,7 +186,8 @@ Your file is most likely of this format:  PyTorch v1.3
 
 [Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example)
 
-## Getting Help 
+## Getting Help
+
 If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page.
 Feel free to contact us or reach out in [Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
 
