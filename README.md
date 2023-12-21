@@ -1,4 +1,7 @@
-![alt text](fickling_image.png)
+<p align="center">
+<img src="https://github.com/trailofbits/fickling/blob/sh/readme/fickling_image.png" width="600" height="312">
+</p>
+
 # Fickling
 
 Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
