@@ -163,7 +163,7 @@ deserialization after detecting a malicious file.
 
 ### PyTorch Polyglots
 
-We currently support inspecting, identifying, and creating polyglots 
+We currently support inspecting, identifying, and creating polyglots
 between the following PyTorch file formats:
 
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
