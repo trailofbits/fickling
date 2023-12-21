@@ -11,15 +11,15 @@ malicious pickle or pickle-based files, including PyTorch files.
 </p>
 
 ## Key Features
-- **Static Analysis**: Report detailed results of fickling’s `check_safety` in an easy-to-use JSON output 
-  - **Easy Integration**: Detect malicious files and halt processing using features like `fickling.load()`,
-a global function hook, and a context manager that streamlines integration into existing infrastructure 
+- **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format 
+  - **Easy Integration**: Detect malicious files and halt deserialization using features like `fickling.load()`,
+a global function hook, and a context manager that streamline integration into existing infrastructure 
 - **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object 
-- **Injection**: Rewrites bytecode to inject code into pickle and PyTorch files, aiding in exploit development and testing 
-- **PyTorch Support**: Inspect and inject code into PyTorch files
-  - **Polyglot Support**: Identifies and creates polyglots for 7 PyTorch file formats
+- **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits in which anonymously shared pickle files can be an attack vector 
+- **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
+  - **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
+  - **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types  
 
-TODO Fix last three key features 
 TODO Add image
 
 ## Background 
