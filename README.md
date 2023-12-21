@@ -56,7 +56,7 @@ python -m pip install fickling
 
 ## Usage
 
-Fickling is available as a CLI and Python API. 
+Fickling is available as a CLI and Python API.
 
 ### CLI
 
@@ -163,7 +163,9 @@ deserialization after detecting a malicious file.
 
 ### PyTorch Polyglots
 
-We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
+We currently support inspecting, identifying, and creating polyglots 
+between the following PyTorch file formats:
+
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
 * **PyTorch v0.1.10**: Stacked pickle files
 * **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
