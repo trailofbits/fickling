@@ -9,34 +9,17 @@ Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
 You can use fickling to detect, analyze, reverse engineer, or even create 
 malicious pickle or pickle-based files, including PyTorch files. 
 
-[Key Features]() | [Background]() | [Installation]() | [Usage]() ([CLI](), [Python API](), [Detection](), [PyTorch Polyglots]()) | [Getting Help]() | [License]()
+Fickling can be used both as a **python library** and a **CLI**.
 
-## Key Features
-- **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format 
-  - **Easy Integration**: Detect malicious files and halt deserialization using features like `fickling.load()`,
-a global function hook, and a context manager that streamline integration into existing infrastructure 
-- **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object 
-- **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits in which anonymously shared pickle files can be an attack vector 
-- **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
-  - **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
-  - **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types  
-
-
-## Background 
-Pickled Python objects are in fact bytecode that is interpreted by a stack-based
-virtual machine built into Python called the "Pickle Machine". Fickling can take
-pickled data streams and decompile them into human-readable Python code that,
-when executed, will deserialize to the original serialized object. This is made 
-possible by Fickling’s custom implementation of the PM. Fickling is safe to run 
-on potentially malicious files because its PM symbolically executes code rather 
-than overtly executing it.
-
-The authors do not prescribe any meaning to the “F” in Fickling; it could stand
-for “fickle,” … or something else. Divining its meaning is a personal journey
-in discretion and is left as an exercise to the reader.
-
-Learn more about fickling in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
-and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
+- [Installation](#installation)
+- [Malicious file detection](#malicious-file-detection)
+- [Advanced usage](#advanced-usage)
+    - [Trace pickle execution](#trace-pickle-execution)
+    - [Pickle code injection](#pickle-code-injection)
+    - [Pickle decompilation](#pickle-decompilation)
+    - [PyTorch polyglots](#pytorch-polyglots)
+- [About pickle](#about-pickle)
+- [Contact](#contact)
 
 ## Installation
 
@@ -47,32 +30,51 @@ Both the library and command line utility can be installed through pip:
 python -m pip install fickling
 ```
 
-## Usage
+## Malicious file detection
 
-Fickling is available as a CLI and Python API. 
+TODO: verify that code runs
+TODO: fickling.loads, hook pickle.dumps
 
-### CLI
+Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious files at runtime.
 
-```console
-$ fickling pickled.data
-result = [1, 2, 3, 4]
+Below we show the different ways you can use fickling to enforce safety checks on pickle files. Under the hood, it hooks the `pickle` library to add safety checks so that loading a pickle file raises an `UnsafeFile` exception if malicious content is detected in the file.
+
+```python
+# Option 1 (recommended): check all pickle files at runtime
+fickling.check_always()
+try:
+    pickle.load("file.pkl")
+except fickling.UnsafeFile:
+    print("Unsafe file!")
+
+# Option 2: use a context manager
+with fickling.check():
+    try:
+        pickle.load("file.pkl") # File is checked
+    except fickling.UnsafeFile:
+        print("Unsafe file!")
+pickle.load("file.pkl") # File is NOT checked
+
+# Option 3: check and load a single file by
+# using fickling.load() in place of pickle.load()
+try:
+    fickling.load("file.pkl")
+except fickling.UnsafeFile as e:
+    print("Unsafe file!")
+
+# Option 4: manually check pickle file safety without loading
+if not fickling.is_likely_safe("file.pkl"):
+    print("Unsafe file!")
 ```
 
-While this is a simple example, Python pickle bytecode can run arbitrary
-arbitrary Python commands (such as `exec` or `os.system`) so it is a security
-risk to unpickle untrusted data. You can test for common patterns of
-malicious pickle files with the `--check-safety` option:
+You can access the details of fickling's safety analysis from within the raised exception:
 
-```console
-$ fickling --check-safety -p pickled.data
-Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may still be unsafe.
-Do not unpickle this file if it is from an untrusted source!
-```
+```python
+>>> try:
+...     fickling.load("unsafe.pkl")
+... except fickling.UnsafeFile as e:
+...     print(e.info)
 
-The results of this analysis are saved in a JSON file by default.
-Here's an an example of the JSON output from an analysis conducted on a malicious pickle file.
-
-```
 {
     "severity": "OVERTLY_MALICIOUS",
     "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file. Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward; this is suspicious and indicative of a malicious pickle file",
@@ -88,26 +90,36 @@ Here's an an example of the JSON output from an analysis conducted on a maliciou
 }
 ```
 
-You can also safely trace the execution of the Pickle virtual machine without
-exercising any malicious code with the `--trace` option.
+If you are using another language than Python, you can still use fickling's `CLI` to safety-check pickle files:
 
-Finally, you can inject arbitrary Python code that will be run on unpickling
-into an existing pickle file with the `--inject` option.
+```console
+$ fickling --check-safety -p pickled.data
+```
 
-### Python API 
+## Advanced usage
 
-Similar to the CLI, you can use `check_safety` to analyze a pickle file 
-and even save the results as a JSON file. Ficking supports additional
-analysis through its decompilation capabilities. 
+### Trace pickle execution
+Fickling's `CLI` allows to safely trace the execution of the Pickle virtual machine without
+exercising any malicious code:
+
+```console
+$ fickling --trace file.pkl
+```
+
+### Pickle code injection
+Fickling allows to inject arbitrary code in a pickle file that will run every time the file is loaded
+
+```console
+$ fickling --inject "print('Malicious')" file.pkl
+```
+
+### Pickle decompilation
+Fickling can be used to decompile a pickle file for further analysis 
 
 ```python
->>> import ast
->>> import pickle
->>> from fickling.pickle import Pickled
+>>> import ast, pickle
+>>> from fickling.fickle import Pickled
 >>> fickled_object = Pickled.load(pickle.dumps([1, 2, 3, 4]))
->>> safety_results = fickled_object.check_safety().to_dict()
->>> print(safety_results['severity'])
-LIKELY_SAFE
 >>> print(ast.dump(fickled_object.ast, indent=4))
 Module(
     body=[
@@ -124,36 +136,8 @@ Module(
     type_ignores=[])
 ```
 
-### Detection 
-
-[While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit), 
-fickling can easily be integrated into existing infrastructure to halt 
-deserialization after detecting a malicious file. 
-
-```python
->>> import pickle
->>> import fickling
->>> safe_list = [1, 2, 3]
->>> with open("safe.pkl", "wb") as file:
-...     pickle.dump(safe_list, file)
->>> # Use fickling.load()
->>> with open("safe.pkl", "rb") as file:
-...     print(fickling.load(file))
-[1, 2, 3]
->>> # Use the context manager
->>> with fickling.check_safety():
-...     with open("safe.pkl", "rb") as file:
-...         print(pickle.load(file))
-[1, 2, 3]
->>> # Use the global hook
->>> hook.run_hook()
->>> with open("safe.pkl", "rb") as file:
-...         print(pickle.load(file))
-[1, 2, 3]
-```
-
-### PyTorch Polyglots 
-We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
+### PyTorch polyglots 
+We currently support inspecting, identifying, and creating file polyglots between the following PyTorch file formats:
 - **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
 - **PyTorch v0.1.10**: Stacked pickle files
 - **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
@@ -162,6 +146,7 @@ We currently support inspecting, identifying, and creating polyglots between the
 - **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
 - **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
 - **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
+
 ```python
 >> import torch
 >> import torchvision.models as models
@@ -174,9 +159,27 @@ Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 
-[Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example) 
+<hl>
 
-## Getting Help  
+Check out [our examples](https://github.com/trailofbits/fickling/tree/master/example) to learn more about using fickling!
+
+## About pickle 
+Pickled Python objects are in fact bytecode that is interpreted by a stack-based
+virtual machine built into Python called the "Pickle Machine". Fickling can take
+pickled data streams and decompile them into human-readable Python code that,
+when executed, will deserialize to the original serialized object. This is made 
+possible by Fickling’s custom implementation of the PM. Fickling is safe to run 
+on potentially malicious files because its PM symbolically executes code rather 
+than overtly executing it.
+
+The authors do not prescribe any meaning to the “F” in Fickling; it could stand
+for “fickle,” … or something else. Divining its meaning is a personal journey
+in discretion and is left as an exercise to the reader.
+
+Learn more about fickling in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
+and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
+
+## Contact
 If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page. 
 Feel free to contact us or reach out in [Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
 
