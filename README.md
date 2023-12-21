@@ -10,13 +10,15 @@ You can use fickling to detect, analyze, reverse engineer, or even create
 malicious pickle or pickle-based files, including PyTorch files.
 
 [Key Features](#key-features) |
-[Background](https://github.com/trailofbits/fickling?tab=readme-ov-file#background) |
-[Installation](https://github.com/trailofbits/fickling?tab=readme-ov-file#installation) |
-[Usage](https://github.com/trailofbits/fickling?tab=readme-ov-file#usage)
-([CLI](https://github.com/trailofbits/fickling?tab=readme-ov-file#cli),
-[Python API](https://github.com/trailofbits/fickling?tab=readme-ov-file#python-api), [Detection](), [PyTorch Polyglots]()) |
-[Getting Help]() |
-[License](https://github.com/trailofbits/fickling?tab=readme-ov-file#license)
+[Background](#background) |
+[Installation](#installation) |
+[Usage](#usage)
+([CLI](#cli),
+[Python API](#python-api),
+[Detection](#detection),
+[PyTorch Polyglots](#pytorch-polyglots)) |
+[Getting Help](#getting-help) |
+[License](#license)
 
 ## Key Features
 
