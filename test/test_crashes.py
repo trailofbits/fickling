@@ -62,3 +62,12 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         """Tests the correctness of the POP_MARK opcode by using the bytecode from https://github.com/mindspore-ai/mindspore/issues/183
         This can be simplified to allow for the correctness of additional opcodes to be tested"""
         pass
+
+
+    @unparse_test(
+    io.BytesIO(
+       b'(cos\nsystem\nS"whoami"\no.')
+    )
+    def test_obj(self):
+        pass
+

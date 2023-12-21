@@ -1122,6 +1122,26 @@ class PopMark(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
         return objs
 
+   
+class OBJ(Opcode):
+    name = "OBJ"
+
+    def run(self, interpreter: Interpreter):
+        args = []
+        while interpreter.stack:
+            arg = interpreter.stack.pop()
+            if isinstance(arg, MarkObject):
+                break
+            args.append(arg)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+        kls = args.pop()
+        # TODO emulate stack after to verify correctness
+        if (args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type)):
+            interpreter.stack.append(ast.Call(kls, [list(args)], []))
+        else:
+            interpreter.stack.append(ast.Call(kls, kls, []))
+        
 
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
     name = "SHORT_BINUNICODE"
