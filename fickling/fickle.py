@@ -75,6 +75,7 @@ class MarkObject:
 class Opcode:
     name: str
     info: OpcodeInfo
+
     def __init__(
         self,
         argument: Optional[Any] = None,
@@ -1136,11 +1137,11 @@ class Obj(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
         kls = args.pop()
         # TODO Verify paths for correctness
-        if (args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type)):
+        if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
             interpreter.stack.append(ast.Call(kls, [list(args)], []))
         else:
             interpreter.stack.append(ast.Call(kls, kls, []))
-        
+
 
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
     name = "SHORT_BINUNICODE"
@@ -1486,6 +1487,7 @@ class ShortBinString(DynamicLength, ConstantOpcode):
         if not isinstance(obj, str):
             raise ValueError(f"String must be instantiated from a str, not {obj!r}")
         return obj
+
 
 class BinString(DynamicLength, ConstantOpcode):
     name = "BINSTRING"

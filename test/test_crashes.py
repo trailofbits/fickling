@@ -63,11 +63,6 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         This can be simplified to allow for the correctness of additional opcodes to be tested"""
         pass
 
-
-    @unparse_test(
-    io.BytesIO(
-       b'(cos\nsystem\nS"whoami"\no.')
-    )
+    @unparse_test(io.BytesIO(b'(cos\nsystem\nS"whoami"\no.'))
     def test_obj(self):
         pass
-
