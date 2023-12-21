@@ -1,3 +1,4 @@
+![alt text](fickling_image.png)
 # Fickling
 
 Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
@@ -5,10 +6,7 @@ Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
 You can use fickling to detect, analyze, reverse engineer, or even create 
 malicious pickle or pickle-based files, including PyTorch files. 
 
-<p align="center">
-<a href="https://github.com/trailofbits/fickling/edit/sh/readme/README.md#key-features">Key Features</a> | 
-<a href="#">Background</a> | TODO rest of ToC 
-</p>
+[Key Features]() | [Background]() | [Installation]() | [Usage]() ([CLI](), [Python API](), [Detection](), [PyTorch Polyglots]()) | [Getting Help]() | [License]()
 
 ## Key Features
 - **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format 
@@ -20,7 +18,6 @@ a global function hook, and a context manager that streamline integration into e
   - **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
   - **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types  
 
-TODO Add image
 
 ## Background 
 Pickled Python objects are in fact bytecode that is interpreted by a stack-based
