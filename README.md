@@ -174,13 +174,13 @@ deserialization after detecting a malicious file.
 We currently support inspecting, identifying, and creating polyglots
 between the following PyTorch file formats:
 
-* **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
+* **PyTorch v0.1.1**: Tar file with `sys_info`, `pickle`, `storages`, and `tensors`
 * **PyTorch v0.1.10**: Stacked pickle files
-* **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
-* **TorchScript v1.1**: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
-* **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
-* **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
-* **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
+* **TorchScript v1.0**: ZIP file with `model.json` and `constants.pkl` (a JSON file and a pickle file)
+* **TorchScript v1.1**: ZIP file with `model.json` and `attribute.pkl` (a JSON file and a pickle file)
+* **TorchScript v1.3**: ZIP file with `data.pkl` and `constants.pkl` (2 pickle files)
+* **TorchScript v1.4**: ZIP file with `data.pkl`, `constants.pkl`, and `version` (2 pickle files and a folder)
+* **PyTorch v1.3**: ZIP file containing `data.pkl` (1 pickle file)
 * **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
 
 ```python
@@ -195,7 +195,7 @@ Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 
-[Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example)
+Check out our [examples](https://github.com/trailofbits/fickling/tree/master/example) to learn more about using fickling!
 
 ## Getting Help
 
