@@ -75,7 +75,6 @@ class MarkObject:
 class Opcode:
     name: str
     info: OpcodeInfo
-
     def __init__(
         self,
         argument: Optional[Any] = None,
@@ -1122,8 +1121,8 @@ class PopMark(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
         return objs
 
-   
-class OBJ(Opcode):
+
+class Obj(Opcode):
     name = "OBJ"
 
     def run(self, interpreter: Interpreter):
@@ -1136,7 +1135,7 @@ class OBJ(Opcode):
         else:
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
         kls = args.pop()
-        # TODO emulate stack after to verify correctness
+        # TODO Verify paths for correctness
         if (args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type)):
             interpreter.stack.append(ast.Call(kls, [list(args)], []))
         else:
@@ -1478,6 +1477,21 @@ class ShortBinString(DynamicLength, ConstantOpcode):
     name = "SHORT_BINSTRING"
     priority = Unicode.priority + 1
     length_bytes = 1
+
+    def encode_body(self) -> bytes:
+        return repr(self.arg).encode("utf-8")
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, str):
+            raise ValueError(f"String must be instantiated from a str, not {obj!r}")
+        return obj
+
+class BinString(DynamicLength, ConstantOpcode):
+    name = "BINSTRING"
+    priority = ShortBinBytes.priority + 1
+    length_bytes = 4
+    signed = True
 
     def encode_body(self) -> bytes:
         return repr(self.arg).encode("utf-8")
