@@ -6,27 +6,29 @@
 
 Fickling is a decompiler, static analyzer, and bytecode rewriter for Python
 [pickle](https://docs.python.org/3/library/pickle.html) object serializations.
-You can use fickling to detect, analyze, reverse engineer, or even create 
-malicious pickle or pickle-based files, including PyTorch files. 
+You can use fickling to detect, analyze, reverse engineer, or even create
+malicious pickle or pickle-based files, including PyTorch files.
 
-[Key Features]() | [Background]() | [Installation]() | [Usage]() ([CLI](), [Python API](), [Detection](), [PyTorch Polyglots]()) | [Getting Help]() | [License]()
+[Key Features]() | [Background]() | [Installation]() | [Usage]() 
+([CLI](), [Python API](), [Detection](), [PyTorch Polyglots]()) | [Getting Help]() | [License]()
+
 
 ## Key Features
-- **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format 
-  - **Easy Integration**: Detect malicious files and halt deserialization using features like the context mananger, global hook,
-and `fickling.load()` that streamline integration into existing infrastructure 
-- **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object 
-- **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits in which anonymously shared pickle files can be an attack vector 
-- **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
-  - **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
-  - **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types  
+* **Static Analysis**: Report detailed results from fickling’s `check_safety` in a usable JSON format
+  * **Easy Integration**: Detect malicious files and halt deserialization using features like the context mananger, global hook,
+and `fickling.load()` that streamline integration into existing infrastructure
+* **Decompilation**: Decompiles pickled data streams into readable Python code, revealing the original serialized object
+* **Injection**: Rewrite bytecode to inject code into pickle files and develop exploits in which anonymously shared pickle files can be an attack vector
+* **PyTorch Support**: Inspect, analyze, and inject code into PyTorch files
+  * **Polyglot-Aware Identification**: Identify what PyTorch file format type a file is without directly loading it
+  * **Polyglot Creation**: Create polyglots between 7 different PyTorch file format types 
 
 
 ## Background 
 Pickled Python objects are in fact bytecode that is interpreted by a stack-based
 virtual machine built into Python called the "Pickle Machine". Fickling can take
 pickled data streams and decompile them into human-readable Python code that,
-when executed, will deserialize to the original serialized object. This is made 
+when executed, will deserialize to the original serialized object. This is made
 possible by Fickling’s custom implementation of the PM. Fickling is safe to run 
 on potentially malicious files because its PM symbolically executes code rather 
 than overtly executing it.
@@ -37,6 +39,7 @@ in discretion and is left as an exercise to the reader.
 
 Learn more about fickling in our [blog post](https://blog.trailofbits.com/2021/03/15/never-a-dill-moment-exploiting-machine-learning-pickle-files/)
 and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
+
 
 ## Installation
 
@@ -50,6 +53,7 @@ python -m pip install fickling
 ## Usage
 
 Fickling is available as a CLI and Python API. 
+
 
 ### CLI
 
@@ -75,7 +79,8 @@ Here's an an example of the JSON output from an analysis conducted on a maliciou
 ```
 {
     "severity": "OVERTLY_MALICIOUS",
-    "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file. Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward; this is suspicious and indicative of a malicious pickle file",
+    "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file.
+Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward; this is suspicious and indicative of a malicious pickle file",
     "detailed_results": {
         "AnalysisResult": {
             "OvertlyBadEval": "eval(b'[5, 6, 7, 8]')",
@@ -94,11 +99,12 @@ exercising any malicious code with the `--trace` option.
 Finally, you can inject arbitrary Python code that will be run on unpickling
 into an existing pickle file with the `--inject` option.
 
+
 ### Python API 
 
-Similar to the CLI, you can use `check_safety` to analyze a pickle file 
+Similar to the CLI, you can use `check_safety` to analyze a pickle file
 and even save the results as a JSON file. Ficking supports additional
-analysis through its decompilation capabilities. 
+analysis through its decompilation capabilities.
 
 ```python
 >>> import ast
@@ -126,9 +132,9 @@ Module(
 
 ### Detection 
 
-[While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit), 
-fickling can easily be integrated into existing infrastructure to halt 
-deserialization after detecting a malicious file. 
+[While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit),
+fickling can easily be integrated into existing infrastructure to halt
+deserialization after detecting a malicious file.
 
 ```python
 >>> import pickle
@@ -154,14 +160,14 @@ deserialization after detecting a malicious file.
 
 ### PyTorch Polyglots 
 We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
-- **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
-- **PyTorch v0.1.10**: Stacked pickle files
-- **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
-- **TorchScript v1.1**: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
-- **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
-- **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
-- **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
-- **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
+* **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
+* **PyTorch v0.1.10**: Stacked pickle files
+* **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
+* **TorchScript v1.1**: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
+* **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
+* **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
+* **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
+* **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
 ```python
 >> import torch
 >> import torchvision.models as models
@@ -174,10 +180,10 @@ Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 
-[Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example) 
+[Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example)
 
-## Getting Help  
-If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page. 
+## Getting Help 
+If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page.
 Feel free to contact us or reach out in [Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
 
 ## License
