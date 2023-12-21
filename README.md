@@ -41,17 +41,15 @@ and [DEF CON AI Village 2021 talk](https://www.youtube.com/watch?v=bZ0m_H_dEJI).
 ## Installation
 
 Fickling has been tested on Python 3.8 through Python 3.11 and has very few dependencies.
-It can be installed through pip:
+Both the library and command line utility can be installed through pip:
 
 ```bash
 python -m pip install fickling
 ```
 
-This installs both the library and the command line utility.
-
 ## Usage
 
-Fickling is available as a CLI and a Python API. 
+Fickling is available as a CLI and Python API. 
 
 ### CLI
 
@@ -60,21 +58,35 @@ $ fickling pickled.data
 result = [1, 2, 3, 4]
 ```
 
-This is of course a simple example. However, Python pickle bytecode can run
+While this is a simple example, Python pickle bytecode can run arbitrary
 arbitrary Python commands (such as `exec` or `os.system`) so it is a security
 risk to unpickle untrusted data. You can test for common patterns of
 malicious pickle files with the `--check-safety` option:
 
 ```console
-$ fickling --check-safety pickled.data
+$ fickling --check-safety -p pickled.data
 Warning: Fickling failed to detect any overtly unsafe code, but the pickle file may still be unsafe.
 Do not unpickle this file if it is from an untrusted source!
 ```
 
-We do not recommend relying on the `--check-safety` option for critical use
-cases at this point in time.
+The results of this analysis are saved in a JSON file by default.
+Here's an an example of the JSON output from an analysis conducted on a malicious pickle file.
 
-TODO Add JSON output 
+```
+{
+    "severity": "OVERTLY_MALICIOUS",
+    "analysis": "Call to `eval(b'[5, 6, 7, 8]')` is almost certainly evidence of a malicious pickle file. Variable `_var0` is assigned value `eval(b'[5, 6, 7, 8]')` but unused afterward; this is suspicious and indicative of a malicious pickle file",
+    "detailed_results": {
+        "AnalysisResult": {
+            "OvertlyBadEval": "eval(b'[5, 6, 7, 8]')",
+            "UnusedVariables": [
+                "_var0",
+                "eval(b'[5, 6, 7, 8]')"
+            ]
+        }
+    }
+}
+```
 
 You can also safely trace the execution of the Pickle virtual machine without
 exercising any malicious code with the `--trace` option.
@@ -83,6 +95,10 @@ Finally, you can inject arbitrary Python code that will be run on unpickling
 into an existing pickle file with the `--inject` option.
 
 ### Python API 
+
+Similar to the CLI, you can use `check_safety` to analyze a pickle file 
+and even save the results as a JSON file. Ficking supports additional
+analysis through its decompilation capabilities. 
 
 ```python
 >>> import ast
@@ -112,7 +128,7 @@ Module(
 
 [While we recommend relying on a safer file format such as safetensors](https://huggingface.co/blog/safetensors-security-audit), 
 fickling can easily be integrated into existing infrastructure to halt 
-pickling after detecting a malicious file. 
+deserialization after detecting a malicious file. 
 
 ```python
 >>> import pickle
@@ -137,7 +153,7 @@ pickling after detecting a malicious file.
 ```
 
 ### PyTorch Polyglots 
-We currently support the following PyTorch file formats:
+We currently support inspecting, identifying, and creating polyglots between the following PyTorch file formats:
 - **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
 - **PyTorch v0.1.10**: Stacked pickle files
 - **TorchScript v1.0**: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
@@ -160,11 +176,9 @@ Your file is most likely of this format:  PyTorch v1.3
 
 [Check out our examples to learn more about using fickling!](https://github.com/trailofbits/fickling/tree/master/example) 
 
-## Contributing 
-If you find a bug in fickling or want to implement new features, please 
-raise an issue on our GitHub or contact us. 
-
-TODO Find better phrasing 
+## Getting Help  
+If you'd like to file a bug report or feature request, please use our [issues](https://github.com/trailofbits/fickling/issues) page. 
+Feel free to contact us or reach out in [Empire Hacking](https://slack.empirehacking.nyc/) for help using or extending fickling.
 
 ## License
 
