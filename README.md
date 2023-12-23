@@ -32,40 +32,55 @@ python -m pip install fickling
 
 ## Malicious file detection
 
-TODO: verify that code runs
-
 Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious files at runtime.
 
 Below we show the different ways you can use fickling to enforce safety checks on pickle files. Under the hood, it hooks the `pickle` library to add safety checks so that loading a pickle file raises an `UnsafePickleFile` exception if malicious content is detected in the file.
 
+#### Option 1 (recommended): check safety of all pickle files loaded
 ```python
-# Option 1 (recommended): check all pickle files at runtime
+# This enforces safety checks every time pickle.load() is used
 fickling.always_check_safety()
-try:
-    pickle.load("file.pkl")
-except fickling.UnsafePickleFile:
-    print("Unsafe file!")
 
-# Option 2: use a context manager
-with fickling.check_safety():
+# Attempt to load an unsafe file now raises an exception  
+with open("file.pkl", "rb") as f:
     try:
-        pickle.load("file.pkl") # File is checked
+        pickle.load(f)
     except fickling.UnsafePickleFile:
         print("Unsafe file!")
-pickle.load("file.pkl") # File is NOT checked
+```
 
-# Option 3: check and load a single file by
-# using fickling.load() in place of pickle.load()
+#### Option 2: use a context manager
+```python
+with fickling.check_safety():
+    # All pickle files loaded within the context manager are checked for safety
+    try:
+        with open("file.pkl", "rb") as f:
+            pickle.load("file.pkl")
+    except fickling.UnsafePickleFile:
+        print("Unsafe file!")
+
+# Files loaded outside of context manager are NOT checked
+pickle.load("file.pkl")
+```
+
+
+#### Option 3: check and load a single file
+```python
+# Use fickling.load() in place of pickle.load() to check safety and load a single pickle file 
 try:
     fickling.load("file.pkl")
 except fickling.UnsafePickleFile as e:
     print("Unsafe file!")
+```
 
-# Option 4: manually check pickle file safety without loading
+#### Option 4: only check pickle file safety without loading
+```python3
+# Perform a safety check on a pickle file without loading it
 if not fickling.is_likely_safe("file.pkl"):
     print("Unsafe file!")
 ```
 
+#### Accessing the safety analysis results
 You can access the details of fickling's safety analysis from within the raised exception:
 
 ```python
