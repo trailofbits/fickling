@@ -34,6 +34,7 @@ python -m pip install fickling
 
 TODO: verify that code runs
 TODO: fickling.loads, hook pickle.dumps
+TODO: maybe just say about exceptions
 
 Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious files at runtime.
 
