@@ -6,7 +6,7 @@ from pickle import UnpicklingError
 import numpy
 
 import fickling.hook as hook
-from fickling.loader import SafetyError
+from fickling.exception import UnsafeFileError
 
 
 class TestHook(unittest.TestCase):
@@ -47,7 +47,7 @@ class TestHook(unittest.TestCase):
         try:
             numpy.load("unsafe.pickle", allow_pickle=True)
         except UnpicklingError as e:
-            if isinstance(e.__cause__, SafetyError):
+            if isinstance(e.__cause__, UnsafeFileError):
                 pass
             else:
                 self.fail(e)

@@ -16,6 +16,7 @@ test_list = [1, 2, 3]
 with open("safe.pkl", "wb") as file:
     pickle.dump(test_list, file)
 
+
 class Payload:
     def __init__(self):
         self.a = 1
@@ -41,5 +42,5 @@ with open("unsafe.pkl", "wb") as f:
 
 # This hook works when pickle.load is called under the hood in Python as well
 # Note that this does not always work for torch.load()
-# This should raise "SafetyError"
+# This should raise "UnsafeFileError"
 numpy.load("unsafe.pkl", allow_pickle=True)

@@ -3,7 +3,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import BinaryIO, ByteString, Dict, Iterable, Iterator, Optional, Set, Tuple, Type, Union
+from typing import Dict, Iterable, Iterator, Optional, Set, Tuple, Type
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
