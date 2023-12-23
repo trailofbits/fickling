@@ -3,10 +3,11 @@ import pickle
 
 import numpy
 
-import fickling.hook as hook
+import fickling
 
 # Set up global fickling hook
-hook.run_hook()
+fickling.always_check_safety()
+# Eauivalent to fickling.hook.run_hook()
 
 # Fickling can check a pickle file for safety prior to running it
 test_list = [1, 2, 3]
@@ -41,5 +42,5 @@ with open("unsafe.pkl", "wb") as f:
 
 # This hook works when pickle.load is called under the hood in Python as well
 # Note that this does not always work for torch.load()
-# This should raise "SafetyError"
+# This should raise "UnsafeFileError"
 numpy.load("unsafe.pkl", allow_pickle=True)

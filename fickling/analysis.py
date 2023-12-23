@@ -322,3 +322,8 @@ def check_safety(
         with open(json_output_path, "a") as json_file:
             json.dump(severity_data, json_file, indent=4)
     return results
+
+
+def is_likely_safe(filepath: str):
+    with open(filepath, "rb") as f:
+        return check_safety(Pickled.load(f)).severity == Severity.LIKELY_SAFE

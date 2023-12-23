@@ -13,17 +13,11 @@ jobs:
       language: "python"
       python-version: "3.8"
 
-  lint-markdown:
-    uses: trailofbits/.github/.github/workflows/make-lint.yml@v0.1.3
-    with:
-      language: "markdown"
-
   all-lints-pass:
     if: always()
 
     needs:
       - lint-python
-      - lint-markdown
 
     runs-on: ubuntu-latest
 
