@@ -33,26 +33,24 @@ python -m pip install fickling
 ## Malicious file detection
 
 TODO: verify that code runs
-TODO: fickling.loads, hook pickle.dumps
-TODO: maybe just say about exceptions
 
 Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious files at runtime.
 
-Below we show the different ways you can use fickling to enforce safety checks on pickle files. Under the hood, it hooks the `pickle` library to add safety checks so that loading a pickle file raises an `UnsafeFile` exception if malicious content is detected in the file.
+Below we show the different ways you can use fickling to enforce safety checks on pickle files. Under the hood, it hooks the `pickle` library to add safety checks so that loading a pickle file raises an `UnsafePickleFile` exception if malicious content is detected in the file.
 
 ```python
 # Option 1 (recommended): check all pickle files at runtime
-fickling.check_always()
+fickling.always_check_safety()
 try:
     pickle.load("file.pkl")
-except fickling.UnsafeFile:
+except fickling.UnsafePickleFile:
     print("Unsafe file!")
 
 # Option 2: use a context manager
-with fickling.check():
+with fickling.check_safety():
     try:
         pickle.load("file.pkl") # File is checked
-    except fickling.UnsafeFile:
+    except fickling.UnsafePickleFile:
         print("Unsafe file!")
 pickle.load("file.pkl") # File is NOT checked
 
@@ -60,7 +58,7 @@ pickle.load("file.pkl") # File is NOT checked
 # using fickling.load() in place of pickle.load()
 try:
     fickling.load("file.pkl")
-except fickling.UnsafeFile as e:
+except fickling.UnsafePickleFile as e:
     print("Unsafe file!")
 
 # Option 4: manually check pickle file safety without loading
@@ -73,7 +71,7 @@ You can access the details of fickling's safety analysis from within the raised 
 ```python
 >>> try:
 ...     fickling.load("unsafe.pkl")
-... except fickling.UnsafeFile as e:
+... except fickling.UnsafePickleFile as e:
 ...     print(e.info)
 
 {

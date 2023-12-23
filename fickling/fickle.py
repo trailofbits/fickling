@@ -31,6 +31,7 @@ from typing import (
     Tuple as TupleType,
 )
 
+
 T = TypeVar("T")
 
 if sys.version_info < (3, 9):
@@ -700,21 +701,6 @@ class Pickled(OpcodeSequence):
         """Checks whether unpickling would cause a call to a function other than
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
-
-    def check_safety(self):
-        from fickling.analysis import check_safety  # noqa
-
-        safety_results = check_safety(self)
-        return safety_results
-
-    def is_likely_safe(self):
-        warnings.warn(
-            "The attribute .is_likely_safe will be deprecated."
-            "Use the attribute .check_safety instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.check_safety(self)
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:

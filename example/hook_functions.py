@@ -3,10 +3,11 @@ import pickle
 
 import numpy
 
-import fickling.hook as hook
+import fickling
 
 # Set up global fickling hook
-hook.run_hook()
+fickling.always_check_safety()
+# Eauivalent to fickling.hook.run_hook()
 
 # Fickling can check a pickle file for safety prior to running it
 test_list = [1, 2, 3]
@@ -14,7 +15,6 @@ test_list = [1, 2, 3]
 # Create a "safe" and "unsafe" file
 with open("safe.pkl", "wb") as file:
     pickle.dump(test_list, file)
-
 
 class Payload:
     def __init__(self):

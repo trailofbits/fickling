@@ -3,7 +3,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Iterable, Iterator, Optional, Set, Tuple, Type
+from typing import ByteString, BinaryIO, Dict, Iterable, Iterator, Optional, Set, Tuple, Type, Union 
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
@@ -322,3 +322,9 @@ def check_safety(
         with open(json_output_path, "a") as json_file:
             json.dump(severity_data, json_file, indent=4)
     return results
+
+
+def is_likely_safe(data: Union[ByteString, BinaryIO]):
+    return check_safety(
+        Pickled.load(data)
+    ).severity == Severity.LIKELY_SAFE

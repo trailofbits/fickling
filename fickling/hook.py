@@ -7,7 +7,7 @@ def run_hook():
     """Replace pickle.load() by fickling's load()"""
     pickle.load = loader.load
 
-def check_always():
+def always_check_safety():
     """
     Alias for run_hook()
     """
