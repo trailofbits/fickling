@@ -324,5 +324,6 @@ def check_safety(
     return results
 
 
-def is_likely_safe(data: Union[ByteString, BinaryIO]):
-    return check_safety(Pickled.load(data)).severity == Severity.LIKELY_SAFE
+def is_likely_safe(filepath: str):
+    with open(filepath, "rb") as f:
+        return check_safety(Pickled.load(f)).severity == Severity.LIKELY_SAFE
