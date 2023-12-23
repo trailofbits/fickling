@@ -3,7 +3,6 @@ import distutils.sysconfig as sysconfig
 import re
 import struct
 import sys
-import warnings
 from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
@@ -30,7 +29,6 @@ from typing import (
 from typing import (
     Tuple as TupleType,
 )
-
 
 T = TypeVar("T")
 

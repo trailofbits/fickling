@@ -3,7 +3,7 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import ByteString, BinaryIO, Dict, Iterable, Iterator, Optional, Set, Tuple, Type, Union 
+from typing import BinaryIO, ByteString, Dict, Iterable, Iterator, Optional, Set, Tuple, Type, Union
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
@@ -325,6 +325,4 @@ def check_safety(
 
 
 def is_likely_safe(data: Union[ByteString, BinaryIO]):
-    return check_safety(
-        Pickled.load(data)
-    ).severity == Severity.LIKELY_SAFE
+    return check_safety(Pickled.load(data)).severity == Severity.LIKELY_SAFE
