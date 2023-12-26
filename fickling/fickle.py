@@ -517,7 +517,7 @@ class Pickled(OpcodeSequence):
     def insert_function_call_on_unpickled_object(
         self,
         function_definition: str,
-        constant_args: List[Any],
+        constant_args: Optional[List[Any]] = None,
     ):
         """Insert and call a function that takes the unpickled object as parameter.
 
@@ -554,8 +554,9 @@ class Pickled(OpcodeSequence):
         self.insert(-1, Get.create(2))
 
         # Add constant arguments
-        for arg in constant_args:
-            self.insert(-1, ConstantOpcode.new(arg))
+        if constant_args:
+            for arg in constant_args:
+                self.insert(-1, ConstantOpcode.new(arg))
 
         # Now the stack contains [func, mark, model].
         # We need to add TUPLE which
