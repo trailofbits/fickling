@@ -29,6 +29,7 @@ from typing import (
 from typing import (
     Tuple as TupleType,
 )
+
 from fickling.exception import WrongMethodError
 
 T = TypeVar("T")

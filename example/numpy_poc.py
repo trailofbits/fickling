@@ -32,5 +32,4 @@ print("\n\nWith fickling\n\n")
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
 safety_results = analysis.check_safety(fickled_payload).to_dict()
-
 print(safety_results)

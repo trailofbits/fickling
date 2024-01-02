@@ -24,7 +24,7 @@ print("Running eval()")
 model.eval()
 print("Finished running eval()")
 
-# Serialize malicious model  
+# Serialize malicious model
 print("\n\nIs this safe?")
 with open("malicious_mobilenet.pkl", "wb") as f:
     pickle.dump(model, f)

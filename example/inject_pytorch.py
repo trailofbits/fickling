@@ -13,7 +13,10 @@ result = PyTorchModelWrapper("mobilenet.pth")
 # Inject payload, overwriting the existing file instead of creating a new one
 temp_filename = "temp_filename.pt"
 result.inject_payload(
-    "print('!!!!!!Never trust a pickle!!!!!!')", temp_filename, injection="insertion", overwrite=True
+    "print('!!!!!!Never trust a pickle!!!!!!')",
+    temp_filename,
+    injection="insertion",
+    overwrite=True,
 )
 
 # Load file with injected payload
