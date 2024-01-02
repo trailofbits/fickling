@@ -29,6 +29,7 @@ from typing import (
 from typing import (
     Tuple as TupleType,
 )
+from fickling.exception import WrongMethodError
 
 T = TypeVar("T")
 
@@ -705,6 +706,12 @@ class Pickled(OpcodeSequence):
         """Checks whether unpickling would cause a call to a function other than
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
+
+    def check_safety(self):
+        raise WrongMethodError
+
+    def is_likely_safe(self):
+        raise WrongMethodError
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
