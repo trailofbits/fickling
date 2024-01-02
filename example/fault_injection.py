@@ -1,6 +1,8 @@
 """
 This is tutorial code for performing fault injections with PyTorchFi:
 https://colab.research.google.com/drive/1BMB4LbsTU_K_YXUFzRyfIynpGu5Yhr1Y
+
+Note you may need to run `pip install pytorchfi`
 """
 import pickle
 
@@ -8,6 +10,7 @@ import torch
 import torchvision.models as models
 from pytorchfi.core import fault_injection
 
+import fickling.analysis as analysis
 from fickling.fickle import Pickled
 
 # Load AlexNet
@@ -61,8 +64,8 @@ unsafe_props = fickled_unsafe_model.properties
 
 print("\n\nIs this is_likely_safe?")
 
-safety = fickled_unsafe_model.check_safety().to_dict()
-print(safety)
+safety = analysis.check_safety(fickled_unsafe_model).to_dict()
+print(safety["severity"])
 
 # Test more safety checks
 
@@ -72,7 +75,7 @@ if unsafe_props == safe_props:
 else:
     print("❌")
 
-print("Do the AST's match?")
+print("Do the ASTs match?")
 if fickled_unsafe_model.ast == safe_model.ast:
     print("✅")
 else:

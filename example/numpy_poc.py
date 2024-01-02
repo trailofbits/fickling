@@ -5,8 +5,8 @@ import pickle
 
 import numpy
 
+import fickling.analysis as analysis
 from fickling.fickle import Pickled
-import fickling.analysis as analysis 
 
 
 class Test:
