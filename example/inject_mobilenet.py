@@ -1,8 +1,9 @@
 import pickle
 
 import torchvision.models as models
-
+import fickling
 from fickling.fickle import Pickled
+import fickling.analysis as analysis 
 
 # Use fickling to override a custom method (.eval())
 
@@ -23,5 +24,8 @@ model.eval()
 print("Finished running eval()")
 
 print("\n\nIs this safe?")
-safety_results = fickled_model.check_safety().to_dict()
-print(safety_results["severity"])
+with open("malicious_mobilenet.pkl", "wb") as f:
+    pickle.dump(model, f)
+
+result = fickling.is_likely_safe("malicious_mobilenet.pkl")
+print(result)
