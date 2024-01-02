@@ -16,7 +16,7 @@ Fickling can be used both as a **python library** and a **CLI**.
   * [Pickle code injection](#pickle-code-injection)
   * [Pickle decompilation](#pickle-decompilation)
   * [PyTorch polyglots](#pytorch-polyglots)
-* [About pickle](#about-pickle)
+* [More information](#more-information)
 * [Contact](#contact)
 
 ## Installation
@@ -189,7 +189,7 @@ Your file is most likely of this format:  PyTorch v1.3
 Check out [our examples](https://github.com/trailofbits/fickling/tree/master/example)
 to learn more about using fickling!
 
-## About pickle
+## More information
 
 Pickled Python objects are in fact bytecode that is interpreted by a stack-based
 virtual machine built into Python called the "Pickle Machine". Fickling can take
