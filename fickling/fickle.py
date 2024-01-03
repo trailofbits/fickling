@@ -1502,7 +1502,7 @@ class BinString(DynamicLength, ConstantOpcode):
     def validate(cls, obj):
         if not isinstance(obj, str):
             raise ValueError(f"String must be instantiated from a str, not {obj!r}")
-        return obj
+        return super().validate(obj)
 
 
 class BinBytes(ShortBinBytes):
