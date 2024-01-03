@@ -65,4 +65,5 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
 
     @unparse_test(io.BytesIO(b'(cos\nsystem\nS"whoami"\no.'))
     def test_obj(self):
+        """Tests the correctness of the OBJ opcode"""
         pass
