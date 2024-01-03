@@ -1126,6 +1126,26 @@ class PopMark(Opcode):
         return objs
 
 
+class Obj(Opcode):
+    name = "OBJ"
+
+    def run(self, interpreter: Interpreter):
+        args = []
+        while interpreter.stack:
+            arg = interpreter.stack.pop()
+            if isinstance(arg, MarkObject):
+                break
+            args.insert(0, arg)
+        else:
+            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+        kls = args.pop(0)
+        # TODO Verify paths for correctness
+        if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
+            interpreter.stack.append(ast.Call(kls, args, []))
+        else:
+            interpreter.stack.append(ast.Call(kls, kls, []))
+
+
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
     name = "SHORT_BINUNICODE"
     priority = 5000
@@ -1473,6 +1493,22 @@ class ShortBinString(DynamicLength, ConstantOpcode):
         if not isinstance(obj, str):
             raise ValueError(f"String must be instantiated from a str, not {obj!r}")
         return obj
+
+
+class BinString(DynamicLength, ConstantOpcode):
+    name = "BINSTRING"
+    priority = ShortBinBytes.priority + 1
+    length_bytes = 4
+    signed = True
+
+    def encode_body(self) -> bytes:
+        return repr(self.arg).encode("utf-8")
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, str):
+            raise ValueError(f"String must be instantiated from a str, not {obj!r}")
+        return super().validate(obj)
 
 
 class BinBytes(ShortBinBytes):
