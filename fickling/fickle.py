@@ -1132,13 +1132,13 @@ class Obj(Opcode):
             arg = interpreter.stack.pop()
             if isinstance(arg, MarkObject):
                 break
-            args.append(arg)
+            args.insert(0, arg)
         else:
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
-        kls = args.pop()
+        kls = args.pop(0)
         # TODO Verify paths for correctness
         if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
-            interpreter.stack.append(ast.Call(kls, [list(args)], []))
+            interpreter.stack.append(ast.Call(kls, args, []))
         else:
             interpreter.stack.append(ast.Call(kls, kls, []))
 
