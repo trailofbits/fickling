@@ -30,6 +30,8 @@ from typing import (
     Tuple as TupleType,
 )
 
+from fickling.exception import WrongMethodError
+
 T = TypeVar("T")
 
 if sys.version_info < (3, 9):
@@ -705,6 +707,17 @@ class Pickled(OpcodeSequence):
         """Checks whether unpickling would cause a call to a function other than
         object.__setstate__"""
         return bool(self.properties.non_setstate_calls)
+
+    def check_safety(self):
+        raise WrongMethodError(
+            """This method has been removed. Use fickling.analysis.check_safety()
+on the Pickled object instead"""
+        )
+
+    def is_likely_safe(self):
+        raise WrongMethodError(
+            "This method has been removed. Use fickling.is_likely_safe() on the pickle file instead"
+        )
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:

@@ -5,6 +5,7 @@ import pickle
 
 import numpy
 
+import fickling.analysis as analysis
 from fickling.fickle import Pickled
 
 
@@ -30,7 +31,5 @@ print("\n\nWith fickling\n\n")
 
 fickled_payload = Pickled.load(pickle.dumps(payload))
 
-print("\n\nHow likely is this to be safe?\n\n")
-safety_results = fickled_payload.check_safety().to_dict()
-
+safety_results = analysis.check_safety(fickled_payload).to_dict()
 print(safety_results)
