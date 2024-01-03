@@ -709,10 +709,10 @@ class Pickled(OpcodeSequence):
         return bool(self.properties.non_setstate_calls)
 
     def check_safety(self):
-        raise WrongMethodError
+        raise WrongMethodError("This method has been removed. Use fickling.analysis.check_safety() on the Pickled object instead")
 
     def is_likely_safe(self):
-        raise WrongMethodError
+        raise WrongMethodError("This method has been removed. Use fickling.is_likely_safe() on the pickle file instead")
 
     def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
         for node in self.properties.imports:
