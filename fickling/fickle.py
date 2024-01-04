@@ -553,10 +553,10 @@ class Pickled(OpcodeSequence):
 
             # Instructions:
             ## Add the compiled bytes to the stack, then unmarshal them back into a code object
-            self.append_python(bytecode, module="marshal", attr="loads")
+            self.append_python(bytecode, module="marshal", attr="loads", pop_result=False)
 
             ## Slide exec instructions under the function definition on the stack
-            self.insert(-1, Put(1))  # Put function def in memory
+            self.insert(-1, Put(1))  # Move function def off the stack and into memory
             self.insert(-1, Pop())
             if not isinstance(self[-1], Stop):
                 raise ValueError("Expected the last opcode to be STOP")
@@ -564,10 +564,10 @@ class Pickled(OpcodeSequence):
             ### of the pickle, but see comment in 'insert_python'
             self.insert(-1, Global.create("builtins", "exec"))
             self.insert(-1, Mark())
-            self.insert(-1, Get.create(1)) # Put the function def back
+            self.insert(-1, Get.create(1)) # Place the function def back
             self.insert(-1, Tuple())
             self.insert(-1, Reduce())
-            self.insert(-1, Pop()) # Remove extraneous return value 
+            self.insert(-1, Pop()) # Remove extraneous return value from the stack
         else:
             self.append_python(function_definition, attr="exec", pop_result=True)
 
