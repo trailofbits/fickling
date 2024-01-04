@@ -1,5 +1,6 @@
 import ast
 import distutils.sysconfig as sysconfig
+import marshal
 import re
 import struct
 import sys
@@ -520,6 +521,7 @@ class Pickled(OpcodeSequence):
         self,
         function_definition: str,
         constant_args: Optional[List[Any]] = None,
+        compile_code: bool = False,
     ):
         """Insert and call a function that takes the unpickled object as parameter.
 
@@ -527,6 +529,11 @@ class Pickled(OpcodeSequence):
         to call, including the `def` keyword. The function prototype must be `myfunc(obj)` where
         `obj` is the object being unpickled. The function return value is used as the unpickling
         output.
+
+        :param compile_code: whether the function definition should be precompiled into
+        Python bytecode, for increased obfuscation. Note that the function name will still be 
+        exposed as plaintext sourcecode as this is required to make the function callable through
+        a call to (pseudocode) "eval(function_name)".
         """
 
         if not isinstance(self[-1], Stop):
@@ -539,14 +546,37 @@ class Pickled(OpcodeSequence):
         function_name = fn_match[0]
 
         # Insert exec of the function definition in advance
-        self.append_python(function_definition, attr="exec", pop_result=True)
+        if compile_code:
+            # Compile the function definition
+            code_obj = compile(function_definition, "<string>", "exec")
+            bytecode = marshal.dumps(code_obj) # marshal is required to get literal bytes
+
+            # Instructions:
+            ## Add the compiled bytes to the stack, then unmarshal them back into a code object
+            self.append_python(bytecode, module="marshal", attr="loads")
+
+            ## Slide exec instructions under the function definition on the stack
+            self.insert(-1, Put(1))  # Put function def in memory
+            self.insert(-1, Pop())
+            if not isinstance(self[-1], Stop):
+                raise ValueError("Expected the last opcode to be STOP")
+            ### NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
+            ### of the pickle, but see comment in 'insert_python'
+            self.insert(-1, Global.create("builtins", "exec"))
+            self.insert(-1, Mark())
+            self.insert(-1, Get.create(1)) # Put the function def back
+            self.insert(-1, Tuple())
+            self.insert(-1, Reduce())
+            self.insert(-1, Pop()) # Remove extraneous return value 
+        else:
+            self.append_python(function_definition, attr="exec", pop_result=True)
 
         # Eval the function name get the callable object
         # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
         self.append_python(function_name, attr="eval")
 
-        # At the end of exec, the stack contains [model, func]. We
-        # swap them on the stack
+        # At the end of all of the above operations, the stack contains [model, func].
+        # We swap them on the stack:
         self.insert(-1, Put(1))  # Put func in memo
         self.insert(-1, Pop())
         self.insert(-1, Put(2))  # Put model in memo
