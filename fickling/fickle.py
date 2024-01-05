@@ -558,7 +558,7 @@ class Pickled(OpcodeSequence):
             ## Slide exec instructions under the function definition on the stack
             self.insert(-1, Put(1))  # Move function def off the stack and into memory
             self.insert(-1, Pop())
-            if not isinstance(self[-1], Stop):
+            if not isinstance(self[-1], Stop): # sanity check akin to the one in append_python
                 raise ValueError("Expected the last opcode to be STOP")
             ### NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
             ### of the pickle, but see comment in 'insert_python'
