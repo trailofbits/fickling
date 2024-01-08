@@ -1,5 +1,6 @@
 import ast
 import distutils.sysconfig as sysconfig
+import marshal
 import re
 import struct
 import sys
@@ -520,6 +521,7 @@ class Pickled(OpcodeSequence):
         self,
         function_definition: str,
         constant_args: Optional[List[Any]] = None,
+        compile_code: bool = False,
     ):
         """Insert and call a function that takes the unpickled object as parameter.
 
@@ -527,6 +529,11 @@ class Pickled(OpcodeSequence):
         to call, including the `def` keyword. The function prototype must be `myfunc(obj)` where
         `obj` is the object being unpickled. The function return value is used as the unpickling
         output.
+
+        :param compile_code: whether the function definition should be precompiled into
+        Python bytecode, for increased obfuscation. Note that the function name will still be 
+        exposed as plaintext sourcecode as this is required to make the function callable through
+        a call to (pseudocode) "eval(function_name)".
         """
 
         if not isinstance(self[-1], Stop):
@@ -539,35 +546,76 @@ class Pickled(OpcodeSequence):
         function_name = fn_match[0]
 
         # Insert exec of the function definition in advance
-        self.append_python(function_definition, attr="exec", pop_result=True)
+        if compile_code:
+            # Compile the function definition
+            code_obj = compile(function_definition, "<string>", "exec")
+            bytecode = marshal.dumps(code_obj) # marshal is required to get literal bytes
+
+            # Instructions:
+            ## Current stack status: [model]
+            ## Add the compiled bytes to the stack, then unmarshal them back into a code object
+            self.append_python(bytecode, module="marshal", attr="loads", pop_result=False)
+            ## [model, def func]
+            ## Slide exec instructions under the function definition on the stack
+            self.insert(-1, Put(1))  # Move function def off the stack and into memory
+            self.insert(-1, Pop())
+            ## [model]
+            if not isinstance(self[-1], Stop): # sanity check akin to the one in append_python
+                raise ValueError("Expected the last opcode to be STOP")
+            ### NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
+            ### of the pickle, but see comment in 'insert_python'
+            self.insert(-1, Global.create("builtins", "exec"))
+            ## [model, exec]
+            self.insert(-1, Mark())
+            ## [model, exec, mark]
+            self.insert(-1, Get.create(1)) # Place the function def back
+            ## [model, exec, mark, def func]
+            self.insert(-1, Tuple())
+            ## [model, exec, (def func)]
+            self.insert(-1, Reduce())
+            ## [model, exec return value]
+            self.insert(-1, Pop()) # Remove extraneous return value from the stack
+            ## [model]
+        else:
+            ## Current stack status: [model]
+            self.append_python(function_definition, attr="exec", pop_result=True)
+            ## [model]
 
         # Eval the function name get the callable object
         # If we inject myfunc() this will return eval(myfunc) which is the myfunc callable object
         self.append_python(function_name, attr="eval")
+        # [model, func]
 
-        # At the end of exec, the stack contains [model, func]. We
-        # swap them on the stack
+        # At the end of all of the above operations, the stack contains [model, func].
+        # We swap them on the stack:
         self.insert(-1, Put(1))  # Put func in memo
         self.insert(-1, Pop())
+        # [model]
         self.insert(-1, Put(2))  # Put model in memo
         self.insert(-1, Pop())
+        # []
         self.insert(-1, Get.create(1))
+        # [func]
         self.insert(-1, Mark())
+        # [func, mark]
         self.insert(-1, Get.create(2))
+        # [func, mark, model]
 
         # Add constant arguments
         if constant_args:
             for arg in constant_args:
                 self.insert(-1, ConstantOpcode.new(arg))
+        # [func, mark, model, arg1, ..., argn]
 
-        # Now the stack contains [func, mark, model].
         # We need to add TUPLE which
         # packs the function arguments from the stack and then call REDUCE, which calls the injected
         # function.
         # Note: precondition says the function must return the final object so no need to save the
         # object before calling reduce.
         self.insert(-1, Tuple())
+        # [func, (model, arg1, ..., argn)]
         self.insert(-1, Reduce())
+        # [func return value]
 
     def insert_python_exec(
         self,
