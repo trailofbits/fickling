@@ -531,7 +531,7 @@ class Pickled(OpcodeSequence):
         output.
 
         :param compile_code: whether the function definition should be precompiled into
-        Python bytecode, for increased obfuscation. Note that the function name will still be 
+        Python bytecode, for increased obfuscation. Note that the function name will still be
         exposed as plaintext sourcecode as this is required to make the function callable through
         a call to (pseudocode) "eval(function_name)".
         """
@@ -549,7 +549,7 @@ class Pickled(OpcodeSequence):
         if compile_code:
             # Compile the function definition
             code_obj = compile(function_definition, "<string>", "exec")
-            bytecode = marshal.dumps(code_obj) # marshal is required to get literal bytes
+            bytecode = marshal.dumps(code_obj)  # marshal is required to get literal bytes
 
             # Instructions:
             ## Current stack status: [model]
@@ -560,7 +560,7 @@ class Pickled(OpcodeSequence):
             self.insert(-1, Put(1))  # Move function def off the stack and into memory
             self.insert(-1, Pop())
             ## [model]
-            if not isinstance(self[-1], Stop): # sanity check akin to the one in append_python
+            if not isinstance(self[-1], Stop):  # sanity check akin to the one in append_python
                 raise ValueError("Expected the last opcode to be STOP")
             ### NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
             ### of the pickle, but see comment in 'insert_python'
@@ -568,13 +568,13 @@ class Pickled(OpcodeSequence):
             ## [model, exec]
             self.insert(-1, Mark())
             ## [model, exec, mark]
-            self.insert(-1, Get.create(1)) # Place the function def back
+            self.insert(-1, Get.create(1))  # Place the function def back
             ## [model, exec, mark, def func]
             self.insert(-1, Tuple())
             ## [model, exec, (def func)]
             self.insert(-1, Reduce())
             ## [model, exec return value]
-            self.insert(-1, Pop()) # Remove extraneous return value from the stack
+            self.insert(-1, Pop())  # Remove extraneous return value from the stack
             ## [model]
         else:
             ## Current stack status: [model]
