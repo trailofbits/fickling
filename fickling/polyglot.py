@@ -175,7 +175,7 @@ def check_for_corruption(properties):
     return corrupted, reason
 
 
-def identify_pytorch_file_format(file, print_properties=False):
+def identify_pytorch_file_format(file, print_properties=False, print_results=False):
     """
     We are intentionally matching the semantics of the PyTorch reference parsers.
     To be polyglot-aware, we show the file formats ranked by likelihood.
@@ -215,16 +215,19 @@ def identify_pytorch_file_format(file, print_properties=False):
         print(reason)
     if len(formats) != 0:
         primary = formats[0]
-        print("Your file is most likely of this format: ", primary, "\n")
+        if print_results:
+            print("Your file is most likely of this format: ", primary, "\n")
         secondary = formats[1:]
         if len(secondary) != 0:
-            print("It is also possible that your file can be validly interpreted as: ", secondary)
+            if print_results:
+                print("It is also possible that your file can be validly interpreted as: ", secondary)
     else:
-        print(
-            """Your file may not be a PyTorch file.
-            No valid file formats were detected.
-            If this is a mistake, raise an issue on our GitHub."""
-        )
+        if print_results:
+            print(
+                """Your file may not be a PyTorch file.
+                No valid file formats were detected.
+                If this is a mistake, raise an issue on our GitHub."""
+            )
     return formats
 
 

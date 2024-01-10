@@ -25,14 +25,15 @@ class BaseInjection(torch.nn.Module):
 
 
 class PyTorchModelWrapper:
-    def __init__(self, path: Path, force: bool = False):
+    def __init__(self, path: Path, force: bool = False, verbose: bool = False):
         self.path: Path = path
         self._pickled: Optional[Pickled] = None
         self.force: bool = force
         self._formats: Set[str] = set()
+        self.verbose: bool = verbose
 
     def validate_file_format(self):
-        self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)
+        self._formats = fickling.polyglot.identify_pytorch_file_format(self.path, print_results=self.verbose)
         """
         One option was to raise an error if PyTorch v1.3 was not found
         or if any of the TorchScript versions were found.
