@@ -7,3 +7,4 @@
 * [inject_pytorch.py](https://github.com/trailofbits/fickling/blob/master/example/inject_pytorch.py): Inject a model loaded from a PyTorch file with malicious code using fickling’s PyTorch module 
 * [numpy_poc.py](https://github.com/trailofbits/fickling/blob/master/example/numpy_poc.py): Analyze a malicious payload passed to `numpy.load()`
 * [trace_binary.py](https://github.com/trailofbits/fickling/blob/master/example/trace_binary.py): Decompile a payload using the tracing module  
+* [identify_pytorch_file.py](https://github.com/trailofbits/fickling/blob/master/example/identify_pytorch_file.py): Determine the file format type of 2 different PyTorch files

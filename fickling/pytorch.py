@@ -116,7 +116,7 @@ class PyTorchModelWrapper:
         return self._pickled
 
     def inject_payload(
-        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
+            self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
         self.output_path = output_path
         if injection == "insertion":

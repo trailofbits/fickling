@@ -32,7 +32,7 @@ Another useful reference is https://github.com/lutzroeder/netron/blob/main/sourc
 
 
 def check_and_find_in_zip(
-    zip_path, file_name_or_extension, return_path=False, check_extension=False
+        zip_path, file_name_or_extension, return_path=False, check_extension=False
 ):
     """Check for a file in the zip and return its path or boolean if found."""
     try:
@@ -165,9 +165,9 @@ def check_for_corruption(properties):
     # We expect this to be expanded upon
     if properties["is_torch_zip"]:
         if (
-            properties["has_model_json"]
-            and not properties["has_attribute_pkl"]
-            and not properties["has_constants_pkl"]
+                properties["has_model_json"]
+                and not properties["has_attribute_pkl"]
+                and not properties["has_constants_pkl"]
         ):
             corrupted = True
             reason = """Your file may be corrupted. It contained a
@@ -239,7 +239,7 @@ def append_file(source_filename, destination_filename):
     return destination_filename
 
 
-def make_zip_pickle_polyglot(zip_file, pickle_file, copy=False):
+def make_zip_pickle_polyglot(zip_file, pickle_file):
     append_file(zip_file, pickle_file)
 
 
@@ -293,7 +293,7 @@ def create_polyglot(first_file, second_file):
         print("The polyglot is contained in polyglot.mar.tar")
     if polyglot_found is False:
         print(
-            """Fickling was not able to create any polglots.
+            """Fickling was not able to create any polyglots.
               If you think this is a mistake, raise an issue on our GitHub."""
         )
     os.remove(temp_first_file)
