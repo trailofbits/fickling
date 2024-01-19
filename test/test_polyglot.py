@@ -184,3 +184,4 @@ class TestPolyglotModule(unittest.TestCase):
         polyglot.create_polyglot(self.filename_v1_3_dup, self.filename_torchscript_dup, self.standard_torchscript_polyglot_name, print_results=False)
         formats = polyglot.identify_pytorch_file_format(self.standard_torchscript_polyglot_name)
         self.assertTrue({"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats))
+
