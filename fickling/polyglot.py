@@ -308,56 +308,14 @@ def create_polyglot(first_file, second_file, polyglot_file_name=None, print_resu
         if polyglot_file_name is None:
             polyglot_file_name = "polyglot.mar.pt"
         polyglot_found = create_mar_legacy_pickle_polyglot(files, print_results, polyglot_file_name)
-        # files.sort(key=lambda x: x[1] != "PyTorch model archive format")
-        # if print_results:
-        #     print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
-        # polyglot_found = True
-        # polyglot_file = append_file(*[file[0] for file in files])
-        # if polyglot_file_name is None:
-        #     polyglot_file_name = "polyglot.mar.pt"
-        # shutil.copy(polyglot_file, polyglot_file_name)
     if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
         if polyglot_file_name is None:
             polyglot_file_name = "polyglot.pt"
         polyglot_found = create_standard_torchscript_polyglot(files, print_results, polyglot_file_name)
-        # if print_results:
-        #     print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
-        #     print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
-        # polyglot_found = True
-        # standard_pytorch_file = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
-        # torchscript_file = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
-        # if polyglot_file_name is None:
-        #     polyglot_file_name = "polyglot.pt"
-        # shutil.copy(standard_pytorch_file, polyglot_file_name)
-        #
-        # with zipfile.ZipFile(torchscript_file, "r") as zip_b:
-        #     constants_pkl_path = check_and_find_in_zip(
-        #         zip_b, "constants.pkl", check_extension=False, return_path=True
-        #     )
-        #     version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
-        #     if constants_pkl_path and version_path:
-        #         zip_b.extract(constants_pkl_path, "temp")
-        #         zip_b.extract(version_path, "temp")
-        #
-        # with zipfile.ZipFile(polyglot_file_name, "a") as zip_out:
-        #     zip_out.write(f"temp/{constants_pkl_path}", "constants.pkl")
-        #     zip_out.write(f"temp/{version_path}", "version")
-        #
-        # shutil.rmtree("temp")
     if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
         if polyglot_file_name is None:
             polyglot_file_name = "polyglot.mar.tar"
         polyglot_found = create_mar_legacy_tar_polyglot(files, print_results, polyglot_file_name)
-        # if print_results:
-        #     print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
-        # polyglot_found = True
-        # mar_file = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
-        # tar_file = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
-        # polyglot_file = append_file(mar_file, tar_file)
-        # if polyglot_file_name is None:
-        #     polyglot_file_name = "polyglot.mar.tar"
-        # shutil.copy(polyglot_file, "polyglot.mar.tar")
-
     if print_results:
         if polyglot_found is False:
             print(

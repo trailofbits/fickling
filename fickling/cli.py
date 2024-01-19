@@ -35,7 +35,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "-i",
         type=str,
         default=None,
-        help="inject the specified Python code to be run at the end of depickling, "
+        help="inject the specified Python code to be run at the end of unpickling, "
         "and output the resulting pickle data",
     )
     parser.add_argument(

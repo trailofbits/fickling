@@ -508,7 +508,7 @@ class Pickled(OpcodeSequence):
     def insert_magic_int(self, magic: int, index: int = -1):
         """Insert and pop a specific integer value. This is used for persistent
         injections to locate the injection payload in the pickled file. The value
-        is artificially added by using an dummy INT + POP combination that doesn't
+        is artificially added by using a dummy INT + POP combination that doesn't
         affect the stack when executed
 
         :param magic: magic integer value to add

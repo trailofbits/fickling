@@ -118,7 +118,7 @@ class PyTorchModelWrapper:
     def inject_payload(
             self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
-        self.output_path = output_path
+        output_path = output_path
         if injection == "insertion":
             # This does NOT bypass the weights based unpickler
             pickled = self.pickled
@@ -140,6 +140,6 @@ class PyTorchModelWrapper:
         if overwrite is True:
             # Rename the new file to replace the original file
             Path(output_path).rename(self.path)
-            output_path = Path(self.output_path)
+            output_path = Path(output_path)
             if output_path.exists():
                 os.remove(output_path)
