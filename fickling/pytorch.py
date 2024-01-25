@@ -9,7 +9,6 @@ import torch
 import fickling.polyglot
 from fickling.fickle import Pickled
 
-
 class BaseInjection(torch.nn.Module):
     # This class allows you to combine the payload and original model
     def __init__(self, original_model: torch.nn.Module, payload: str):
@@ -25,22 +24,20 @@ class BaseInjection(torch.nn.Module):
 
 
 class PyTorchModelWrapper:
-    def __init__(self, path: Path, force: bool = False, verbose: bool = False):
+    def __init__(self, path: Path, force: bool = False):
         self.path: Path = path
         self._pickled: Optional[Pickled] = None
         self.force: bool = force
         self._formats: Set[str] = set()
-        self.verbose: bool = verbose
 
     def validate_file_format(self):
-        self._formats = fickling.polyglot.identify_pytorch_file_format(self.path, print_results=self.verbose)
-        """
-        One option was to raise an error if PyTorch v1.3 was not found
-        or if any of the TorchScript versions were found.
-        However, that would prevent polyglots from being loaded.
-        Therefore, the 'force' argument was created to enable users to do that if needed.
-        Another option was to warn only if "PyTorch v1.3" was not the most likely format.
-        Instead, the file formats are directly specified for clarity and independence.
+        self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)
+        """      
+        PyTorch v1.3 and TorchScript v1.4 are explicitly supported by PyTorchModelWrapper.
+        This class may work on other file formats depending on its construction.
+        To enable users to check that and load polyglots, the force argument exists. 
+        There is a warning for TorchScript v1.4 because of the scripting/tracing/mixing edge cases. 
+        Technically, injections applied to that format should not work torch.jit.load() but may work on torch.load(). 
         """
         if len(self._formats) == 0:
             if self.force is True:
@@ -58,12 +55,14 @@ class PyTorchModelWrapper:
                     If it is a PyTorch file, raise an issue on GitHub.
                     """
                 )
-        if ("PyTorch v1.3" not in self._formats) or {
-            "TorchScript v1.4",
-            "TorchScript v1.3",
-            "TorchScript v1.1",
-            "TorchScript v1.0",
-        }.intersection(self._formats):
+        # if (("PyTorch v1.3" not in self._formats) or
+        #         {
+        #     "TorchScript v1.4",
+        #     "TorchScript v1.3",
+        #     "TorchScript v1.1",
+        #     "TorchScript v1.0",
+        # }.intersection(self._formats)):
+        if ("PyTorch v1.3" not in self._formats) and ("TorchScript v1.4" not in self._formats):
             if "PyTorch v0.1.10" in self._formats:
                 if self.force is True:
                     warnings.warn(
@@ -93,6 +92,12 @@ class PyTorchModelWrapper:
                         """A fickling wrapper and injection method does not exist for that format.
                         Please raise an issue on our GitHub or use the argument `force=True`."""
                     )
+        if self._formats[0] == "TorchScript v1.4":
+            warnings.warn(
+                """Support for TorchScript  v1.4 files is experimental. The effectiveness of the capabilities of
+                PyTorchModelWrapper, especially injection, is highly dependent on the construction of the model.""",
+                UserWarning,
+            )
         return self._formats
 
     @property
@@ -116,9 +121,15 @@ class PyTorchModelWrapper:
         return self._pickled
 
     def inject_payload(
-            self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
+        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
-        output_path = output_path
+        self.output_path = output_path
+        if self.formats[0] == "TorchScript v1.4":
+            warnings.warn(
+                """Support for TorchScript  v1.4 files is experimental. Injections may not be effective
+                depending on the construction of the model and the target parser.""",
+                UserWarning,
+            )
         if injection == "insertion":
             # This does NOT bypass the weights based unpickler
             pickled = self.pickled
@@ -140,6 +151,6 @@ class PyTorchModelWrapper:
         if overwrite is True:
             # Rename the new file to replace the original file
             Path(output_path).rename(self.path)
-            output_path = Path(output_path)
+            output_path = Path(self.output_path)
             if output_path.exists():
                 os.remove(output_path)
