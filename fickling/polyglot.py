@@ -21,9 +21,6 @@ We currently support the following PyTorch file formats:
 • PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
 • PyTorch model archive format[ZIP]: ZIP file that includes Python code files and pickle files
 
-Officially, PyTorch v0.1.1 and TorchScript < v1.4 are deprecated.
-However, they are still supported by some legacy parsers
-
 This description draws from this PyTorch GitHub issue: https://github.com/pytorch/pytorch/issues/31877.
 If any inaccuracies in that description are found, that should be reflected in this code.
 If any new PyTorch file formats are made, that should be added to this code.
