@@ -172,7 +172,7 @@ following PyTorch file formats:
 * **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
 * **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
 * **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
-* **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
+* **PyTorch model archive format[ZIP]**: ZIP file that includes Python code files and pickle files
 
 ```python
 >> import torch
