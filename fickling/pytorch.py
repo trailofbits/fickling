@@ -9,6 +9,7 @@ import torch
 import fickling.polyglot
 from fickling.fickle import Pickled
 
+
 class BaseInjection(torch.nn.Module):
     # This class allows you to combine the payload and original model
     def __init__(self, original_model: torch.nn.Module, payload: str):
@@ -32,12 +33,12 @@ class PyTorchModelWrapper:
 
     def validate_file_format(self):
         self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)
-        """      
+        """
         PyTorch v1.3 and TorchScript v1.4 are explicitly supported by PyTorchModelWrapper.
         This class may work on other file formats depending on its construction.
-        To enable users to check that and load polyglots, the force argument exists. 
-        There is a warning for TorchScript v1.4 because of the scripting/tracing/mixing edge cases. 
-        Technically, injections applied to that format should not work torch.jit.load() but may work on torch.load(). 
+        To enable users to check that and load polyglots, the force argument exists.
+        There is a warning for TorchScript v1.4 because of the scripting/tracing/mixing edge cases.
+        For example, an injection may work on torch.load() but not torch.jit.load().
         """
         if len(self._formats) == 0:
             if self.force is True:
@@ -94,8 +95,7 @@ class PyTorchModelWrapper:
                     )
         if self._formats[0] == "TorchScript v1.4":
             warnings.warn(
-                """Support for TorchScript  v1.4 files is experimental. The effectiveness of the capabilities of
-                PyTorchModelWrapper, especially injection, is highly dependent on the construction of the model.""",
+                """Support for TorchScript v1.4 files is experimental.""",
                 UserWarning,
             )
         return self._formats
@@ -126,8 +126,8 @@ class PyTorchModelWrapper:
         self.output_path = output_path
         if self.formats[0] == "TorchScript v1.4":
             warnings.warn(
-                """Support for TorchScript  v1.4 files is experimental. Injections may not be effective
-                depending on the construction of the model and the target parser.""",
+                """Support for TorchScript  v1.4 files is experimental.
+                Injections may not be effective depending on the model and the target parser.""",
                 UserWarning,
             )
         if injection == "insertion":
