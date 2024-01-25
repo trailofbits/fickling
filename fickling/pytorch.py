@@ -56,13 +56,6 @@ class PyTorchModelWrapper:
                     If it is a PyTorch file, raise an issue on GitHub.
                     """
                 )
-        # if (("PyTorch v1.3" not in self._formats) or
-        #         {
-        #     "TorchScript v1.4",
-        #     "TorchScript v1.3",
-        #     "TorchScript v1.1",
-        #     "TorchScript v1.0",
-        # }.intersection(self._formats)):
         if ("PyTorch v1.3" not in self._formats) and ("TorchScript v1.4" not in self._formats):
             if "PyTorch v0.1.10" in self._formats:
                 if self.force is True:
