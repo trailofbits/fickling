@@ -52,6 +52,10 @@ class TestPolyglotModule(unittest.TestCase):
         self.filename_v1_3 = "model_v1_3.pth"
         torch.save(model, self.filename_v1_3)
 
+        # PyTorch v1.3 Dup (for testing)
+        self.filename_v1_3_dup = "model_v1_3_dup.pth"
+        torch.save(model, self.filename_v1_3_dup)
+
         # PyTorch v0.1.10 (Stacked pickle files)
         self.filename_legacy_pickle = "model_legacy_pickle.pth"
         torch.save(model, self.filename_legacy_pickle, _use_new_zipfile_serialization=False)
@@ -60,6 +64,10 @@ class TestPolyglotModule(unittest.TestCase):
         m = torch.jit.script(model)
         self.filename_torchscript = "model_torchscript.pt"
         torch.jit.save(m, self.filename_torchscript)
+
+        # TorchScript v1.4
+        self.filename_torchscript_dup = "model_torchscript_dup.pt"
+        torch.jit.save(m, self.filename_torchscript_dup)
 
         # PyTorch v0.1.1
         self.filename_legacy_tar = "model_legacy_tar.pth"
@@ -70,6 +78,8 @@ class TestPolyglotModule(unittest.TestCase):
         create_random_zip(self.zip_filename)
         prepend_random_string(self.zip_filename)
 
+        self.standard_torchscript_polyglot_name = "test_polyglot.pt"
+
     def tearDown(self):
         for filename in [
             self.filename_v1_3,
@@ -77,6 +87,9 @@ class TestPolyglotModule(unittest.TestCase):
             self.filename_torchscript,
             self.filename_legacy_tar,
             self.zip_filename,
+            self.filename_torchscript_dup,
+            self.filename_v1_3_dup,
+            self.standard_torchscript_polyglot_name,
         ]:
             if os.path.exists(filename):
                 os.remove(filename)
@@ -166,3 +179,13 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attribute_pkl": False,
         }
         self.assertEqual(properties, proper_result)
+
+    def test_create_standard_torchscript_polyglot(self):
+        polyglot.create_polyglot(
+            self.filename_v1_3_dup,
+            self.filename_torchscript_dup,
+            self.standard_torchscript_polyglot_name,
+            print_results=False,
+        )
+        formats = polyglot.identify_pytorch_file_format(self.standard_torchscript_polyglot_name)
+        self.assertTrue({"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats))

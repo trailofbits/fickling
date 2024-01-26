@@ -7,7 +7,7 @@ import fickling
 
 # Set up global fickling hook
 fickling.always_check_safety()
-# Eauivalent to fickling.hook.run_hook()
+# Equivalent to fickling.hook.run_hook()
 
 # Fickling can check a pickle file for safety prior to running it
 test_list = [1, 2, 3]

@@ -162,7 +162,9 @@ Module(
 
 ### PyTorch polyglots
 
-We currently support inspecting, identifying, and creating file polyglots between the
+PyTorch contains multiple file formats with which one can make polyglot files, which 
+are files that can be validly interpreted as more than one file format. 
+Fickling supports identifying, inspecting, and creating polyglots with the
 following PyTorch file formats:
 
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
@@ -172,7 +174,7 @@ following PyTorch file formats:
 * **TorchScript v1.3**: ZIP file with data.pkl and constants.pkl (2 pickle files)
 * **TorchScript v1.4**: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
 * **PyTorch v1.3**: ZIP file containing data.pkl (1 pickle file)
-* **PyTorch model archive format**: ZIP file that includes Python code files and pickle files
+* **PyTorch model archive format[ZIP]**: ZIP file that includes Python code files and pickle files
 
 ```python
 >> import torch
