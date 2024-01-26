@@ -107,9 +107,9 @@ class AnalysisResult:
         self.severity: Severity = severity
         self.message: Optional[str] = message
         self.analysis_name: str = analysis_name
-        self.trigger: Optional[
-            str
-        ] = trigger  # Field to store the trigger code fragment or artifact
+        self.trigger: Optional[str] = (
+            trigger  # Field to store the trigger code fragment or artifact
+        )
 
     def __lt__(self, other):
         return isinstance(other, AnalysisResult) and (
@@ -296,11 +296,13 @@ class AnalysisResults:
         analysis_message = self.to_string(verbosity)
         severity_data = {
             "severity": self.severity.name,
-            "analysis": analysis_message
-            if analysis_message.strip()
-            else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file"
-            "may still be unsafe."
-            "Do not unpickle this file if it is from an untrusted source!\n\n",
+            "analysis": (
+                analysis_message
+                if analysis_message.strip()
+                else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file"
+                "may still be unsafe."
+                "Do not unpickle this file if it is from an untrusted source!\n\n"
+            ),
             "detailed_results": self.detailed_results(),
         }
         return severity_data
