@@ -299,8 +299,8 @@ class AnalysisResults:
             "analysis": (
                 analysis_message
                 if analysis_message.strip()
-                else "Warning: Fickling failed to detect any overtly unsafe code, but the pickle file"
-                "may still be unsafe."
+                else "Warning: Fickling failed to detect any overtly unsafe code,"
+                "but the pickle file may still be unsafe."
                 "Do not unpickle this file if it is from an untrusted source!\n\n"
             ),
             "detailed_results": self.detailed_results(),
