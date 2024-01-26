@@ -162,7 +162,9 @@ Module(
 
 ### PyTorch polyglots
 
-We currently support inspecting, identifying, and creating file polyglots between the
+PyTorch contains multiple file formats with which one can make polyglot files, which 
+are files that can be validly interpreted as more than one file format. 
+Fickling supports identifying, inspecting, and creating polyglots with the
 following PyTorch file formats:
 
 * **PyTorch v0.1.1**: Tar file with sys_info, pickle, storages, and tensors
