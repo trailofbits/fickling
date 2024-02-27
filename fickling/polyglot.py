@@ -27,6 +27,12 @@ If any new PyTorch file formats are made, that should be added to this code.
 Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js.
 """
 
+try:
+    import torch
+except ModuleNotFoundError:
+    raise ImportError("The 'torch' module is required for this functionality."
+                      "PyTorch is now an optional dependency in Fickling."
+                      "Please use pip install '.[torch]'")
 
 def check_and_find_in_zip(
     zip_path, file_name_or_extension, return_path=False, check_extension=False
