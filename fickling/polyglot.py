@@ -3,9 +3,6 @@ import shutil
 import sys
 import tarfile
 import zipfile
-
-from torch.serialization import _is_zipfile
-
 from fickling.fickle import Pickled, StackedPickle
 
 """
@@ -28,7 +25,7 @@ Another useful reference is https://github.com/lutzroeder/netron/blob/main/sourc
 """
 
 try:
-    import torch
+    from torch.serialization import _is_zipfile
 except ModuleNotFoundError:
     raise ImportError("The 'torch' module is required for this functionality."
                       "PyTorch is now an optional dependency in Fickling."

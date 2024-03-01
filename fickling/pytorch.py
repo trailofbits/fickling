@@ -4,8 +4,6 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Set
 
-import torch
-
 import fickling.polyglot
 from fickling.fickle import Pickled
 
