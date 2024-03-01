@@ -3,6 +3,7 @@ import shutil
 import sys
 import tarfile
 import zipfile
+
 from fickling.fickle import Pickled, StackedPickle
 
 """
@@ -11,10 +12,10 @@ PyTorch file format identification:
 We currently support the following PyTorch file formats:
 • PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors
 • PyTorch v0.1.10: Stacked pickle files
-• TorchScript v1.0: ZIP file with model.json 
+• TorchScript v1.0: ZIP file with model.json
 • TorchScript v1.1: ZIP file with model.json and attributes.pkl (a JSON file and a pickle file)
 • TorchScript v1.3: ZIP file with data.pkl and constants.pkl (2 pickle files)
-• TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version set at 2 or higher (2 pickle files and a folder)
+• TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version set at 2 or higher
 • PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
 • PyTorch model archive format[ZIP]: ZIP file that includes Python code files and pickle files
 
@@ -27,9 +28,12 @@ Another useful reference is https://github.com/lutzroeder/netron/blob/main/sourc
 try:
     from torch.serialization import _is_zipfile
 except ModuleNotFoundError:
-    raise ImportError("The 'torch' module is required for this functionality."
-                      "PyTorch is now an optional dependency in Fickling."
-                      "Please use pip install '.[torch]'")
+    raise ImportError(
+        "The 'torch' module is required for this functionality."
+        "PyTorch is now an optional dependency in Fickling."
+        "Please use pip install '.[torch]'"
+    )
+
 
 def check_and_find_in_zip(
     zip_path, file_name_or_extension, return_path=False, check_extension=False
