@@ -28,6 +28,13 @@ Both the library and command line utility can be installed through pip:
 python -m pip install fickling
 ```
 
+PyTorch is an optional dependency of Fickling. Therefore, in order to use Fickling's `pytorch`
+and `polyglot` modules, you should run:
+
+```bash
+python -m pip install fickling[torch]
+```
+
 ## Malicious file detection
 
 Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious
