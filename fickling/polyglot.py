@@ -4,8 +4,6 @@ import sys
 import tarfile
 import zipfile
 
-from torch.serialization import _is_zipfile
-
 from fickling.fickle import Pickled, StackedPickle
 
 """
@@ -14,10 +12,10 @@ PyTorch file format identification:
 We currently support the following PyTorch file formats:
 • PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors
 • PyTorch v0.1.10: Stacked pickle files
-• TorchScript v1.0: ZIP file with model.json and constants.pkl (a JSON file and a pickle file)
-• TorchScript v1.1: ZIP file with model.json and attribute.pkl (a JSON file and a pickle file)
+• TorchScript v1.0: ZIP file with model.json
+• TorchScript v1.1: ZIP file with model.json and attributes.pkl (a JSON file and a pickle file)
 • TorchScript v1.3: ZIP file with data.pkl and constants.pkl (2 pickle files)
-• TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version (2 pickle files and a folder)
+• TorchScript v1.4: ZIP file with data.pkl, constants.pkl, and version set at 2 or higher
 • PyTorch v1.3: ZIP file containing data.pkl (1 pickle file)
 • PyTorch model archive format[ZIP]: ZIP file that includes Python code files and pickle files
 
@@ -26,6 +24,15 @@ If any inaccuracies in that description are found, that should be reflected in t
 If any new PyTorch file formats are made, that should be added to this code.
 Another useful reference is https://github.com/lutzroeder/netron/blob/main/source/pytorch.js.
 """
+
+try:
+    from torch.serialization import _is_zipfile
+except ModuleNotFoundError:
+    raise ImportError(
+        "The 'torch' module is required for this functionality."
+        "PyTorch is now an optional dependency in Fickling."
+        "Please use `pip install fickling[torch]`"
+    )
 
 
 def check_and_find_in_zip(
@@ -99,7 +106,7 @@ def find_file_properties(file_path, print_properties=False):
             "has_data_pkl": False,
             "has_version": False,
             "has_model_json": False,
-            "has_attribute_pkl": False,
+            "has_attributes_pkl": False,
         }
         if is_torch_zip:
             torch_zip_checks = [
@@ -107,7 +114,7 @@ def find_file_properties(file_path, print_properties=False):
                 "constants.pkl",
                 "version",
                 "model.json",
-                "attribute.pkl",
+                "attributes.pkl",
             ]
             torch_zip_results = {
                 f"has_{'_'.join(f.split('.'))}": check_and_find_in_zip(
@@ -163,7 +170,7 @@ def check_for_corruption(properties):
     if properties["is_torch_zip"]:
         if (
             properties["has_model_json"]
-            and not properties["has_attribute_pkl"]
+            and not properties["has_attributes_pkl"]
             and not properties["has_constants_pkl"]
         ):
             corrupted = True
@@ -188,7 +195,7 @@ def identify_pytorch_file_format(file, print_properties=False, print_results=Fal
             (["has_data_pkl", "has_constants_pkl", "has_version"], "TorchScript v1.4"),
             (["has_data_pkl", "has_constants_pkl"], "TorchScript v1.3"),
             (["has_model_json", "has_constants_pkl"], "TorchScript v1.0"),
-            (["has_model_json", "has_attribute_pkl"], "TorchScript v1.1"),
+            (["has_model_json", "has_attributes_pkl"], "TorchScript v1.1"),
             (["has_data_pkl"], "PyTorch v1.3"),
         ]
         formats = [

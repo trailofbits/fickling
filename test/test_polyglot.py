@@ -128,7 +128,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_constants_pkl": False,
             "has_version": True,
             "has_model_json": False,
-            "has_attribute_pkl": False,
+            "has_attributes_pkl": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -144,7 +144,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_constants_pkl": False,
             "has_version": True,
             "has_model_json": False,
-            "has_attribute_pkl": False,
+            "has_attributes_pkl": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -160,7 +160,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_constants_pkl": True,
             "has_version": True,
             "has_model_json": False,
-            "has_attribute_pkl": False,
+            "has_attributes_pkl": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -176,7 +176,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_data_pkl": False,
             "has_version": False,
             "has_model_json": False,
-            "has_attribute_pkl": False,
+            "has_attributes_pkl": False,
         }
         self.assertEqual(properties, proper_result)
 

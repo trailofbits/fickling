@@ -4,10 +4,17 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Set
 
-import torch
-
 import fickling.polyglot
 from fickling.fickle import Pickled
+
+try:
+    import torch
+except ModuleNotFoundError:
+    raise ImportError(
+        "The 'torch' module is required for this functionality."
+        "PyTorch is now an optional dependency in Fickling."
+        "Please use `pip install fickling[torch]`"
+    )
 
 
 class BaseInjection(torch.nn.Module):

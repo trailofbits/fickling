@@ -17,13 +17,14 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Utilities",
 ]
-dependencies = ["astunparse ~= 1.6.3", "torch >= 2.1.0", "torchvision >= 0.16.1"]
+dependencies = ["astunparse ~= 1.6.3"]
 requires-python = ">=3.8"
 
 [project.optional-dependencies]
+torch = ["torch >= 2.1.0", "torchvision >= 0.16.1"]
 lint = ["black", "mypy", "ruff"]
-test = ["pytest", "pytest-cov", "coverage[toml]"]
-dev = ["build", "fickling[lint,test]", "twine"]
+test = ["pytest", "pytest-cov", "coverage[toml]", "torch >= 2.1.0", "torchvision >= 0.16.1"]
+dev = ["build", "fickling[lint,test]", "twine", "torch >= 2.1.0", "torchvision >= 0.16.1"]
 examples = ["numpy", "pytorchfi"]
 
 [project.scripts]
