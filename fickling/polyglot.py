@@ -5,6 +5,7 @@ import shutil
 import struct
 import sys
 import tarfile
+import tempfile
 import zipfile
 
 from fickling.fickle import Pickled, StackedPickle
@@ -95,17 +96,18 @@ def check_numpy(file): # returns isNumpy,isNumpyPickle
     return True, False # numpy non-pickle
 
 
-def check_pickle(file):
+def check_pickle(file, minLength=0):
     """Checks if a file can be pickled; this does not directly determine the file is a pickle"""
     try:
-        Pickled.load(file)
-        return True
+        opcodes = Pickled.load(file).opcodes()
+        return len(opcodes)>minLength
     except Exception:  # noqa
         try:
             StackedPickle.load(file)
             return True
         except Exception:  # noqa
             return False
+
 
 def find_file_properties(file_path, print_properties=False):
     """For a more granular analysis, we separate property discovery and format identification"""
@@ -123,7 +125,8 @@ def find_file_properties(file_path, print_properties=False):
         properties["is_tar"] = is_tar
 
         # Similar to tar, this is not a robust verification.
-        is_valid_pickle = check_pickle(file)
+        # tar files often start with . which is a 1 operator pickle
+        is_valid_pickle = check_pickle(file,minLength=2) 
         properties["is_valid_pickle"] = is_valid_pickle
 
         # Numpy has a special header and magic bytes,
@@ -165,6 +168,46 @@ def find_file_properties(file_path, print_properties=False):
         properties.update(torch_zip_results)
     if print_properties:
         print("\nproperties:", properties, "\n")
+    return properties
+
+
+def find_file_properties_recursively(file_path, print_properties=False):
+    """Property discovery that looks inside zip and tar archives"""
+    properties = find_file_properties(file_path, print_properties)
+
+    # check zip
+    check_zip = properties["is_standard_zip"]
+    # if it's the correct type of zip to be torch, make sure it's not a torch file
+    if check_zip and not properties["is_standard_not_torch"]:
+        for key in properties.keys():
+            if key.startswith('has_') and properties[key]:
+                # if it is a torch file, no need to check it
+                check_zip = False
+                break
+    # actually check the zip
+    if check_zip:
+        properties["children"] = {}
+        with tempfile.TemporaryDirectory() as tempdir:
+            with zipfile.ZipFile(file_path) as zippedFile:
+                for fname in zippedFile.namelist():
+                    zippedFile.extract(fname,path=tempdir)
+                    fname_path = os.path.join(tempdir,fname)
+                    properties["children"][fname]=find_file_properties_recursively(fname_path,print_properties)
+    
+    # check tar
+    if properties["is_tar"]: # tar archive
+        properties["children"] = {}
+        with tempfile.TemporaryDirectory() as tempdir:
+            with tarfile.TarFile(file_path) as tarredFile:
+                for fname in tarredFile.getnames():
+                    content = tarredFile.extractfile(fname)
+                    if content is None:
+                        properties["children"][fname] = None
+                        continue
+                    fname_path = os.path.join(tempdir, os.path.basename(fname))
+                    open(fname_path,'wb').write(content.read())
+                    properties["children"][fname]=find_file_properties_recursively(fname_path,print_properties)
+    
     return properties
 
 

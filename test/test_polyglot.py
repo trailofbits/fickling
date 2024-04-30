@@ -87,6 +87,16 @@ class TestPolyglotModule(unittest.TestCase):
         self.numpy_pickle = "pickle.npy"
         np.save(self.numpy_pickle, {'test':[1,2,3]})
 
+        self.tar_numpy_pickle = "testtar.anything"
+        archive = tarfile.open(self.tar_numpy_pickle,'w')
+        archive.add(self.numpy_pickle)
+        archive.close()
+
+        self.zip_numpy_pickle = "testzip.anything"
+        archive = zipfile.ZipFile(self.zip_numpy_pickle,'w')
+        archive.write(self.numpy_pickle, self.numpy_pickle)
+        archive.close()
+
         self.standard_torchscript_polyglot_name = "test_polyglot.pt"
 
     def tearDown(self):
@@ -101,6 +111,8 @@ class TestPolyglotModule(unittest.TestCase):
             self.standard_torchscript_polyglot_name,
             self.numpy_not_pickle,
             self.numpy_pickle,
+            self.tar_numpy_pickle,
+            self.zip_numpy_pickle,
         ]:
             if os.path.exists(filename):
                 os.remove(filename)
@@ -127,6 +139,66 @@ class TestPolyglotModule(unittest.TestCase):
         formats = polyglot.identify_pytorch_file_format(self.zip_filename)
         self.assertEqual(len(formats), 0)
     
+    def test_recursive_tar(self):
+        properties = polyglot.find_file_properties_recursively(self.tar_numpy_pickle)
+        proper_result = {"is_torch_zip": False, 
+                         "is_tar": True, 
+                         "is_valid_pickle": False, 
+                         "is_numpy": False, 
+                         "is_numpy_pickle": False, 
+                         "is_standard_zip": False, 
+                         "is_standard_not_torch": False, 
+                         "has_constants_pkl": False, 
+                         "has_data_pkl": False, 
+                         "has_version": False, 
+                         "has_model_json": False, 
+                         "has_attributes_pkl": False, 
+                         "children": {"pickle.npy": {
+                             "is_torch_zip": False, 
+                             "is_tar": False, 
+                             "is_valid_pickle": False, 
+                             "is_numpy": True, 
+                             "is_numpy_pickle": True, 
+                             "is_standard_zip": False, 
+                             "is_standard_not_torch": False, 
+                             "has_constants_pkl": False, 
+                             "has_data_pkl": False, 
+                             "has_version": False, 
+                             "has_model_json": False, 
+                             "has_attributes_pkl": False}
+                         }}
+        self.assertEqual(properties, proper_result)
+    
+    def test_recursive_zip(self):
+        properties = polyglot.find_file_properties_recursively(self.zip_numpy_pickle)
+        proper_result = {"is_torch_zip": True, 
+                         "is_tar": False, 
+                         "is_valid_pickle": False, 
+                         "is_numpy": False, 
+                         "is_numpy_pickle": False, 
+                         "is_standard_zip": True, 
+                         "is_standard_not_torch": False, 
+                         "has_constants_pkl": False, 
+                         "has_data_pkl": False, 
+                         "has_version": False, 
+                         "has_model_json": False, 
+                         "has_attributes_pkl": False, 
+                         "children": {"pickle.npy": {
+                             "is_torch_zip": False, 
+                             "is_tar": False, 
+                             "is_valid_pickle": False, 
+                             "is_numpy": True, 
+                             "is_numpy_pickle": True, 
+                             "is_standard_zip": False, 
+                             "is_standard_not_torch": False, 
+                             "has_constants_pkl": False, 
+                             "has_data_pkl": False, 
+                             "has_version": False, 
+                             "has_model_json": False, 
+                             "has_attributes_pkl": False}
+                         }}
+        self.assertEqual(properties, proper_result)
+
     def test_numpy_non_pickle(self):
         properties = polyglot.find_file_properties(self.numpy_not_pickle)
         proper_result = {
