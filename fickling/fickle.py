@@ -1,5 +1,4 @@
 import ast
-import distutils.sysconfig as sysconfig
 import marshal
 import re
 import struct
@@ -8,7 +7,6 @@ from abc import ABC, abstractmethod
 from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
-from pathlib import Path
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
@@ -30,6 +28,8 @@ from typing import (
 from typing import (
     Tuple as TupleType,
 )
+
+from stdlib_list import in_stdlib
 
 from fickling.exception import WrongMethodError
 
@@ -58,16 +58,9 @@ BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
 OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
-STD_LIB = sysconfig.get_python_lib(standard_lib=True)
-
 
 def is_std_module(module_name: str) -> bool:
-    base_path = Path(STD_LIB).joinpath(*module_name.split("."))
-    return (
-        base_path.is_dir()
-        or base_path.with_suffix(".py").is_file()
-        or module_name in BUILTIN_MODULE_NAMES
-    )
+    return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
 
 
 class MarkObject:
