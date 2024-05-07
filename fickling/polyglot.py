@@ -1,5 +1,4 @@
 import ast
-import numpy.lib.format as npformat
 import os
 import shutil
 import struct
@@ -7,6 +6,8 @@ import sys
 import tarfile
 import tempfile
 import zipfile
+
+import numpy.lib.format as npformat
 
 from fickling.fickle import Pickled, StackedPickle
 
@@ -64,20 +65,22 @@ def check_and_find_in_zip(
         print(f"File not found: {zip_path}")
         return None if return_path else False
 
-def check_numpy(file): # returns isNumpy,isNumpyPickle
-    """Checks if the numpy magic bytes are there, and if they are, if the header claims the data is an object"""
+
+def check_numpy(file):  # returns isNumpy,isNumpyPickle
+    """Checks if the numpy magic bytes are there, and if they are, if the header
+    claims the data is an object"""
     file.seek(0)
     try:
         version = npformat.read_magic(file)
     except ValueError:
-        return False,False # not numpy
-    
+        return False, False  # not numpy
+
     # This is a private variable, but the alternative
-    # would require using private functions or 
+    # would require using private functions or
     # maintaining Numpy's version list in Fickling
     hinfo = npformat._header_size_info.get(version)
     if hinfo is None:
-        return False,False # not a valid version of numpy
+        return False, False  # not a valid version of numpy
     hlength_type, encoding = hinfo
 
     hlength_str = file.read(struct.calcsize(hlength_type))
@@ -89,18 +92,18 @@ def check_numpy(file): # returns isNumpy,isNumpyPickle
     # However this is also what Numpy uses,
     # so it applies to np.load(fname, allow_pickle=False)
     d = ast.literal_eval(header)
-    dtype = npformat.descr_to_dtype(d['descr'])
+    dtype = npformat.descr_to_dtype(d["descr"])
 
     if dtype.hasobject:
-        return True, True # numpy pickle
-    return True, False # numpy non-pickle
+        return True, True  # numpy pickle
+    return True, False  # numpy non-pickle
 
 
-def check_pickle(file, minLength=0):
+def check_pickle(file, min_length=0):
     """Checks if a file can be pickled; this does not directly determine the file is a pickle"""
     try:
         opcodes = Pickled.load(file).opcodes()
-        return len(opcodes)>minLength
+        return len(opcodes) > min_length
     except Exception:  # noqa
         try:
             StackedPickle.load(file)
@@ -126,15 +129,15 @@ def find_file_properties(file_path, print_properties=False):
 
         # Similar to tar, this is not a robust verification.
         # tar files often start with . which is a 1 operator pickle
-        is_valid_pickle = check_pickle(file,minLength=2) 
+        is_valid_pickle = check_pickle(file, min_length=2)
         properties["is_valid_pickle"] = is_valid_pickle
 
         # Numpy has a special header and magic bytes,
         # mimics Numpy code to check if the file is Numpy
         # and if it claims to contain a pickle
-        is_numpy,is_numpy_pickle = check_numpy(file)
-        properties['is_numpy'] = is_numpy
-        properties['is_numpy_pickle'] = is_numpy_pickle
+        is_numpy, is_numpy_pickle = check_numpy(file)
+        properties["is_numpy"] = is_numpy
+        properties["is_numpy_pickle"] = is_numpy_pickle
 
         # PyTorch MAR can be a standard ZIP, but not a PyTorch ZIP
         # Some other non-PyTorch file formats rely on ZIP without PyTorch's limitations
@@ -180,7 +183,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
     # if it's the correct type of zip to be torch, make sure it's not a torch file
     if check_zip and not properties["is_standard_not_torch"]:
         for key in properties.keys():
-            if key.startswith('has_') and properties[key]:
+            if key.startswith("has_") and properties[key]:
                 # if it is a torch file, no need to check it
                 check_zip = False
                 break
@@ -188,26 +191,30 @@ def find_file_properties_recursively(file_path, print_properties=False):
     if check_zip:
         properties["children"] = {}
         with tempfile.TemporaryDirectory() as tempdir:
-            with zipfile.ZipFile(file_path) as zippedFile:
-                for fname in zippedFile.namelist():
-                    zippedFile.extract(fname,path=tempdir)
-                    fname_path = os.path.join(tempdir,fname)
-                    properties["children"][fname]=find_file_properties_recursively(fname_path,print_properties)
-    
+            with zipfile.ZipFile(file_path) as zipped_file:
+                for fname in zipped_file.namelist():
+                    zipped_file.extract(fname, path=tempdir)
+                    fname_path = os.path.join(tempdir, fname)
+                    properties["children"][fname] = find_file_properties_recursively(
+                        fname_path, print_properties
+                    )
+
     # check tar
-    if properties["is_tar"]: # tar archive
+    if properties["is_tar"]:  # tar archive
         properties["children"] = {}
         with tempfile.TemporaryDirectory() as tempdir:
-            with tarfile.TarFile(file_path) as tarredFile:
-                for fname in tarredFile.getnames():
-                    content = tarredFile.extractfile(fname)
+            with tarfile.TarFile(file_path) as tarred_file:
+                for fname in tarred_file.getnames():
+                    content = tarred_file.extractfile(fname)
                     if content is None:
                         properties["children"][fname] = None
                         continue
                     fname_path = os.path.join(tempdir, os.path.basename(fname))
-                    open(fname_path,'wb').write(content.read())
-                    properties["children"][fname]=find_file_properties_recursively(fname_path,print_properties)
-    
+                    open(fname_path, "wb").write(content.read())
+                    properties["children"][fname] = find_file_properties_recursively(
+                        fname_path, print_properties
+                    )
+
     return properties
 
 

@@ -26,6 +26,9 @@ class TestHook(unittest.TestCase):
         with open("safe.pkl", "rb") as file:
             loaded_data = pickle.load(file)
 
+        if os.path.exists("safe.pkl"):
+            os.remove("safe.pkl")
+
         # Assert that the loaded data matches the original data
         self.assertEqual(loaded_data, test_list)
 
@@ -51,3 +54,6 @@ class TestHook(unittest.TestCase):
                 pass
             else:
                 self.fail(e)
+
+        if os.path.exists("unsafe.pickle"):
+            os.remove("unsafe.pickle")
