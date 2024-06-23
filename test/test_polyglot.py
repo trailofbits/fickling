@@ -8,6 +8,8 @@ import zipfile
 import torch
 import torchvision.models as models
 
+import numpy as np
+
 import fickling.polyglot as polyglot
 
 
@@ -78,6 +80,23 @@ class TestPolyglotModule(unittest.TestCase):
         create_random_zip(self.zip_filename)
         prepend_random_string(self.zip_filename)
 
+        # Numpy Not Pickles
+        self.numpy_not_pickle = "not_pickle.npy"
+        np.save(self.numpy_not_pickle, [1, 2, 3])
+
+        self.numpy_pickle = "pickle.npy"
+        np.save(self.numpy_pickle, {"test": [1, 2, 3]})
+
+        self.tar_numpy_pickle = "testtar.anything"
+        archive = tarfile.open(self.tar_numpy_pickle, "w")
+        archive.add(self.numpy_pickle)
+        archive.close()
+
+        self.zip_numpy_pickle = "testzip.anything"
+        archive = zipfile.ZipFile(self.zip_numpy_pickle, "w")
+        archive.write(self.numpy_pickle, self.numpy_pickle)
+        archive.close()
+
         self.standard_torchscript_polyglot_name = "test_polyglot.pt"
 
     def tearDown(self):
@@ -90,31 +109,139 @@ class TestPolyglotModule(unittest.TestCase):
             self.filename_torchscript_dup,
             self.filename_v1_3_dup,
             self.standard_torchscript_polyglot_name,
+            self.numpy_not_pickle,
+            self.numpy_pickle,
+            self.tar_numpy_pickle,
+            self.zip_numpy_pickle,
         ]:
             if os.path.exists(filename):
                 os.remove(filename)
 
     def test_v1_3(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_v1_3)
-        self.assertEqual(formats[0], "PyTorch v1.3")
+        self.assertEqual(formats, ["PyTorch v1.3"])
 
     def test_legacy_pickle(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
-        self.assertEqual(formats[0], "PyTorch v0.1.10")
+        self.assertEqual(formats, ["PyTorch v0.1.10"])
 
     def test_torchscript(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_torchscript)
-        self.assertEqual(formats[0], "TorchScript v1.4")
+        self.assertEqual(formats, ["TorchScript v1.4", "TorchScript v1.3", "PyTorch v1.3"])
 
     def test_legacy_tar(self):
         formats = polyglot.identify_pytorch_file_format(
             self.filename_legacy_tar, print_properties=True
         )
-        self.assertEqual(formats[0], "PyTorch v0.1.1")
+        self.assertEqual(formats, ["PyTorch v0.1.1"])
 
     def test_zip(self):
         formats = polyglot.identify_pytorch_file_format(self.zip_filename)
         self.assertEqual(len(formats), 0)
+
+    def test_recursive_tar(self):
+        properties = polyglot.find_file_properties_recursively(self.tar_numpy_pickle)
+        proper_result = {
+            "is_torch_zip": False,
+            "is_tar": True,
+            "is_valid_pickle": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
+            "is_standard_zip": False,
+            "is_standard_not_torch": False,
+            "has_constants_pkl": False,
+            "has_data_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "children": {
+                "pickle.npy": {
+                    "is_torch_zip": False,
+                    "is_tar": False,
+                    "is_valid_pickle": False,
+                    "is_numpy": True,
+                    "is_numpy_pickle": True,
+                    "is_standard_zip": False,
+                    "is_standard_not_torch": False,
+                    "has_constants_pkl": False,
+                    "has_data_pkl": False,
+                    "has_version": False,
+                    "has_model_json": False,
+                    "has_attributes_pkl": False,
+                }
+            },
+        }
+        self.assertEqual(properties, proper_result)
+
+    def test_recursive_zip(self):
+        properties = polyglot.find_file_properties_recursively(self.zip_numpy_pickle)
+        proper_result = {
+            "is_torch_zip": True,
+            "is_tar": False,
+            "is_valid_pickle": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
+            "is_standard_zip": True,
+            "is_standard_not_torch": False,
+            "has_constants_pkl": False,
+            "has_data_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "children": {
+                "pickle.npy": {
+                    "is_torch_zip": False,
+                    "is_tar": False,
+                    "is_valid_pickle": False,
+                    "is_numpy": True,
+                    "is_numpy_pickle": True,
+                    "is_standard_zip": False,
+                    "is_standard_not_torch": False,
+                    "has_constants_pkl": False,
+                    "has_data_pkl": False,
+                    "has_version": False,
+                    "has_model_json": False,
+                    "has_attributes_pkl": False,
+                }
+            },
+        }
+        self.assertEqual(properties, proper_result)
+
+    def test_numpy_non_pickle(self):
+        properties = polyglot.find_file_properties(self.numpy_not_pickle)
+        proper_result = {
+            "is_torch_zip": False,
+            "is_tar": False,
+            "is_valid_pickle": False,
+            "is_standard_zip": False,
+            "is_standard_not_torch": False,
+            "has_data_pkl": False,
+            "has_constants_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "is_numpy": True,
+            "is_numpy_pickle": False,
+        }
+        self.assertEqual(properties, proper_result)
+
+    def test_numpy_pickle(self):
+        properties = polyglot.find_file_properties(self.numpy_pickle)
+        proper_result = {
+            "is_torch_zip": False,
+            "is_tar": False,
+            "is_valid_pickle": False,
+            "is_standard_zip": False,
+            "is_standard_not_torch": False,
+            "has_data_pkl": False,
+            "has_constants_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "is_numpy": True,
+            "is_numpy_pickle": True,
+        }
+        self.assertEqual(properties, proper_result)
 
     def test_v1_3_properties(self):
         properties = polyglot.find_file_properties(self.filename_v1_3)
@@ -129,6 +256,8 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": True,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -145,6 +274,8 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": True,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -161,6 +292,8 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": True,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -177,6 +310,8 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": False,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
         }
         self.assertEqual(properties, proper_result)
 
