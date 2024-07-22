@@ -128,9 +128,9 @@ class TestInterpreter(TestCase):
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
         loaded.insert_python(
-            [1, 2, ['a', 'b'], 3],
-            module='builtins',
-            attr='tuple',
+            [1, 2, ["a", "b"], 3],
+            module="builtins",
+            attr="tuple",
             use_output_as_unpickle_result=True,
             run_first=False,
         )
@@ -143,7 +143,7 @@ class TestInterpreter(TestCase):
 
         # Make sure the output is correct
         evaluated = loads(loaded.dumps())
-        self.assertEqual((1, 2, ['a', 'b'], 3), evaluated)
+        self.assertEqual((1, 2, ["a", "b"], 3), evaluated)
 
     def test_insert_run_last(self):
         pickled = dumps([1, 2, 3, 4])

@@ -418,7 +418,7 @@ class Pickled(OpcodeSequence):
     def _is_constant_type(self, obj: Any) -> bool:
         return isinstance(obj, (int, float, str, bytes))
 
-    def _encode_python_obj(self, obj: Any) -> list[Opcode]:
+    def _encode_python_obj(self, obj: Any) -> List[Opcode]:
         """Create an opcode sequence that builds an arbitrary python object on the top of the
         pickle VM stack"""
         if self._is_constant_type(obj):
@@ -440,7 +440,7 @@ class Pickled(OpcodeSequence):
         Returns the number of opcodes inserted"""
         opcodes = self._encode_python_obj(obj)
         for i, opcode in enumerate(opcodes):
-            self.insert(index+i, opcode)
+            self.insert(index + i, opcode)
         return len(opcodes)
 
     def insert_python(
