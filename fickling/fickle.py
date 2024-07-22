@@ -318,7 +318,7 @@ class ConstantInt(ConstantOpcode, ABC):
         st = self.struct_types[self.num_bytes]
         if not self.signed:
             st = st.upper()
-        return struct.pack(f"{self.endianness.value}{st}")
+        return struct.pack(f"{self.endianness.value}{st}", self.arg)
 
     @classmethod
     def validate(cls, obj):
@@ -415,6 +415,34 @@ class Pickled(OpcodeSequence):
         self._ast = None
         self._properties = None
 
+    def _is_constant_type(self, obj: Any) -> bool:
+        return isinstance(obj, (int, float, str, bytes))
+
+    def _encode_python_obj(self, obj: Any) -> List[Opcode]:
+        """Create an opcode sequence that builds an arbitrary python object on the top of the
+        pickle VM stack"""
+        if self._is_constant_type(obj):
+            return [ConstantOpcode.new(obj)]
+        elif isinstance(obj, list):
+            res = [Mark()]
+            for item in obj:
+                if self._is_constant_type(item):
+                    res.append(ConstantOpcode.new(item))
+                else:
+                    res += self._encode_python_obj(item)
+            res.append(List())
+            return res
+        else:
+            raise ValueError(f"Type {type(obj)} not supported")
+
+    def insert_python_obj(self, index: int, obj: Any) -> int:
+        """Insert an opcode sequence that constructs a python object on the stack.
+        Returns the number of opcodes inserted"""
+        opcodes = self._encode_python_obj(obj)
+        for i, opcode in enumerate(opcodes):
+            self.insert(index + i, opcode)
+        return len(opcodes)
+
     def insert_python(
         self,
         *args,
@@ -440,8 +468,9 @@ class Pickled(OpcodeSequence):
         self.insert(i, Mark())
         i += 1
         for arg in args:
-            self.insert(i, ConstantOpcode.new(arg))
-            i += 1
+            i += self.insert_python_obj(i, arg)
+            # self.insert(i, ConstantOpcode.new(arg))
+            # i += 1
         self.insert(i, Tuple())
         i += 1
         if run_first:
