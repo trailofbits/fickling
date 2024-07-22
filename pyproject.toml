@@ -22,7 +22,7 @@ requires-python = ">=3.8"
 
 [project.optional-dependencies]
 torch = ["torch >= 2.1.0", "torchvision >= 0.16.1"]
-lint = ["black", "mypy", "ruff==0.5.4"]
+lint = ["black", "mypy", "ruff==0.2.0"]
 test = ["pytest", "pytest-cov", "coverage[toml]", "torch >= 2.1.0", "torchvision >= 0.16.1"]
 dev = ["build", "fickling[lint,test]", "twine", "torch >= 2.1.0", "torchvision >= 0.16.1"]
 examples = ["numpy", "pytorchfi"]
