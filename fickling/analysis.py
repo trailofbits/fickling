@@ -3,14 +3,14 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Iterable, Iterator, Optional, Set, Tuple, Type
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
 else:
     from ast import unparse
 
-from fickling.fickle import Interpreter, List, Pickled, Proto
+from fickling.fickle import Interpreter, Pickled, Proto
 
 
 class AnalyzerMeta(type):
@@ -202,6 +202,42 @@ class NonStandardImports(Analysis):
                     trigger=shortened,
                 )
 
+
+class NonStandardImportsML(Analysis):
+    def __init__(self):
+        super().__init__()
+        self.whitelist = {
+            "numpy": ["dtype", "ndarray"],
+            "numpy.core.multiarray": ["_reconstruct"],
+            "torch": ["ByteStorage", ],
+            "torch._utils": ["_rebuild_tensor_v2"],
+        }
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.non_standard_imports():
+            shortened, already_reported = context.shorten_code(node)
+            if not already_reported:
+                if node.module not in self.whitelist:
+                    yield AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"`{shortened}` imports a Python module outside of "
+                        "the standard library;"
+                        "this could execute arbitrary code and is "
+                        "inherently unsafe",
+                        "NonStandardImportsML",
+                        trigger=shortened,
+                    )
+                else:
+                    for n in node.names:
+                        if n.name not in self.whitelist[node.module]:
+                            yield AnalysisResult(
+                                Severity.LIKELY_UNSAFE,
+                                f"`{shortened}` imports the non-standard Python function '{n.name}' that is not whitelisted as safe;"
+                                "this could execute arbitrary code and is "
+                                "inherently unsafe",
+                                "NonStandardImportsML",
+                                trigger=shortened,
+                            )
 
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
