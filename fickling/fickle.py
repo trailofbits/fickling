@@ -1310,6 +1310,9 @@ class BinPersId(Opcode):
             )
         )
 
+class PersId(Opcode):
+    name = "PERSID"
+
 
 class NoneOpcode(Opcode):
     name = "NONE"

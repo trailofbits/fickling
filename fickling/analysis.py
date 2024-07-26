@@ -202,15 +202,17 @@ class NonStandardImports(Analysis):
                     trigger=shortened,
                 )
 
-
 class NonStandardImportsML(Analysis):
     def __init__(self):
         super().__init__()
+        # TODO(boyan): actually make sure these whitelisted modules are safe
         self.whitelist = {
             "numpy": ["dtype", "ndarray"],
             "numpy.core.multiarray": ["_reconstruct"],
-            "torch": ["ByteStorage", ],
-            "torch._utils": ["_rebuild_tensor_v2"],
+            "torch": ["ByteStorage", "HalfStorage", "FloatStorage"],
+            "torch._utils": ["_rebuild_tensor_v2", "_rebuild_parameter"],
+            "torch.nn.modules.linear": ["Linear"],
+            "torch.storage": ["_load_from_bytes"],
         }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
@@ -221,7 +223,7 @@ class NonStandardImportsML(Analysis):
                     yield AnalysisResult(
                         Severity.LIKELY_UNSAFE,
                         f"`{shortened}` imports a Python module outside of "
-                        "the standard library;"
+                        "the standard library that is not whitelisted; "
                         "this could execute arbitrary code and is "
                         "inherently unsafe",
                         "NonStandardImportsML",
@@ -232,12 +234,68 @@ class NonStandardImportsML(Analysis):
                         if n.name not in self.whitelist[node.module]:
                             yield AnalysisResult(
                                 Severity.LIKELY_UNSAFE,
-                                f"`{shortened}` imports the non-standard Python function '{n.name}' that is not whitelisted as safe;"
+                                f"`{shortened}` imports the non-standard Python function '{n.name}' that is not whitelisted as safe; "
                                 "this could execute arbitrary code and is "
                                 "inherently unsafe",
                                 "NonStandardImportsML",
                                 trigger=shortened,
                             )
+
+class UnsafeImportsML(Analysis):
+    UNSAFE_IMPORTS = {
+        "__builtin__": None, # None means ALL imports are unsafe
+        "__builtins__": None,
+        "builtins": None,
+        "os": None,
+        "posix": None,
+        "nt": None,
+        "subprocess": None,
+        "sys": None,
+        "builtins": None,
+        "socket": None,
+    }
+    
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.imports:
+            if node.module in self.UNSAFE_IMPORTS:
+                shortened, _ = context.shorten_code(node)
+                if self.UNSAFE_IMPORTS[node.module] is None:
+                    yield AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"`{shortened}` is suspicious. Importing from this module is indicative of a malicious pickle file",
+                        "UnsafeImportsML",
+                        trigger=shortened,
+                    )
+                else:
+                    for n in node.names:
+                        if n.name in self.UNSAFE_IMPORTS[node.module]:
+                            yield AnalysisResult(
+                                Severity.LIKELY_UNSAFE,
+                                f"`{shortened}` is suspicious. Importing ``{n.name} is indicative of a malicious pickle file",
+                                "UnsafeImportsML",
+                                trigger=shortened,
+                            )
+            # NOTE(boyan): Special case with eval?
+            # Copy pasted from pickled.unsafe_imports() original implementation
+            elif "eval" in (n.name for n in node.names):
+                yield node
+
+
+class BadCalls(Analysis):
+    BAD_CALLS = ["exec", "eval", "compile", "open"]
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.calls:
+            shortened, already_reported = context.shorten_code(node)
+            if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
+                yield AnalysisResult(
+                    Severity.OVERTLY_MALICIOUS,
+                    f"Call to `{shortened}` is almost certainly evidence of a "
+                    "malicious pickle file",
+                    "OvertlyBadEval",
+                    trigger=shortened,
+                )
+
 
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
