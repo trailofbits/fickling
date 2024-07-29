@@ -476,9 +476,19 @@ class Pickled(OpcodeSequence):
         if run_first:
             self.insert(i, Reduce())
             if use_output_as_unpickle_result:
+                self.insert(-1, Pop()) # Just discard the original unpickle 
+            else:
+                # At the end, the stack will contain [reduce_res, original_obj].
+                # We need to remove everything below original_obj:
+                # NOTE(boyan): using an arbitrary MEMO key here seems to work. If not, 
+                # then switch to using the interpreter() to determine the correct MEMO key to use here 
+                self.insert(-1, Put(321987))  # Put obj in memo
+                self.insert(-1, Pop()) # Pop obj and reduce_res under
                 self.insert(-1, Pop())
+                self.insert(-1, Get.create(321987)) # Get back obj
             return i + 1
         else:
+            # Inject call
             if use_output_as_unpickle_result:
                 # the top of the stack should be the original unpickled value, but we can throw
                 # that away because we are replacing it with the result of calling eval:
@@ -501,6 +511,7 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Pop())
                 self.insert(-1, Get.create(memo_id))
             return -1
+
 
     insert_python_eval = insert_python
 
