@@ -12,7 +12,6 @@ else:
 
 from fickling.fickle import Interpreter, Pickled, Proto
 
-
 class AnalyzerMeta(type):
     _DEFAULT_INSTANCE: Optional["Analyzer"] = None
 
@@ -203,16 +202,50 @@ class NonStandardImports(Analysis):
                 )
 
 class NonStandardImportsML(Analysis):
+    CALLABLE_NEW_SAFE_MSG = "This class is callable but __call__ redirects to __new__ which just builds a new object."
+    BW_HOOKS_SAFE_MSG = "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
+    "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
+    "the attacker to execute arbitrary code, using `backward_hooks` is not needed. So this function can be "
+    "considered safe."
+
     def __init__(self):
         super().__init__()
         # TODO(boyan): actually make sure these whitelisted modules are safe
         self.whitelist = {
-            "numpy": ["dtype", "ndarray"],
-            "numpy.core.multiarray": ["_reconstruct"],
-            "torch": ["ByteStorage", "HalfStorage", "FloatStorage"],
-            "torch._utils": ["_rebuild_tensor_v2", "_rebuild_parameter"],
-            "torch.nn.modules.linear": ["Linear"],
-            "torch.storage": ["_load_from_bytes"],
+            "numpy": {
+                "dtype": "A static object that isn't callable.",
+                "ndarray": "A static object that isn't callable."
+            },
+            "numpy.core.multiarray": {
+                "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code `PyArray_NewFromDescr` constructor under the hood."
+            },
+            "torch": {
+                "ByteStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "DoubleStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "FloatStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "HalfStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "LongStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "IntStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "ShortStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "CharStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "BoolStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "BFloat16Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "ComplexDoubleStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "ComplexFloatStorage": self.CALLABLE_NEW_SAFE_MSG,
+                "QUInt8Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "QInt8Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "QInt32Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "QUInt4x2Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "QUInt2x4Storage": self.CALLABLE_NEW_SAFE_MSG,
+                "Size": self.CALLABLE_NEW_SAFE_MSG,
+            },
+            "torch._utils": {
+                "_rebuild_tensor": f"Builds a `torch.Tensor` object. {self.CALLABLE_NEW_SAFE_MSG}",
+                "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {self.CALLABLE_NEW_SAFE_MSG} {self.BW_HOOKS_SAFE_MSG}",   
+                "_rebuild_parameter": f"Builds a `torch.Parameter` object. {self.CALLABLE_NEW_SAFE_MSG} {self.BW_HOOKS_SAFE_MSG}"
+            },
+            "torch.nn.modules.linear": {"Linear": "TODO"},
+            "torch.storage": {"_load_from_bytes": "TODO"},
         }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
@@ -234,7 +267,7 @@ class NonStandardImportsML(Analysis):
                         if n.name not in self.whitelist[node.module]:
                             yield AnalysisResult(
                                 Severity.LIKELY_UNSAFE,
-                                f"`{shortened}` imports the non-standard Python function '{n.name}' that is not whitelisted as safe; "
+                                f"`{shortened}` imports the non-standard Python function `{n.name}` that is not whitelisted as safe; "
                                 "this could execute arbitrary code and is "
                                 "inherently unsafe",
                                 "NonStandardImportsML",
@@ -242,39 +275,58 @@ class NonStandardImportsML(Analysis):
                             )
 
 class UnsafeImportsML(Analysis):
-    UNSAFE_IMPORTS = {
-        "__builtin__": None, # None means ALL imports are unsafe
-        "__builtins__": None,
-        "builtins": None,
-        "os": None,
-        "posix": None,
-        "nt": None,
-        "subprocess": None,
-        "sys": None,
-        "builtins": None,
-        "socket": None,
+    UNSAFE_MODULES = {
+        "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
+        "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
+        "builtins": "This module contains dangerous functions that can execute arbitrary code.",
+        "os": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "posix": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "nt": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "subprocess": "This module contains functions that can run arbitrary executables and perform system operations.",
+        "sys": "This module can tamper with the python interpreter.",
+        "socket": "This module gives access to low-level socket interfaces and can initiate dangerous network connections.",
+        "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "urllib": "This module can use HTTP to leak local data and download malicious files.",
+        "urllib2": "This module can use HTTP to leak local data and download malicious files.",
+        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
+        "dill": "This module can load and execute arbitrary code.",
     }
-    
+
+    UNSAFE_IMPORTS = {
+        "torch": {"load":"This function can load untrusted files and code from arbitrary web sources."},
+        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
+        "operator": {
+            "getitem": "This function can lead to arbitrary code execution",
+            "attrgetter": "This function can lead to arbitrary code execution",
+            "itemgetter": "This function can lead to arbitrary code execution",
+            "methodcaller": "This function can lead to arbitrary code execution",
+        },
+    }
+
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
-            if node.module in self.UNSAFE_IMPORTS:
-                shortened, _ = context.shorten_code(node)
-                if self.UNSAFE_IMPORTS[node.module] is None:
+            shortened, _ = context.shorten_code(node)
+            all_modules = [node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".")+1)]
+            print(f"ALL MODULES for {shortened}", all_modules)
+            for module_name in all_modules:
+                if module_name in self.UNSAFE_MODULES:
+                    risk_info = self.UNSAFE_MODULES[module_name]
                     yield AnalysisResult(
-                        Severity.LIKELY_UNSAFE,
-                        f"`{shortened}` is suspicious. Importing from this module is indicative of a malicious pickle file",
+                        Severity.LIKELY_OVERTLY_MALICIOUS,
+                        f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
                         "UnsafeImportsML",
                         trigger=shortened,
-                    )
-                else:
-                    for n in node.names:
-                        if n.name in self.UNSAFE_IMPORTS[node.module]:
-                            yield AnalysisResult(
-                                Severity.LIKELY_UNSAFE,
-                                f"`{shortened}` is suspicious. Importing ``{n.name} is indicative of a malicious pickle file",
-                                "UnsafeImportsML",
-                                trigger=shortened,
-                            )
+                        )
+            if node.module in self.UNSAFE_IMPORTS:
+                for n in node.names:
+                    if n.name in self.UNSAFE_IMPORTS[node.module]:
+                        risk_info = self.UNSAFE_IMPORTS[node.module][n.name]
+                        yield AnalysisResult(
+                            Severity.LIKELY_OVERTLY_MALICIOUS,
+                            f"`{shortened}` imports ``{n.name} that is indicative of a malicious pickle file. {risk_info}",
+                            "UnsafeImportsML",
+                            trigger=shortened,
+                        )
             # NOTE(boyan): Special case with eval?
             # Copy pasted from pickled.unsafe_imports() original implementation
             elif "eval" in (n.name for n in node.names):
