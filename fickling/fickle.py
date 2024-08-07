@@ -432,6 +432,19 @@ class Pickled(OpcodeSequence):
                     res += self._encode_python_obj(item)
             res.append(List())
             return res
+        elif isinstance(obj, dict):
+            if len(obj) == 0:
+                res = [EmptyDict()]
+            else:
+                res = [Mark()]
+                for key, val in obj.items():
+                    res.append(ConstantOpcode.new(key)) # Assume key is constant
+                    if self._is_constant_type(val):
+                        res.append(ConstantOpcode.new(val))
+                    else:
+                        res += self._encode_python_obj(val)
+                res.append(Dict())
+            return res
         else:
             raise ValueError(f"Type {type(obj)} not supported")
 
