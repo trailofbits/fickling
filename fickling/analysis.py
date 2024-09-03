@@ -70,10 +70,11 @@ class Analyzer(metaclass=AnalyzerMeta):
 
 class Severity(Enum):
     LIKELY_SAFE = (0, "No Unsafe Operations Discovered")
-    SUSPICIOUS = (1, "Suspicious")
-    LIKELY_UNSAFE = (2, "Likely Unsafe")
-    LIKELY_OVERTLY_MALICIOUS = (3, "Likely Overtly Malicious")
-    OVERTLY_MALICIOUS = (4, "Overtly Malicious")
+    POSSIBLY_UNSAFE = (1, "Possibly Unsafe")
+    SUSPICIOUS = (2, "Suspicious")
+    LIKELY_UNSAFE = (3, "Likely Unsafe")
+    LIKELY_OVERTLY_MALICIOUS = (4, "Likely Overtly Malicious")
+    OVERTLY_MALICIOUS = (5, "Overtly Malicious")
 
     def __lt__(self, other):
         return isinstance(other, Severity) and self.value < other.value
@@ -201,195 +202,6 @@ class NonStandardImports(Analysis):
                     trigger=shortened,
                 )
 
-class NonStandardImportsML(Analysis):
-    CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
-    BW_HOOKS_SAFE_MSG = "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
-    "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
-    "the attacker to execute arbitrary code, using `backward_hooks` is not needed. So this function can be "
-    "considered safe."
-    ENUM_MSG = "A simple enumeration."
-    DATACLASS_MSG = "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
-    SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a code exec or `getattr` primitive. "
-                       "The class doesn't have security-sensitive parameters or attributes."
-    SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
-    BINDING_CLASS_MSG = "A binding class."
-
-    def __init__(self):
-        super().__init__()
-        # TODO(boyan): actually make sure these whitelisted modules are safe
-        self.whitelist = {
-            "numpy": {
-                "dtype": "A static object that isn't callable.",
-                "ndarray": "A static object that isn't callable."
-            },
-            "numpy.core.multiarray": {
-                "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code `PyArray_NewFromDescr` constructor under the hood."
-            },
-            "torch": {
-                "ByteStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "DoubleStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "FloatStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "HalfStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "LongStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "IntStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "ShortStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "CharStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "BoolStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "BFloat16Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "ComplexDoubleStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "ComplexFloatStorage": self.CALLABLE_NEW_SAFE_MSG,
-                "QUInt8Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "QInt8Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "QInt32Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "QUInt4x2Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "QUInt2x4Storage": self.CALLABLE_NEW_SAFE_MSG,
-                "Size": self.CALLABLE_NEW_SAFE_MSG,
-                "device": self.CALLABLE_NEW_SAFE_MSG,
-                "Tensor": self.CALLABLE_NEW_SAFE_MSG,
-                "bfloat16": self.SIMPLE_CLASS_MSG,
-                "float16": self.SIMPLE_CLASS_MSG,
-            },
-            "torch._tensor": {
-                "_rebuild_from_type_v2": f"This function accepts another function as argument and calls it on the rest of the arguments. "
-                                          "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
-                                          "returned object using the last argument. This function thus doesn't do anything that couldn't b already achieved using the "
-                                          "REDUCE and BUILD opcodes directly.",
-            },
-            "torch._utils": {
-                "_rebuild_tensor": f"Builds a `torch.Tensor` object. {self.CALLABLE_NEW_SAFE_MSG}",
-                "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {self.CALLABLE_NEW_SAFE_MSG} {self.BW_HOOKS_SAFE_MSG}",   
-                "_rebuild_parameter": f"Builds a `torch.Parameter` object. {self.CALLABLE_NEW_SAFE_MSG} {self.BW_HOOKS_SAFE_MSG}"
-            },
-            "transformers.training_args": {
-                "TrainingArguments": "TODO: maybe not safe? See push to hub",
-                "OptimizerNames": self.ENUM_MSG,
-                "CustomTrainingArguments": "TODO",
-            },
-            "transformers.training_args_seq2seq": {
-                "Seq2SeqTrainingArguments": "TODO, a subclass of transformers.TrainingArgs",
-            },
-            "transformers.deepspeed": {
-                "HfTrainerDeepSpeedConfig": "Imported from `transformers.integrations.deepspeed`",
-                "HfDeepSpeedConfig": "Imported from `transformers.integrations.deepspeed`",
-            },
-            "transformers.integrations.deepspeed": {
-                "HfTrainerDeepSpeedConfig": "A subclass of the safe `accelerate.utils.deepspeed.HfDeepSpeedConfig`, with more fields.",
-                "HfDeepSpeedConfig": "A renamed import of the safe `accelerate.utils.deepspeed.HfDeepSpeedConfig` or python `object`.",    
-            },
-            "transformers.trainer_pt_utils": {
-                "AcceleratorConfig": self.DATACLASS_MSG,
-            },
-            "transformers.trainer_utils": {
-                "IntervalStrategy": self.ENUM_MSG,
-                "SchedulerType": self.ENUM_MSG,
-                "HubStrategy": self.ENUM_MSG,
-                "EvaluationStrategy": self.ENUM_MSG,
-            },
-            "simpletransformers.config.model_args": {
-                "Seq2SeqArgs": self.DATACLASS_MSG,
-                "NERArgs": self.DATACLASS_MSG,
-                "ClassificationArgs": self.DATACLASS_MSG,
-                "QuestionAnsweringArgs": self.DATACLASS_MSG,
-                "T5Args": self.DATACLASS_MSG,
-                "GenerationArgs": self.DATACLASS_MSG,
-                "LanguageModelingArgs": self.DATACLASS_MSG,
-                "RetrievalArgs": self.DATACLASS_MSG,
-                "MultiLabelClassificationArgs": self.DATACLASS_MSG,
-            },
-            "accelerate.state": {
-                "PartialState": "A complex class that can not be used as a dangerous primitive. It's initialisation code "
-                                "accepts the init_method kwarg for distributed training, but it can't be exploited as it needs "
-                                f"to point to a node that has been initialised by the user. {self.CALLABLE_NEW_SAFE_MSG}"
-            },
-            "accelerate.utils.deepspeed": {
-                "HfDeepSpeedConfig": "A wrapper class for a nested dictionnary. The class could be used to call a `get()` method through `get_value()` on an arbitrary object passed to the constructor. "
-                                     "However, the class constructor enforces a type check of the object and forces it to be a dict or a filepath. So this can't be exploited in practice to become a "
-                                     "`getattr` or similar primitive.",
-            },
-            "accelerate.utils.dataclasses": {
-                "DistributedType": self.ENUM_MSG,
-                "DeepSpeedPlugin": self.ENUM_MSG,
-            },
-            "torch.nn.modules.linear": {
-                "Linear": self.SIMPLE_CLASS_MSG,
-            },
-            "torch.storage": {
-                "_load_from_bytes": "TODO: This function calls `torch.load()` which is unsafe as using a string argument would "
-                                    "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-                                    "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-                                    "a remote URL. Note that supplying a pickle opcode bytestring as argument to this function also causes the "
-                                    "underlying `torch.load()` call to unpickle that bytestring, so this is safe only if restrictions on pickle "
-                                    "(such as Fickling's hooks) have been set properly.",
-            },
-            "_io": {"BytesIO": self.SIMPLE_CLASS_MSG},
-            "_codecs": {"encode": self.SIMPLE_FUNCTION_MSG},
-            "collections": {
-                "OrderedDict": self.SIMPLE_CLASS_MSG,
-                "defaultdict": self.SIMPLE_CLASS_MSG,
-            },
-            "argparse": {
-                "Namespace": self.SIMPLE_CLASS_MSG,
-            },
-            "llava.train.train": {
-                "TrainingArguments": "TODO. Subclass of Tranformers.TrainingArguments",
-            },
-            "tokenizers": {
-                "Tokenizer": "A binding for the class implemented in Rust at https://github.com/huggingface/tokenizers/blob/main/bindings/python/src/tokenizer.rs. "
-                             "While the `Tokenizer.from_pretrained()` is dangerous and could lead to arbitrary code execution, it can not be reached as the Rust constructor "
-                             "only accepts one positional argument, and no keyword arguments such as `name_or_path`.",
-                "AddedToken": self.BINDING_CLASS_MSG,
-            },
-            "tokenizers.models": {
-                "Model": f"{self.BINDING_CLASS_MSG} This class can not be constructed directly from Python.",
-            },
-            "transformers.models.bert.tokenization_bert_fast": {
-                "BertTokenizerFast": "This class only loads a local tokenizer. The keyword argument `name_or_path` is ignored and thus can not be used to load a third "
-                                     "party Tokenizer from the hub, which would lead to code execution",
-            },
-            "trl.trainer.sft_config": {
-                "SFTConfig": "TODO. Subclass of transformers.TrainingArguments",
-            },
-            "FlagEmbedding.baai_general_embedding.finetune.arguments": {
-                "RetrieverTrainingArguments": "TODO. Just tranformers.TrainingArguments",
-            },
-            "h4.training.configs.sft_config": {
-                "SFTConfig": "TODO: where is this lib???",
-            },
-            "h4.training.config": {
-                "DPOTrainingArguments": "TODO",
-                "TrainingArguments": "TODO",
-            },
-            "alignment.configs": {
-                "SFTConfig": "TODO Same as `trl.SFTConfig` which is a derives from transformers.TrainingArgs",
-            },
-        }
-
-    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
-        for node in context.pickled.properties.imports:
-            shortened, already_reported = context.shorten_code(node)
-            if not already_reported:
-                if node.module not in self.whitelist:
-                    yield AnalysisResult(
-                        Severity.LIKELY_UNSAFE,
-                        f"`{shortened}` imports a Python module outside of "
-                        "the standard library that is not whitelisted; "
-                        "this could execute arbitrary code and is "
-                        "inherently unsafe",
-                        "NonStandardImportsML",
-                        trigger=shortened,
-                    )
-                else:
-                    for n in node.names:
-                        if n.name not in self.whitelist[node.module]:
-                            yield AnalysisResult(
-                                Severity.LIKELY_UNSAFE,
-                                f"`{shortened}` imports the non-standard Python function `{n.name}` that is not whitelisted as safe; "
-                                "this could execute arbitrary code and is "
-                                "inherently unsafe",
-                                "NonStandardImportsML",
-                                trigger=shortened,
-                            )
-
 class UnsafeImportsML(Analysis):
     UNSAFE_MODULES = {
         "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
@@ -417,6 +229,14 @@ class UnsafeImportsML(Analysis):
             "attrgetter": "This function can lead to arbitrary code execution",
             "itemgetter": "This function can lead to arbitrary code execution",
             "methodcaller": "This function can lead to arbitrary code execution",
+        },
+        "torch.storage": {
+            "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
+                                "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
+                                "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
+                                "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+                                "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+                                "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
         },
     }
 
@@ -549,12 +369,12 @@ class AnalysisResults:
                 detailed["AnalysisResult"][result.analysis_name] = result.trigger
         return dict(detailed)
 
-    def to_string(self, verbosity: Severity = Severity.SUSPICIOUS):
+    def to_string(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         return "\n".join(str(r) for r in self.results if verbosity <= r.severity)
 
     __str__ = to_string
 
-    def to_dict(self, verbosity: Severity = Severity.SUSPICIOUS):
+    def to_dict(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         analysis_message = self.to_string(verbosity)
         severity_data = {
             "severity": self.severity.name,
@@ -573,7 +393,7 @@ class AnalysisResults:
 def check_safety(
     pickled: Pickled,
     analyzer: Optional[Analyzer] = None,
-    verbosity: Severity = Severity.SUSPICIOUS,
+    verbosity: Severity = Severity.POSSIBLY_UNSAFE,
     json_output_path: Optional[str] = None,
 ) -> AnalysisResults:
     if analyzer is None:
