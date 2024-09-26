@@ -102,6 +102,17 @@ class TestInterpreter(TestCase):
         )
         self.assertEqual(1234, get_result(pickled))
 
+    def test_inst(self):
+        pickled = Pickled(
+            [
+                fpickle.Mark(),
+                fpickle.Unicode("1234"),
+                fpickle.Inst.create("__builtins__", "int"),
+                fpickle.Stop(),
+            ]
+        )
+        self.assertEqual(1234, get_result(pickled))
+
     def test_dumps(self):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)

@@ -1123,7 +1123,7 @@ class Inst(StackSliceOpcode):
                 alias = ast.alias(classname)
             interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         args = ast.Tuple(tuple(stack_slice))
-        call = ast.Call(func, list(args.elts), [])
+        call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
