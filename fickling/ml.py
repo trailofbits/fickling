@@ -52,7 +52,7 @@ ML_ALLOWLIST = {
     "torch._tensor": {
         "_rebuild_from_type_v2": f"This function accepts another function as argument and calls it on the rest of the arguments. "
                                     "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
-                                    "returned object using the last argument. This function thus doesn't do anything that couldn't b already achieved using the "
+                                    "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
                                     "REDUCE and BUILD opcodes directly.",
     },
     "torch._utils": {
@@ -153,6 +153,10 @@ ML_ALLOWLIST = {
     },
     "alignment.configs": {
         "SFTConfig": "TODO Same as `trl.SFTConfig` which is a derives from transformers.TrainingArgs",
+    },
+    "copyreg": {
+        "_reconstructor": "This function is used to rebuild instances of extension types written in C. "
+                          "Given a class object and instanciation arguments, it creates a new class instance calling `__new__` then `_init_`"
     },
 }
 
