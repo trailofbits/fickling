@@ -18,17 +18,36 @@ class Payload:
         return (os.system, ("echo 'I should have been stopped by the hook'",))
 
 class OuterPayload:
-    def __init__(self):
-        self.b = 2
+    def __init__(self, data):
+        self.data = data
     
     def __reduce__(self): 
-        return (pickle.loads, (pickle.dumps(Payload()),))
+        return (pickle.loads, (self.data,))
 
 
 class TestUnpickler(unittest.TestCase):
     def setUp(self):
+        # Create bad pickle files before hooking the pickle module because the 
+        # nested bad file uses the pickle functions.
+        with open("simple_unsafe.pickle", "wb") as f:
+            pickle.dump(Payload(), f)
+        with open("nested_unsafe.pickle", "wb") as f:
+            inner = pickle.dumps(Payload())
+            pickle.dump(OuterPayload(inner), f)
+        with open("allowed_unsafe.pickle", "wb") as f:
+            inner = pickle.dumps(numpy.dtype(">i4"))
+            pickle.dump(OuterPayload(inner), f)
+
         # Set up global fickling hook using unpickler
-        hook.restrict_to_ml_models()
+        hook.restrict_to_ml_models(also_allow=["pickle.loads", "_pickle.loads"])
+
+    def tearDown(self):
+        # Remove fickling hooks
+        hook.remove_hook()
+        # Clean up files
+        for filename in ["simple_unsafe.pickle", "nested_unsafe.pickle", "allowed_unsafe.pickle"]:
+            if os.path.exists(filename):
+                os.remove(filename)
 
     def test_safe_pickle(self):
         # Fickling can check a pickle file for safety prior to running it
@@ -49,14 +68,8 @@ class TestUnpickler(unittest.TestCase):
         self.assertEqual(loaded_data, test_list)
 
     def test_simple_unsafe_pickle(self):
-        payload = Payload()
-
-        # Save the payload in a pickle file
-        with open("unsafe.pickle", "wb") as f:
-            pickle.dump(payload, f)
-
         try:
-            with open("unsafe.pickle", "rb") as f:
+            with open("simple_unsafe.pickle", "rb") as f:
                 pickle.load(f)
                 self.fail("Didn't detect unsafe pickle")
         except Exception as e:
@@ -64,19 +77,11 @@ class TestUnpickler(unittest.TestCase):
                 pass
             else:
                 self.fail(e)
-
-        if os.path.exists("unsafe.pickle"):
-            os.remove("unsafe.pickle")
 
     def test_nested_unsafe_pickle(self):
         """This makes sure it catches malicious code in a pickle-inside-pickle situation"""
-
-        # Save the payload in a pickle file
-        with open("unsafe.pickle", "wb") as f:
-            pickle.dump(OuterPayload(), f)
-
         try:
-            with open("unsafe.pickle", "rb") as f:
+            with open("nested_unsafe.pickle", "rb") as f:
                 pickle.load(f)
                 self.fail("Didn't detect unsafe pickle")
         except Exception as e:
@@ -85,5 +90,11 @@ class TestUnpickler(unittest.TestCase):
             else:
                 self.fail(e)
 
-        if os.path.exists("unsafe.pickle"):
-            os.remove("unsafe.pickle")
+    def test_allowed_unsafe_pickle(self):
+        """This checks whether allowing additional imports works in the custom Unpickler"""
+
+        with open("allowed_unsafe.pickle", "rb") as f:
+            a = pickle.load(f)
+
+        # Assert that the loaded data matches the original data
+        self.assertIsInstance(a, numpy.dtype)

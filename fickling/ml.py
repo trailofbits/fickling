@@ -1,5 +1,5 @@
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
-from typing import Iterator
+from typing import Iterator, List
 import pickle
 from fickling.exception import UnsafeFileError
 
@@ -195,17 +195,29 @@ class MLAllowlist(Analysis):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
+    def __init__(self, *args, also_allow: List[str]=None, **kwargs):
+        self.allowlist = dict(ML_ALLOWLIST)
+        super().__init__(*args, **kwargs)
+        # Add additional allowed imports
+        if also_allow:
+            for allowed_import in also_allow:
+                module, name = allowed_import.rsplit(".", 1)
+                if module in self.allowlist:
+                    self.allowlist[module][name] = "Import explicitly allowed by user"
+                else:
+                    self.allowlist[module] = {name: "Import explicitly allowed by user"}
+
     def find_class(self, module, name):
         # Check whether import is allowed
         import_str = f"{module}.{name}"
-        if module not in ML_ALLOWLIST:
+        if module not in self.allowlist:
             raise UnsafeFileError(
                 "<file>",
                 f"`{import_str}` imports a Python module outside of "
                 "the standard library that is not whitelisted; "
                 "this could execute arbitrary code and should be considered unsafe"
             )
-        elif name not in ML_ALLOWLIST[module]:
+        elif name not in self.allowlist[module]:
             raise UnsafeFileError(
                 "<file>",
                 f"`{import_str}` imports the non-standard Python function `{name}` that is not whitelisted as safe; "
