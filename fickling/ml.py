@@ -1,5 +1,7 @@
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from typing import Iterator
+import pickle
+from fickling.exception import UnsafeFileError
 
 CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
 BW_HOOKS_SAFE_MSG = "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
@@ -190,3 +192,23 @@ class MLAllowlist(Analysis):
                                 "MLAllowlist",
                                 trigger=shortened,
                             )
+
+
+class FicklingMLUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        # Check whether import is allowed
+        import_str = f"{module}.{name}"
+        if module not in ML_ALLOWLIST:
+            raise UnsafeFileError(
+                "<file>",
+                f"`{import_str}` imports a Python module outside of "
+                "the standard library that is not whitelisted; "
+                "this could execute arbitrary code and should be considered unsafe"
+            )
+        elif name not in ML_ALLOWLIST[module]:
+            raise UnsafeFileError(
+                "<file>",
+                f"`{import_str}` imports the non-standard Python function `{name}` that is not whitelisted as safe; "
+                "this could execute arbitrary code and should be considered unsafe"
+            )
+        return super().find_class(module,name)

@@ -1,7 +1,7 @@
 # fmt: off
 from .loader import load #noqa
 from .context import check_safety #noqa
-from .hook import always_check_safety #noqa
+from .hook import always_check_safety, restrict_to_ml_models #noqa
 from .analysis import is_likely_safe # noqa
 # fmt: on
 
