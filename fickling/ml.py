@@ -57,6 +57,14 @@ ML_ALLOWLIST = {
                                     "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
                                     "REDUCE and BUILD opcodes directly.",
     },
+    "torch.storage": {
+        "_load_from_bytes": "First, this function calls `torch.load()` which is unsafe as using a string argument would "
+                            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
+                            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
+                            "a remote URL. Second, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+                            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+                            "However, this import can be considered safe when used with the Fickling unpickler because it also catches nested pickle-inside-pickle payloads.",
+    },
     "torch._utils": {
         "_rebuild_tensor": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG}",
         "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",   

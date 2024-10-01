@@ -18,11 +18,20 @@ class Payload:
         return (os.system, ("echo 'I should have been stopped by the hook'",))
 
 class OuterPayload:
+    """Payload to execute arbitrary pickle payload through pickle.loads"""
     def __init__(self, data):
         self.data = data
     
     def __reduce__(self): 
         return (pickle.loads, (self.data,))
+
+class Bypass:
+    """Payload to execute arbitrary pickle payload through torch.storage_load_from_bytes"""
+    def __init__(self, data):
+        self.data = data
+
+    def __reduce__(self):
+        return (torch.storage._load_from_bytes, (self.data,))
 
 
 class TestUnpickler(unittest.TestCase):
@@ -33,13 +42,13 @@ class TestUnpickler(unittest.TestCase):
             pickle.dump(Payload(), f)
         with open("nested_unsafe.pickle", "wb") as f:
             inner = pickle.dumps(Payload())
-            pickle.dump(OuterPayload(inner), f)
+            pickle.dump(OuterPayload(pickle.dumps(Bypass(inner))), f)
         with open("allowed_unsafe.pickle", "wb") as f:
             inner = pickle.dumps(numpy.dtype(">i4"))
             pickle.dump(OuterPayload(inner), f)
 
         # Set up global fickling hook using unpickler
-        hook.restrict_to_ml_models(also_allow=["pickle.loads", "_pickle.loads"])
+        hook.activate_safe_ml_environment(also_allow=["pickle.loads", "_pickle.loads"])
 
     def tearDown(self):
         # Remove fickling hooks
