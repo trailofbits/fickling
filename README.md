@@ -10,7 +10,7 @@ malicious pickle or pickle-based files, including PyTorch files.
 Fickling can be used both as a **python library** and a **CLI**.
 
 * [Installation](#installation)
-* [Security AI/ML environments](#securing-ai/ml-environments)
+* [Securing AI/ML environments](#securing-aiml-environments)
 * [Generic malicious file detection](#generic-malicious-file-detection)
 * [Advanced usage](#advanced-usage)
   * [Trace pickle execution](#trace-pickle-execution)
@@ -36,7 +36,7 @@ and `polyglot` modules, you should run:
 python -m pip install fickling[torch]
 ```
 
-## Securing AI/ML environments
+## Securing AI/ML environments
 
 Fickling can help securing AI/ML codebases by automatically scanning pickle files contained in 
 models. Fickling hooks the pickle module and verifies imports made when loading a model. It only
