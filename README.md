@@ -44,7 +44,7 @@ checks the imports against an allowlist of imports from ML libraries that are co
 
 To enable Fickling security checks simply run the following lines once in your process, before loading any AI/ML models:
 
-```bash
+```python
 import fickling
 # This sets global hooks on pickle
 fickling.hook.activate_safe_ml_environment()
@@ -52,13 +52,13 @@ fickling.hook.activate_safe_ml_environment()
 
 To remove the protection: 
 
-```bash
+```python
 fickling.hook.deactivate_safe_ml_environment()
 ```
 
 It is possible that the models you are using contain imports that aren't allowed by Fickling. If you still want to load the model, you can simply allow additional imports for your specific use-case with the `also_allow` argument:
 
-```bash
+```python
 fickling.hook.activate_safe_ml_environment(also_allow=[
     "some.import",
     "another.allowed.import",
