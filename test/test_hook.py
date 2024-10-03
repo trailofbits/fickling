@@ -9,13 +9,15 @@ import torch
 import fickling.hook as hook
 from fickling.exception import UnsafeFileError
 
-# Simple payload for tests
+
+# Simple payload for tests
 class Payload:
     def __init__(self):
         self.a = 1
 
     def __reduce__(self):
         return (os.system, ("echo 'I should have been stopped by the hook'",))
+
 
 class TestHook(unittest.TestCase):
     def setUp(self):

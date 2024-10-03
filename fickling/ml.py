@@ -1,6 +1,7 @@
-from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
-from typing import Iterator, List
 import pickle
+from typing import Iterator, List
+
+from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from fickling.exception import UnsafeFileError
 
 CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
@@ -18,14 +19,15 @@ BINDING_CLASS_MSG = "A binding class."
 # Allowlist for imports that can be considered safe when scanning a file
 # without actually loading it. This typically excludes imports that could
 # lead to pickle-inside-pickle calls because scanning-only scan not analyze
-# nested pickle payloads   
+# nested pickle payloads
 ML_ALLOWLIST = {
     "numpy": {
         "dtype": "A static object that isn't callable.",
         "ndarray": "A static object that isn't callable."
     },
     "numpy.core.multiarray": {
-        "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code `PyArray_NewFromDescr` constructor under the hood."
+        "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
+                        "`PyArray_NewFromDescr` constructor under the hood."
     },
     "torch": {
         "ByteStorage": CALLABLE_NEW_SAFE_MSG,
@@ -52,7 +54,7 @@ ML_ALLOWLIST = {
         "float16": SIMPLE_CLASS_MSG,
     },
     "torch._tensor": {
-        "_rebuild_from_type_v2": f"This function accepts another function as argument and calls it on the rest of the arguments. "
+        "_rebuild_from_type_v2": "This function accepts another function as argument and calls it on the rest of the arguments. "
                                     "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
                                     "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
                                     "REDUCE and BUILD opcodes directly.",
@@ -67,7 +69,7 @@ ML_ALLOWLIST = {
     },
     "torch._utils": {
         "_rebuild_tensor": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG}",
-        "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",   
+        "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",
         "_rebuild_parameter": f"Builds a `torch.Parameter` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}"
     },
     "transformers.training_args": {
@@ -84,7 +86,7 @@ ML_ALLOWLIST = {
     },
     "transformers.integrations.deepspeed": {
         "HfTrainerDeepSpeedConfig": "A subclass of the safe `accelerate.utils.deepspeed.HfDeepSpeedConfig`, with more fields.",
-        "HfDeepSpeedConfig": "A renamed import of the safe `accelerate.utils.deepspeed.HfDeepSpeedConfig` or python `object`.",    
+        "HfDeepSpeedConfig": "A renamed import of the safe `accelerate.utils.deepspeed.HfDeepSpeedConfig` or python `object`.",
     },
     "transformers.trainer_pt_utils": {
         "AcceleratorConfig": DATACLASS_MSG,

@@ -9,7 +9,8 @@ import torch
 import fickling.hook as hook
 from fickling.exception import UnsafeFileError
 
-# Simple payload for tests
+
+# Simple payload for tests
 class Payload:
     def __init__(self):
         self.a = 1
@@ -17,16 +18,20 @@ class Payload:
     def __reduce__(self):
         return (os.system, ("echo 'I should have been stopped by the hook'",))
 
+
 class OuterPayload:
     """Payload to execute arbitrary pickle payload through pickle.loads"""
+
     def __init__(self, data):
         self.data = data
-    
-    def __reduce__(self): 
+
+    def __reduce__(self):
         return (pickle.loads, (self.data,))
+
 
 class Bypass:
     """Payload to execute arbitrary pickle payload through torch.storage_load_from_bytes"""
+
     def __init__(self, data):
         self.data = data
 
@@ -36,8 +41,8 @@ class Bypass:
 
 class TestUnpickler(unittest.TestCase):
     def setUp(self):
-        # Create bad pickle files before hooking the pickle module because the 
-        # nested bad file uses the pickle functions.
+        # Create bad pickle files before hooking the pickle module because the
+        # nested bad file uses the pickle functions.
         with open("simple_unsafe.pickle", "wb") as f:
             pickle.dump(Payload(), f)
         with open("nested_unsafe.pickle", "wb") as f:

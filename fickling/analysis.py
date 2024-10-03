@@ -12,6 +12,7 @@ else:
 
 from fickling.fickle import Interpreter, Pickled, Proto
 
+
 class AnalyzerMeta(type):
     _DEFAULT_INSTANCE: Optional["Analyzer"] = None
 
@@ -202,6 +203,7 @@ class NonStandardImports(Analysis):
                     trigger=shortened,
                 )
 
+
 class UnsafeImportsML(Analysis):
     UNSAFE_MODULES = {
         "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
@@ -222,7 +224,9 @@ class UnsafeImportsML(Analysis):
     }
 
     UNSAFE_IMPORTS = {
-        "torch": {"load":"This function can load untrusted files and code from arbitrary web sources."},
+        "torch": {
+            "load": "This function can load untrusted files and code from arbitrary web sources."
+        },
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
         "operator": {
             "getitem": "This function can lead to arbitrary code execution",
@@ -232,18 +236,20 @@ class UnsafeImportsML(Analysis):
         },
         "torch.storage": {
             "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
-                                "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-                                "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-                                "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
-                                "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
-                                "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
+            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
+            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
+            "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+            "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
         },
     }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, _ = context.shorten_code(node)
-            all_modules = [node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".")+1)]
+            all_modules = [
+                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
+            ]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     risk_info = self.UNSAFE_MODULES[module_name]
@@ -252,7 +258,7 @@ class UnsafeImportsML(Analysis):
                         f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
                         "UnsafeImportsML",
                         trigger=shortened,
-                        )
+                    )
             if node.module in self.UNSAFE_IMPORTS:
                 for n in node.names:
                     if n.name in self.UNSAFE_IMPORTS[node.module]:
