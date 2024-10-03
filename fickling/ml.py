@@ -22,6 +22,14 @@ SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a
 SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
 BINDING_CLASS_MSG = "A binding class."
 
+TRANSFORMERS_TRAININGARGS_MSG = "A dataclass for model training parameters."
+                                "The `push_to_hub` field can lead to model uploads to public repositories and should "
+                                "be used with caution. Other than that no fields can not be used for arbitrary code execution."
+
+TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
+MAIN_IMPORT_MSG = "We consider this name safe to import from __main__ because it doesn't overlap "
+                  "with names of known pickle exploit primitives."
+
 # Allowlist for imports that can be considered safe when scanning a file
 # without actually loading it. This typically excludes imports that could
 # lead to pickle-inside-pickle calls because scanning-only scan not analyze
@@ -30,6 +38,7 @@ ML_ALLOWLIST = {
     "numpy": {
         "dtype": "A static object that isn't callable.",
         "ndarray": "A static object that isn't callable.",
+        "float64": BINDING_CLASS_MSG,
     },
     "numpy.core.multiarray": {
         "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
@@ -79,12 +88,11 @@ ML_ALLOWLIST = {
         "_rebuild_parameter": f"Builds a `torch.Parameter` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",
     },
     "transformers.training_args": {
-        "TrainingArguments": "TODO: maybe not safe? See push to hub",
+        "TrainingArguments": TRANSFORMERS_TRAININGARGS_MSG,
         "OptimizerNames": ENUM_MSG,
-        "CustomTrainingArguments": "TODO",
     },
     "transformers.training_args_seq2seq": {
-        "Seq2SeqTrainingArguments": "TODO, a subclass of transformers.TrainingArgs",
+        "Seq2SeqTrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
     "transformers.deepspeed": {
         "HfTrainerDeepSpeedConfig": "Imported from `transformers.integrations.deepspeed`",
@@ -102,6 +110,7 @@ ML_ALLOWLIST = {
         "SchedulerType": ENUM_MSG,
         "HubStrategy": ENUM_MSG,
         "EvaluationStrategy": ENUM_MSG,
+        "FSDPOption": ENUM_MSG,
     },
     "simpletransformers.config.model_args": {
         "Seq2SeqArgs": DATACLASS_MSG,
@@ -141,7 +150,7 @@ ML_ALLOWLIST = {
         "Namespace": SIMPLE_CLASS_MSG,
     },
     "llava.train.train": {
-        "TrainingArguments": "TODO. Subclass of tranformers.TrainingArguments",
+        "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
     "tokenizers": {
         "Tokenizer": "A binding for the class implemented in Rust at https://github.com/huggingface/tokenizers/blob/main/bindings/python/src/tokenizer.rs. "
@@ -157,24 +166,34 @@ ML_ALLOWLIST = {
         "party Tokenizer from the hub, which would lead to code execution",
     },
     "trl.trainer.sft_config": {
-        "SFTConfig": "TODO. Subclass of transformers.TrainingArguments",
+        "SFTConfig": TRAININGARGS_SUBCLASS_MSG,
     },
     "FlagEmbedding.baai_general_embedding.finetune.arguments": {
-        "RetrieverTrainingArguments": "TODO. Just tranformers.TrainingArguments",
-    },
-    "h4.training.configs.sft_config": {
-        "SFTConfig": "TODO: where is this lib???",
+        "RetrieverTrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
     "h4.training.config": {
-        "DPOTrainingArguments": "TODO",
-        "TrainingArguments": "TODO",
+        "DPOTrainingArguments": TRAININGARGS_SUBCLASS_MSG,
+        "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
     "alignment.configs": {
-        "SFTConfig": "TODO Same as `trl.SFTConfig` which is a derives from transformers.TrainingArgs",
+        "SFTConfig": f"Same as `trl.SFTConfig`. {TRAININGARGS_SUBCLASS_MSG}",
     },
     "copyreg": {
         "_reconstructor": "This function is used to rebuild instances of extension types written in C. "
         "Given a class object and instanciation arguments, it creates a new class instance calling `__new__` then `_init_`"
+    },
+    "__main__": {
+        "TrainingArguments": MAIN_IMPORT_MSG,
+        "DistillTrainingArguments": MAIN_IMPORT_MSG,
+    },
+    "sklearn.preprocessing._label": {
+        "LabelEncoder": SIMPLE_CLASS_MSG,
+    },
+    "fastchat.train.train": {
+        "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
+    },
+    "llava.train.train_dpo_ori": {
+        "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
 }
 
@@ -203,7 +222,7 @@ class MLAllowlist(Analysis):
                         if n.name not in self.allowlist[node.module]:
                             yield AnalysisResult(
                                 Severity.LIKELY_UNSAFE,
-                                f"`{shortened}` imports the non-standard Python function `{n.name}` that is not whitelisted as safe; "
+                                f"`{shortened}` imports the non-standard `{n.name}` that is not whitelisted as safe; "
                                 "this could execute arbitrary code and is "
                                 "inherently unsafe",
                                 "MLAllowlist",
