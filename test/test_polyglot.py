@@ -5,10 +5,9 @@ import tarfile
 import unittest
 import zipfile
 
+import numpy as np
 import torch
 import torchvision.models as models
-
-import numpy as np
 
 import fickling.polyglot as polyglot
 
@@ -121,7 +120,7 @@ class TestPolyglotModule(unittest.TestCase):
         formats = polyglot.identify_pytorch_file_format(self.filename_v1_3)
         self.assertEqual(formats, ["PyTorch v1.3"])
 
-    # NOTE(boyan): this test doesn't pass but it should. This needs to be fixed.
+    # NOTE(boyan): this test doesn't pass but it should. This needs to be fixed.
     # def test_legacy_pickle(self):
     #     formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
     #     self.assertEqual(formats, ["PyTorch v0.1.10"])
