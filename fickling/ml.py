@@ -133,7 +133,7 @@ ML_ALLOWLIST = {
         "Namespace": SIMPLE_CLASS_MSG,
     },
     "llava.train.train": {
-        "TrainingArguments": "TODO. Subclass of Tranformers.TrainingArguments",
+        "TrainingArguments": "TODO. Subclass of tranformers.TrainingArguments",
     },
     "tokenizers": {
         "Tokenizer": "A binding for the class implemented in Rust at https://github.com/huggingface/tokenizers/blob/main/bindings/python/src/tokenizer.rs. "
