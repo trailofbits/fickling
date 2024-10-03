@@ -4,14 +4,20 @@ from typing import Iterator, List
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from fickling.exception import UnsafeFileError
 
-CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
-BW_HOOKS_SAFE_MSG = "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
+CALLABLE_NEW_SAFE_MSG = (
+    "This class is callable but the call redirects to __new__ which just builds a new object."
+)
+BW_HOOKS_SAFE_MSG = (
+    "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
+)
 "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
 "the attacker to execute arbitrary code, using `backward_hooks` is not needed. So this function can be "
 "considered safe."
 ENUM_MSG = "A simple enumeration."
-DATACLASS_MSG = "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
-SIMPLE_CLASS_MSG =  "A simple class that is not callable and can not be used as a code exec or `getattr` primitive. "
+DATACLASS_MSG = (
+    "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
+)
+SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a code exec or `getattr` primitive. "
 "The class doesn't have security-sensitive parameters or attributes."
 SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
 BINDING_CLASS_MSG = "A binding class."
@@ -23,11 +29,11 @@ BINDING_CLASS_MSG = "A binding class."
 ML_ALLOWLIST = {
     "numpy": {
         "dtype": "A static object that isn't callable.",
-        "ndarray": "A static object that isn't callable."
+        "ndarray": "A static object that isn't callable.",
     },
     "numpy.core.multiarray": {
         "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
-                        "`PyArray_NewFromDescr` constructor under the hood."
+        "`PyArray_NewFromDescr` constructor under the hood."
     },
     "torch": {
         "ByteStorage": CALLABLE_NEW_SAFE_MSG,
@@ -55,22 +61,22 @@ ML_ALLOWLIST = {
     },
     "torch._tensor": {
         "_rebuild_from_type_v2": "This function accepts another function as argument and calls it on the rest of the arguments. "
-                                    "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
-                                    "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
-                                    "REDUCE and BUILD opcodes directly.",
+        "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
+        "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
+        "REDUCE and BUILD opcodes directly.",
     },
     "torch.storage": {
         "_load_from_bytes": "First, this function calls `torch.load()` which is unsafe as using a string argument would "
-                            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-                            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-                            "a remote URL. Second, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
-                            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
-                            "However, this import can be considered safe when used with the Fickling unpickler because it also catches nested pickle-inside-pickle payloads.",
+        "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
+        "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
+        "a remote URL. Second, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+        "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+        "However, this import can be considered safe when used with the Fickling unpickler because it also catches nested pickle-inside-pickle payloads.",
     },
     "torch._utils": {
         "_rebuild_tensor": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG}",
         "_rebuild_tensor_v2": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",
-        "_rebuild_parameter": f"Builds a `torch.Parameter` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}"
+        "_rebuild_parameter": f"Builds a `torch.Parameter` object. {CALLABLE_NEW_SAFE_MSG} {BW_HOOKS_SAFE_MSG}",
     },
     "transformers.training_args": {
         "TrainingArguments": "TODO: maybe not safe? See push to hub",
@@ -110,13 +116,13 @@ ML_ALLOWLIST = {
     },
     "accelerate.state": {
         "PartialState": "A complex class that can not be used as a dangerous primitive. It's initialisation code "
-                        "accepts the init_method kwarg for distributed training, but it can't be exploited as it needs "
-                        f"to point to a node that has been initialised by the user. {CALLABLE_NEW_SAFE_MSG}"
+        "accepts the init_method kwarg for distributed training, but it can't be exploited as it needs "
+        f"to point to a node that has been initialised by the user. {CALLABLE_NEW_SAFE_MSG}"
     },
     "accelerate.utils.deepspeed": {
         "HfDeepSpeedConfig": "A wrapper class for a nested dictionnary. The class could be used to call a `get()` method through `get_value()` on an arbitrary object passed to the constructor. "
-                                "However, the class constructor enforces a type check of the object and forces it to be a dict or a filepath. So this can't be exploited in practice to become a "
-                                "`getattr` or similar primitive.",
+        "However, the class constructor enforces a type check of the object and forces it to be a dict or a filepath. So this can't be exploited in practice to become a "
+        "`getattr` or similar primitive.",
     },
     "accelerate.utils.dataclasses": {
         "DistributedType": ENUM_MSG,
@@ -139,8 +145,8 @@ ML_ALLOWLIST = {
     },
     "tokenizers": {
         "Tokenizer": "A binding for the class implemented in Rust at https://github.com/huggingface/tokenizers/blob/main/bindings/python/src/tokenizer.rs. "
-                        "While the `Tokenizer.from_pretrained()` is dangerous and could lead to arbitrary code execution, it can not be reached as the Rust constructor "
-                        "only accepts one positional argument, and no keyword arguments such as `name_or_path`.",
+        "While the `Tokenizer.from_pretrained()` is dangerous and could lead to arbitrary code execution, it can not be reached as the Rust constructor "
+        "only accepts one positional argument, and no keyword arguments such as `name_or_path`.",
         "AddedToken": BINDING_CLASS_MSG,
     },
     "tokenizers.models": {
@@ -148,7 +154,7 @@ ML_ALLOWLIST = {
     },
     "transformers.models.bert.tokenization_bert_fast": {
         "BertTokenizerFast": "This class only loads a local tokenizer. The keyword argument `name_or_path` is ignored and thus can not be used to load a third "
-                                "party Tokenizer from the hub, which would lead to code execution",
+        "party Tokenizer from the hub, which would lead to code execution",
     },
     "trl.trainer.sft_config": {
         "SFTConfig": "TODO. Subclass of transformers.TrainingArguments",
@@ -168,9 +174,10 @@ ML_ALLOWLIST = {
     },
     "copyreg": {
         "_reconstructor": "This function is used to rebuild instances of extension types written in C. "
-                          "Given a class object and instanciation arguments, it creates a new class instance calling `__new__` then `_init_`"
+        "Given a class object and instanciation arguments, it creates a new class instance calling `__new__` then `_init_`"
     },
 }
+
 
 class MLAllowlist(Analysis):
     def __init__(self):
@@ -205,10 +212,10 @@ class MLAllowlist(Analysis):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
-    def __init__(self, *args, also_allow: List[str]=None, **kwargs):
+    def __init__(self, *args, also_allow: List[str] = None, **kwargs):
         self.allowlist = dict(ML_ALLOWLIST)
         super().__init__(*args, **kwargs)
-        # Add additional allowed imports
+        # Add additional allowed imports
         if also_allow:
             for allowed_import in also_allow:
                 module, name = allowed_import.rsplit(".", 1)
@@ -225,12 +232,12 @@ class FicklingMLUnpickler(pickle.Unpickler):
                 "<file>",
                 f"`{import_str}` imports a Python module outside of "
                 "the standard library that is not whitelisted; "
-                "this could execute arbitrary code and should be considered unsafe"
+                "this could execute arbitrary code and should be considered unsafe",
             )
         elif name not in self.allowlist[module]:
             raise UnsafeFileError(
                 "<file>",
                 f"`{import_str}` imports the non-standard Python function `{name}` that is not whitelisted as safe; "
-                "this could execute arbitrary code and should be considered unsafe"
+                "this could execute arbitrary code and should be considered unsafe",
             )
-        return super().find_class(module,name)
+        return super().find_class(module, name)
