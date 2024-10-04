@@ -10,7 +10,8 @@ malicious pickle or pickle-based files, including PyTorch files.
 Fickling can be used both as a **python library** and a **CLI**.
 
 * [Installation](#installation)
-* [Malicious file detection](#malicious-file-detection)
+* [Securing AI/ML environments](#securing-aiml-environments)
+* [Generic malicious file detection](#generic-malicious-file-detection)
 * [Advanced usage](#advanced-usage)
   * [Trace pickle execution](#trace-pickle-execution)
   * [Pickle code injection](#pickle-code-injection)
@@ -35,7 +36,38 @@ and `polyglot` modules, you should run:
 python -m pip install fickling[torch]
 ```
 
-## Malicious file detection
+## Securing AI/ML environments
+
+Fickling can help securing AI/ML codebases by automatically scanning pickle files contained in 
+models. Fickling hooks the pickle module and verifies imports made when loading a model. It only
+checks the imports against an allowlist of imports from ML libraries that are considered safe, and blocks files that contain other imports.
+
+To enable Fickling security checks simply run the following lines once in your process, before loading any AI/ML models:
+
+```python
+import fickling
+# This sets global hooks on pickle
+fickling.hook.activate_safe_ml_environment()
+```
+
+To remove the protection: 
+
+```python
+fickling.hook.deactivate_safe_ml_environment()
+```
+
+It is possible that the models you are using contain imports that aren't allowed by Fickling. If you still want to load the model, you can simply allow additional imports for your specific use-case with the `also_allow` argument:
+
+```python
+fickling.hook.activate_safe_ml_environment(also_allow=[
+    "some.import",
+    "another.allowed.import",
+])
+```
+
+**Important**: You should always make sure that manually added imports are actually safe and can not enable attackers to execute arbitrary code. If you are unsure on how to do that, you can open an issue on Fickling's Github repository that indicates the imports/models in question, and our team can review them and include them in the allow list if possible.
+
+## Generic malicious file detection
 
 Fickling can seamlessly be integrated into your codebase to detect and halt the loading of malicious
 files at runtime.

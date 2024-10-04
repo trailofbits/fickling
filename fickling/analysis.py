@@ -3,14 +3,14 @@ import sys
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from enum import Enum
-from typing import Dict, Iterable, Iterator, Optional, Set, Tuple, Type
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type
 
 if sys.version_info < (3, 9):
     from astunparse import unparse
 else:
     from ast import unparse
 
-from fickling.fickle import Interpreter, List, Pickled, Proto
+from fickling.fickle import Interpreter, Pickled, Proto
 
 
 class AnalyzerMeta(type):
@@ -71,10 +71,11 @@ class Analyzer(metaclass=AnalyzerMeta):
 
 class Severity(Enum):
     LIKELY_SAFE = (0, "No Unsafe Operations Discovered")
-    SUSPICIOUS = (1, "Suspicious")
-    LIKELY_UNSAFE = (2, "Likely Unsafe")
-    LIKELY_OVERTLY_MALICIOUS = (3, "Likely Overtly Malicious")
-    OVERTLY_MALICIOUS = (4, "Overtly Malicious")
+    POSSIBLY_UNSAFE = (1, "Possibly Unsafe")
+    SUSPICIOUS = (2, "Suspicious")
+    LIKELY_UNSAFE = (3, "Likely Unsafe")
+    LIKELY_OVERTLY_MALICIOUS = (4, "Likely Overtly Malicious")
+    OVERTLY_MALICIOUS = (5, "Overtly Malicious")
 
     def __lt__(self, other):
         return isinstance(other, Severity) and self.value < other.value
@@ -203,6 +204,93 @@ class NonStandardImports(Analysis):
                 )
 
 
+class UnsafeImportsML(Analysis):
+    UNSAFE_MODULES = {
+        "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
+        "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
+        "builtins": "This module contains dangerous functions that can execute arbitrary code.",
+        "os": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "posix": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "nt": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "subprocess": "This module contains functions that can run arbitrary executables and perform system operations.",
+        "sys": "This module can tamper with the python interpreter.",
+        "socket": "This module gives access to low-level socket interfaces and can initiate dangerous network connections.",
+        "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "urllib": "This module can use HTTP to leak local data and download malicious files.",
+        "urllib2": "This module can use HTTP to leak local data and download malicious files.",
+        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
+        "dill": "This module can load and execute arbitrary code.",
+        "code": "This module can compile and execute arbitrary code.",
+    }
+
+    UNSAFE_IMPORTS = {
+        "torch": {
+            "load": "This function can load untrusted files and code from arbitrary web sources."
+        },
+        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
+        "operator": {
+            "getitem": "This function can lead to arbitrary code execution",
+            "attrgetter": "This function can lead to arbitrary code execution",
+            "itemgetter": "This function can lead to arbitrary code execution",
+            "methodcaller": "This function can lead to arbitrary code execution",
+        },
+        "torch.storage": {
+            "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
+            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
+            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
+            "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+            "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
+        },
+    }
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.imports:
+            shortened, _ = context.shorten_code(node)
+            all_modules = [
+                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
+            ]
+            for module_name in all_modules:
+                if module_name in self.UNSAFE_MODULES:
+                    risk_info = self.UNSAFE_MODULES[module_name]
+                    yield AnalysisResult(
+                        Severity.LIKELY_OVERTLY_MALICIOUS,
+                        f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
+                        "UnsafeImportsML",
+                        trigger=shortened,
+                    )
+            if node.module in self.UNSAFE_IMPORTS:
+                for n in node.names:
+                    if n.name in self.UNSAFE_IMPORTS[node.module]:
+                        risk_info = self.UNSAFE_IMPORTS[node.module][n.name]
+                        yield AnalysisResult(
+                            Severity.LIKELY_OVERTLY_MALICIOUS,
+                            f"`{shortened}` imports `{n.name}` that is indicative of a malicious pickle file. {risk_info}",
+                            "UnsafeImportsML",
+                            trigger=shortened,
+                        )
+            # NOTE(boyan): Special case with eval?
+            # Copy pasted from pickled.unsafe_imports() original implementation
+            elif "eval" in (n.name for n in node.names):
+                yield node
+
+
+class BadCalls(Analysis):
+    BAD_CALLS = ["exec", "eval", "compile", "open"]
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.calls:
+            shortened, already_reported = context.shorten_code(node)
+            if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
+                yield AnalysisResult(
+                    Severity.OVERTLY_MALICIOUS,
+                    f"Call to `{shortened}` is almost certainly evidence of a "
+                    "malicious pickle file",
+                    "OvertlyBadEval",
+                    trigger=shortened,
+                )
+
+
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.non_setstate_calls:
@@ -287,12 +375,12 @@ class AnalysisResults:
                 detailed["AnalysisResult"][result.analysis_name] = result.trigger
         return dict(detailed)
 
-    def to_string(self, verbosity: Severity = Severity.SUSPICIOUS):
+    def to_string(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         return "\n".join(str(r) for r in self.results if verbosity <= r.severity)
 
     __str__ = to_string
 
-    def to_dict(self, verbosity: Severity = Severity.SUSPICIOUS):
+    def to_dict(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         analysis_message = self.to_string(verbosity)
         severity_data = {
             "severity": self.severity.name,
@@ -311,7 +399,7 @@ class AnalysisResults:
 def check_safety(
     pickled: Pickled,
     analyzer: Optional[Analyzer] = None,
-    verbosity: Severity = Severity.SUSPICIOUS,
+    verbosity: Severity = Severity.POSSIBLY_UNSAFE,
     json_output_path: Optional[str] = None,
 ) -> AnalysisResults:
     if analyzer is None:
