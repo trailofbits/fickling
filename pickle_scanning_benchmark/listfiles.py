@@ -1,15 +1,11 @@
-from huggingface_hub import HfApi
-from typing import Optional
+import json
+import sys
 from pathlib import Path
 from pprint import pprint
-import os
-import requests
-import json
-import shutil
-import tempfile
-import zipfile
-import logger
-import sys
+from typing import Optional
+
+from huggingface_hub import HfApi
+
 
 def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
     """Get a list of pickle files currently hosted on HuggingFace.
@@ -17,8 +13,8 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
     api = HfApi()
     models = api.list_models(
         # TODO(boyan): more filtering here?
-        full=True, # Get file list
-        sort="downloads", # Get most downloaded models
+        full=True,  # Get file list
+        sort="downloads",  # Get most downloaded models
         direction=-1,
     )
     files = []
@@ -27,10 +23,7 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
             for s in model.siblings:
                 if s.rfilename.endswith((".pkl", ".pt", ".pth", ".bin", "pickle", ".pk")):
                     # TODO(boyan): more filtering here?
-                    files.append({
-                        "filename": s.rfilename,
-                        "project": model.id
-                    })
+                    files.append({"filename": s.rfilename, "project": model.id})
         if len(files) >= n:
             break
 
@@ -40,6 +33,7 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
     else:
         print("Pickle file URLs")
         pprint(files)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

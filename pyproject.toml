@@ -67,3 +67,4 @@ target-version = "py37"
 [tool.ruff.lint.per-file-ignores]
 # Ignore 'line too long' for this file because it contains lots of text
 "fickling/ml.py" = ["E501"]
+"pickle_scanning_benchmark/*.py" = ["BLE", "E"]

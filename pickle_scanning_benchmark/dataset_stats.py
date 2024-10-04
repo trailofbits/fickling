@@ -1,14 +1,16 @@
-import json
-from pathlib import Path
-from dataclasses import dataclass, field
-import os
-from fickling.fickle import Pickled
-from fickling.pytorch import PyTorchModelWrapper
-import sys
 import csv
+import json
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
 from huggingface_hub import HfApi
 
+from fickling.fickle import Pickled
+from fickling.pytorch import PyTorchModelWrapper
+
 api = HfApi()
+
 
 @dataclass
 class Stats:
@@ -26,7 +28,6 @@ class Stats:
         self.nb_files += 1
         self._record_project(file["project"])
         self._record_file_type(file)
-        
 
     def _record_file_type(self, file):
         if file["type"] not in self.file_types:
@@ -54,7 +55,7 @@ class Stats:
                     return Pickled.load(f)
             elif file["type"] == "pytorch":
                 return PyTorchModelWrapper(file["file"]).pickled
-        except:
+        except Exception:
             return None
 
     def _record_project(self, project):
@@ -78,6 +79,7 @@ class Stats:
             w.writeheader()
             w.writerow(self.projects)
 
+
 def get_stats(dataset_dir: Path):
     with open(dataset_dir / "index.json", "rb") as f:
         index = json.load(f)
@@ -87,6 +89,7 @@ def get_stats(dataset_dir: Path):
         stats.add(file)
     stats.finalise()
     return stats
+
 
 if __name__ == "__main__":
     stats = get_stats(Path(sys.argv[1]))

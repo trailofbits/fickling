@@ -1,23 +1,22 @@
-from huggingface_hub import HfApi
-from typing import Optional
+import argparse
+import json
+import os
+import shutil
+import zipfile
 from pathlib import Path
 from pprint import pprint
-import os
-import requests
-import json
-import shutil
-import tempfile
-import zipfile
+from typing import Optional
+
 import logger
-import argparse
+import requests
 
 
 def hf_download_pickle_files(
     infile: Path,
     outdir: Optional[Path] = None,
-    n: int = 10, # number of files to download
-    mode: str = "default", # default, overwrite, add
-    maxsize: int = 500000000, # in bytes
+    n: int = 10,  # number of files to download
+    mode: str = "default",  # default, overwrite, add
+    maxsize: int = 500000000,  # in bytes
     minsize: int = 0,
     extract_pickles: bool = False,
 ):
@@ -34,7 +33,7 @@ def hf_download_pickle_files(
             outdir.mkdir()
         elif mode == "add":
             print(f"Adding pickle files to existing dataset: {outdir}")
-            with open(outdir / "index.json", "r") as f:
+            with open(outdir / "index.json") as f:
                 index = json.load(f)
         else:
             print(f"Dataset {outdir} already exists, aborting.")
@@ -43,12 +42,11 @@ def hf_download_pickle_files(
         outdir.mkdir()
 
     # If adding to existing dataset, list already downloaded urls to not download
-    # them a second time. 
-    old_urls = set(x["url"] for x in index)
-    total_files = len(index)
+    # them a second time.
+    old_urls = {x["url"] for x in index}
 
     # Download new pickle files for dataset
-    with open(infile, "r") as f:
+    with open(infile) as f:
         # Get the info about files to download
         file_info = json.load(f)
     # Process each candidate pickle file
@@ -61,7 +59,7 @@ def hf_download_pickle_files(
         try:
             # Check file size
             resp = requests.head(url, allow_redirects=True)
-            size = resp.headers.get('content-length', None)
+            size = resp.headers.get("content-length", None)
             if not size:
                 print(f"> Skipping {url}, couldn't retrieve file size")
                 continue
@@ -72,11 +70,14 @@ def hf_download_pickle_files(
                 print(f"> Skipping {url}, file too small ({size/1000} kb)")
             else:
                 # File suitable for download
-                if file['filename'].endswith((".pkl", ".pickle", ".pk")) or file['filename'] == 'pickle':
+                if (
+                    file["filename"].endswith((".pkl", ".pickle", ".pk"))
+                    or file["filename"] == "pickle"
+                ):
                     file = _download_pickle_file(url, file, outdir)
                     index.append(file)
-                    n -= 1 # Update counter of remaining files to download
-                elif file['filename'].endswith((".pt", ".pth", ".bin")):
+                    n -= 1  # Update counter of remaining files to download
+                elif file["filename"].endswith((".pt", ".pth", ".bin")):
                     files = _download_torch_file(url, file, outdir, extract_pickles)
                     index += files
                     n -= len(files)
@@ -99,6 +100,7 @@ def _check_content(content):
     if content.startswith("Access to model"):
         raise Exception("Can not access model file")
 
+
 def _download_pickle_file(url, file, outdir):
     outfile = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_')}"
     print(f"> Downloading {url}")
@@ -106,13 +108,14 @@ def _download_pickle_file(url, file, outdir):
     _check_content(resp.content)
     with open(outfile, "wb") as outf:
         outf.write(resp.content)
-        size = resp.headers.get('content-length', -1)
+        size = resp.headers.get("content-length", -1)
     # TODO(boyan): add more metadata?
     file["size"] = size
     file["url"] = url
     file["file"] = str(outfile.resolve())
     file["type"] = "pickle"
     return file
+
 
 def _download_torch_file(url, file, outdir, extract_pickles=False):
     res = []
@@ -121,8 +124,11 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
         "/tmp/torchfile.zip"
     else:
         # archive_file is actually outfile
-        archive_file = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
-        
+        archive_file = (
+            outdir
+            / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
+        )
+
     print(f"> Downloading {url}")
     resp = requests.get(f"{url}?download=true", allow_redirects=True)
     _check_content(resp.content)
@@ -134,7 +140,10 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
         for element in archive.infolist():
             if element.filename.endswith((".pkl", ".pickle", ".pk")):
                 print(f"\t> Extracting {element.filename}")
-                outfile = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}_{element.filename.replace('/', '_')}"
+                outfile = (
+                    outdir
+                    / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}_{element.filename.replace('/', '_')}"
+                )
                 with archive.open(element.filename, "r") as inf, open(outfile, "wb") as outf:
                     shutil.copyfileobj(inf, outf)
                     file["size"] = outf.tell()
@@ -150,14 +159,38 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
 
     return res
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("infile", help="File containing the list of files to download")
     parser.add_argument("outdir", help="Directory in which downloaded files are saved")
     parser.add_argument("n", help="Number of files to download", type=int)
-    parser.add_argument("-m", "--mode", help="File download mode", choices=["add", "overwrite", "default"], default="default")
-    parser.add_argument("--maxsize", help="Discard files above this size (in bytes)", default=10000000, type=int)
-    parser.add_argument("--minsize", help="Discard files above this size (in bytes)", default=1000, type=int)
-    parser.add_argument("-e", "--extract-pickles", help="If true, pickle files are extracted from containing archives such as PyTorch files", action="store_true")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        help="File download mode",
+        choices=["add", "overwrite", "default"],
+        default="default",
+    )
+    parser.add_argument(
+        "--maxsize", help="Discard files above this size (in bytes)", default=10000000, type=int
+    )
+    parser.add_argument(
+        "--minsize", help="Discard files above this size (in bytes)", default=1000, type=int
+    )
+    parser.add_argument(
+        "-e",
+        "--extract-pickles",
+        help="If true, pickle files are extracted from containing archives such as PyTorch files",
+        action="store_true",
+    )
     args = parser.parse_args()
-    hf_download_pickle_files(Path(args.infile), Path(args.outdir), n=args.n, mode=args.mode, maxsize=args.maxsize, minsize=args.minsize, extract_pickles=args.extract_pickles)
+    hf_download_pickle_files(
+        Path(args.infile),
+        Path(args.outdir),
+        n=args.n,
+        mode=args.mode,
+        maxsize=args.maxsize,
+        minsize=args.minsize,
+        extract_pickles=args.extract_pickles,
+    )
