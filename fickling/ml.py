@@ -9,10 +9,11 @@ CALLABLE_NEW_SAFE_MSG = (
 )
 BW_HOOKS_SAFE_MSG = (
     "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
+    "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
+    "the attacker to execute arbitrary code, using `backward_hooks` is not needed. So this function can be "
+    "considered safe."
 )
-"pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
-"the attacker to execute arbitrary code, using `backward_hooks` is not needed. So this function can be "
-"considered safe."
+
 ENUM_MSG = "A simple enumeration."
 DATACLASS_MSG = (
     "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
@@ -22,13 +23,17 @@ SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a
 SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
 BINDING_CLASS_MSG = "A binding class."
 
-TRANSFORMERS_TRAININGARGS_MSG = "A dataclass for model training parameters."
-                                "The `push_to_hub` field can lead to model uploads to public repositories and should "
-                                "be used with caution. Other than that no fields can not be used for arbitrary code execution."
+TRANSFORMERS_TRAININGARGS_MSG = (
+    "A dataclass for model training parameters."
+    "The `push_to_hub` field can lead to model uploads to public repositories and should "
+    "be used with caution. Other than that no fields can not be used for arbitrary code execution."
+)
 
 TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
-MAIN_IMPORT_MSG = "We consider this name safe to import from __main__ because it doesn't overlap "
-                  "with names of known pickle exploit primitives."
+MAIN_IMPORT_MSG = (
+    "We consider this name safe to import from __main__ because it doesn't overlap "
+    "with names of known pickle exploit primitives."
+)
 
 # Allowlist for imports that can be considered safe when scanning a file
 # without actually loading it. This typically excludes imports that could
