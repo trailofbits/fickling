@@ -7,7 +7,7 @@ This repo allows to
 - expand the dataset by synthetically generating malicious versions of the real-world files
 - run any pickle scanning tool and measure its malicious pickle detection performance
 
-Please note that this benchmark is **experimental** and 
+Please note that this benchmark is **experimental** and is intended for use for research purposes only. 
 
 ## Real-world pickle files
 This code scans public ML models. One current culprit is that the benchmark considers all public models to be "safe" by default. This might not be true in practice _depending_ on which files are being downloaded. 
