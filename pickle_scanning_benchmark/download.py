@@ -97,8 +97,12 @@ def hf_download_pickle_files(
 
 def _check_content(content):
     # Typical access error from HF API
-    if content.startswith("Access to model"):
-        raise Exception("Can not access model file")
+    if isinstance(content, bytes):
+        if content.startswith(b"Access to model"):
+            raise Exception("Can not access model file")
+    else:
+        if content.startswith("Access to model"):
+            raise Exception("Can not access model file")
 
 
 def _download_pickle_file(url, file, outdir):
