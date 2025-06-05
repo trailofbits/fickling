@@ -146,9 +146,10 @@ def inject_pytorch_file(infile: Path, outfile: Path, payload_key: Optional[str] 
         if not injected and element.filename.endswith((".pkl", ".pickle", ".pk")):
             print(f"\t\tInjecting into archive element {element.filename}")
             # Only inject one pickle file per archive
-            with zipfile.Path(archive, at=element.filename).open("rb") as inf, zipfile.Path(
-                outarchive, at=element.filename
-            ).open("wb") as outf:
+            with (
+                zipfile.Path(archive, at=element.filename).open("rb") as inf,
+                zipfile.Path(outarchive, at=element.filename).open("wb") as outf,
+            ):
                 res = _inject_payload(
                     inf,
                     outf,

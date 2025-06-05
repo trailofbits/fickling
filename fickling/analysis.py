@@ -108,14 +108,11 @@ class AnalysisResult:
         self.severity: Severity = severity
         self.message: Optional[str] = message
         self.analysis_name: str = analysis_name
-        self.trigger: Optional[str] = (
-            trigger  # Field to store the trigger code fragment or artifact
-        )
+        self.trigger: Optional[str] = trigger  # Field to store the trigger code fragment or artifact
 
     def __lt__(self, other):
         return isinstance(other, AnalysisResult) and (
-            self.severity < other.severity
-            or (self.severity == other.severity and str(self) < str(other))
+            self.severity < other.severity or (self.severity == other.severity and str(self) < str(other))
         )
 
     def __bool__(self):
@@ -224,9 +221,7 @@ class UnsafeImportsML(Analysis):
     }
 
     UNSAFE_IMPORTS = {
-        "torch": {
-            "load": "This function can load untrusted files and code from arbitrary web sources."
-        },
+        "torch": {"load": "This function can load untrusted files and code from arbitrary web sources."},
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
         "operator": {
             "getitem": "This function can lead to arbitrary code execution",
@@ -247,9 +242,7 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, _ = context.shorten_code(node)
-            all_modules = [
-                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
-            ]
+            all_modules = [node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     risk_info = self.UNSAFE_MODULES[module_name]
@@ -284,8 +277,7 @@ class BadCalls(Analysis):
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a " "malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
@@ -294,10 +286,7 @@ class BadCalls(Analysis):
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.non_setstate_calls:
-            if (
-                hasattr(node.func, "id")
-                and node.func.id in context.pickled.properties.likely_safe_imports
-            ):
+            if hasattr(node.func, "id") and node.func.id in context.pickled.properties.likely_safe_imports:
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
@@ -313,8 +302,7 @@ class OvertlyBadEvals(Analysis):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a " "malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
