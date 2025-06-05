@@ -1,11 +1,8 @@
+from __future__ import annotations
+
 import sys
 from argparse import ArgumentParser
-from typing import List, Optional
-
-if sys.version_info >= (3, 9):
-    from ast import unparse
-else:
-    from astunparse import unparse
+from ast import unparse
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
@@ -13,7 +10,7 @@ from .analysis import Severity, check_safety
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv
 

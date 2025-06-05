@@ -1,5 +1,5 @@
 import pickle
-from typing import Iterator, List
+from collections.abc import Iterator
 
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from fickling.exception import UnsafeFileError
@@ -231,7 +231,7 @@ class MLAllowlist(Analysis):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
-    def __init__(self, *args, also_allow: List[str] = None, **kwargs):
+    def __init__(self, *args, also_allow: list[str] = None, **kwargs):
         self.allowlist = dict(ML_ALLOWLIST)
         super().__init__(*args, **kwargs)
         # Add additional allowed imports

@@ -2,7 +2,6 @@ import ast
 import os
 import shutil
 import struct
-import sys
 import tarfile
 import tempfile
 import zipfile
@@ -117,10 +116,7 @@ def find_file_properties(file_path, print_properties=False):
         properties["is_torch_zip"] = is_torch_zip
 
         # This tarfile check has many false positives. It is not a determinant of PyTorch v0.1.1.
-        if sys.version_info >= (3, 9):
-            is_tar = tarfile.is_tarfile(file)
-        else:
-            is_tar = tarfile.is_tarfile(file_path)
+        is_tar = tarfile.is_tarfile(file)
         properties["is_tar"] = is_tar
 
         # Similar to tar, this is not a robust verification.

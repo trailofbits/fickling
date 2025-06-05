@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import os
 import warnings
 import zipfile
 from pathlib import Path
-from typing import Optional, Set
 
 import fickling.polyglot
 from fickling.fickle import Pickled
@@ -34,9 +35,9 @@ class BaseInjection(torch.nn.Module):
 class PyTorchModelWrapper:
     def __init__(self, path: Path, force: bool = False):
         self.path: Path = path
-        self._pickled: Optional[Pickled] = None
+        self._pickled: Pickled | None = None
         self.force: bool = force
-        self._formats: Set[str] = set()
+        self._formats: set[str] = set()
 
     def validate_file_format(self):
         self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)

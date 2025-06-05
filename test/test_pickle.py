@@ -1,16 +1,11 @@
 import os
+from ast import unparse
 from contextlib import redirect_stdout
 from functools import wraps
 from pathlib import Path
 from pickle import dumps, loads
-from sys import version_info
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
-
-if version_info >= (3, 9):
-    from ast import unparse
-else:
-    from astunparse import unparse
 
 from fickling import fickle as fpickle
 from fickling.analysis import check_safety

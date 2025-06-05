@@ -6,28 +6,16 @@ import re
 import struct
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import MutableSequence, Sequence
+from collections.abc import Iterable, Iterator, MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
-    Dict,
-    FrozenSet,
     Generic,
-    Iterable,
-    Iterator,
-    List,
-    Optional,
-    Set,
-    Type,
     TypeVar,
-    Union,
     overload,
-)
-from typing import (
-    Tuple as TupleType,
 )
 
 from stdlib_list import in_stdlib
@@ -46,10 +34,10 @@ OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
 
-BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
+BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(sys.builtin_module_names)
 
-OPCODES_BY_NAME: Dict[str, Type["Opcode"]] = {}
-OPCODE_INFO_BY_NAME: Dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
+OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
+OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
 
 def is_std_module(module_name: str) -> bool:
@@ -66,11 +54,11 @@ class Opcode:
 
     def __init__(
         self,
-        argument: Optional[Any] = None,
-        position: Optional[int] = None,
-        data: Optional[bytes] = None,
+        argument: Any | None = None,
+        position: int | None = None,
+        data: bytes | None = None,
         *,
-        info: Optional[OpcodeInfo] = None,
+        info: OpcodeInfo | None = None,
     ):
         if self.__class__ is Opcode:
             if info is None:
@@ -78,8 +66,8 @@ class Opcode:
         elif info is not None and info != self.info:
             raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got " f"{info!r}")
         self.arg: Any = argument
-        self.pos: Optional[int] = position
-        self._data: Optional[bytes] = data
+        self.pos: int | None = position
+        self._data: bytes | None = data
 
     def has_data(self) -> bool:
         return self._data is not None
@@ -119,7 +107,7 @@ class Opcode:
                 raise NotImplementedError(f"TODO: Add support for Opcode {info.name}")
         return super().__new__(cls)
 
-    def run(self, interpreter: "Interpreter"):
+    def run(self, interpreter: Interpreter):
         raise NotImplementedError(f"TODO: Add support for Pickle opcode {self.info.name}")
 
     def __init_subclass__(cls, **kwargs):
@@ -208,7 +196,7 @@ class DynamicLength(Opcode, ABC):
 
 
 class NoOp(Opcode):
-    def run(self, interpreter: "Interpreter"):
+    def run(self, interpreter: Interpreter):
         pass
 
 
@@ -231,10 +219,10 @@ def raw_unicode_escape(byte_string: bytes) -> str:
 
 
 class ConstantOpcode(Opcode):
-    ConstantOpcodePriorities: Dict[Type["ConstantOpcode"], int] = {}
+    ConstantOpcodePriorities: dict[type[ConstantOpcode], int] = {}
     priority: int
 
-    def run(self, interpreter: "Interpreter"):
+    def run(self, interpreter: Interpreter):
         interpreter.stack.append(make_constant(self.arg))
 
     def __init_subclass__(cls, **kwargs):
@@ -260,7 +248,7 @@ class ConstantOpcode(Opcode):
         raise NotImplementedError()
 
     @classmethod
-    def new(cls: Type[T], obj) -> T:
+    def new(cls: type[T], obj) -> T:
         for subclass, _ in sorted(ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]):
             if not issubclass(subclass, cls):
                 continue
@@ -310,14 +298,14 @@ class ConstantInt(ConstantOpcode, ABC):
 
 
 class StackSliceOpcode(Opcode):
-    def run(self, interpreter: "Interpreter", stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         raise NotImplementedError(f"{self.__class__.__name__} must implement run()")
 
     def __init_subclass__(cls, **kwargs):
         ret = super().__init_subclass__(**kwargs)
         orig_run = cls.run
 
-        def run_wrapper(self, interpreter: "Interpreter"):
+        def run_wrapper(self, interpreter: Interpreter):
             args = []
             while True:
                 if not interpreter.stack:
@@ -337,12 +325,12 @@ class StackSliceOpcode(Opcode):
 
 class ASTProperties(ast.NodeVisitor):
     def __init__(self):
-        self.imports: List[Union[ast.Import, ast.ImportFrom]] = []
-        self.calls: List[ast.Call] = []
-        self.non_setstate_calls: List[ast.Call] = []
-        self.likely_safe_imports: Set[str] = set()
+        self.imports: list[ast.Import | ast.ImportFrom] = []
+        self.calls: list[ast.Call] = []
+        self.non_setstate_calls: list[ast.Call] = []
+        self.likely_safe_imports: set[str] = set()
 
-    def _process_import(self, node: Union[ast.Import, ast.ImportFrom]):
+    def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
         if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
             self.likely_safe_imports |= {name.name for name in node.names}
@@ -369,9 +357,9 @@ class EmptyPickleError(PickleDecodeError):
 
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode]):
-        self._opcodes: List[Opcode] = list(opcodes)
-        self._ast: Optional[ast.Module] = None
-        self._properties: Optional[ASTProperties] = None
+        self._opcodes: list[Opcode] = list(opcodes)
+        self._ast: ast.Module | None = None
+        self._properties: ASTProperties | None = None
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -537,7 +525,7 @@ class Pickled(OpcodeSequence):
     def insert_function_call_on_unpickled_object(
         self,
         function_definition: str,
-        constant_args: Optional[List[Any]] = None,
+        constant_args: List[Any] | None = None,
         compile_code: bool = False,
     ):
         """Insert and call a function that takes the unpickled object as parameter.
@@ -648,7 +636,7 @@ class Pickled(OpcodeSequence):
             use_output_as_unpickle_result=use_output_as_unpickle_result,
         )
 
-    def __setitem__(self, index: Union[int, slice], item: Union[Opcode, Iterable[Opcode]]):
+    def __setitem__(self, index: int | slice, item: Opcode | Iterable[Opcode]):
         self._opcodes[index] = item
         self._ast = None
         self._properties = None
@@ -687,7 +675,7 @@ class Pickled(OpcodeSequence):
         return iter(self)
 
     @staticmethod
-    def make_stream(data: Union[Buffer, BinaryIO]) -> BinaryIO:
+    def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, (bytes, bytearray, Buffer)):
             data = BytesIO(data)
         elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
@@ -695,7 +683,7 @@ class Pickled(OpcodeSequence):
         return data
 
     @staticmethod
-    def load(pickled: Union[Buffer, BinaryIO]) -> "Pickled":
+    def load(pickled: Buffer | BinaryIO) -> Pickled:
         pickled = Pickled.make_stream(pickled)
         first_pos = pickled.tell()
         opcodes: List[Opcode] = []
@@ -776,7 +764,7 @@ on the Pickled object instead"""
     def is_likely_safe(self):
         raise WrongMethodError("This method has been removed. Use fickling.is_likely_safe() on the pickle file instead")
 
-    def unsafe_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
+    def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
             if node.module in (
                 "__builtin__",
@@ -794,7 +782,7 @@ on the Pickled object instead"""
             elif "eval" in (n.name for n in node.names):
                 yield node
 
-    def non_standard_imports(self) -> Iterator[Union[ast.Import, ast.ImportFrom]]:
+    def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
             if not is_std_module(node.module):
                 yield node
@@ -813,7 +801,7 @@ on the Pickled object instead"""
 class Stack(GenericSequence, Generic[T]):
     def __init__(self, initial_value: Iterable[T] = ()):
         self._stack: List[T] = list(initial_value)
-        self.opcode: Optional[Opcode] = None
+        self.opcode: Opcode | None = None
 
     @overload
     @abstractmethod
@@ -851,7 +839,7 @@ class Stack(GenericSequence, Generic[T]):
 
 
 class ModuleBody:
-    def __init__(self, interpreter: "Interpreter"):
+    def __init__(self, interpreter: Interpreter):
         self._list: List[ast.stmt] = []
         self.interpreter: Interpreter = interpreter
 
@@ -872,18 +860,18 @@ class ModuleBody:
     def __len__(self):
         return len(self._list)
 
-    def __getitem__(self, index: Union[int, slice]) -> ast.stmt:
+    def __getitem__(self, index: int | slice) -> ast.stmt:
         return self._list[index]
 
 
 class Interpreter:
     def __init__(self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"):
         self.pickled: Pickled = pickled
-        self.memory: Dict[int, ast.expr] = {}
-        self.stack: Stack[Union[ast.expr, MarkObject]] = Stack()
+        self.memory: dict[int, ast.expr] = {}
+        self.stack: Stack[ast.expr | MarkObject] = Stack()
         self.module_body: ModuleBody = ModuleBody(self)
         self.result_variable: str = result_variable
-        self._module: Optional[ast.Module] = None
+        self._module: ast.Module | None = None
         self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
 
@@ -896,12 +884,12 @@ class Interpreter:
             self.run()
         return self._module
 
-    def unused_assignments(self) -> Dict[str, ast.Assign]:
+    def unused_assignments(self) -> dict[str, ast.Assign]:
         if self._module is None:
             self.run()
-        used: Set[str] = set()
-        defined: Set[str] = set()
-        assignments: Dict[str, ast.Assign] = {}
+        used: set[str] = set()
+        defined: set[str] = set()
+        assignments: dict[str, ast.Assign] = {}
         for statement in self.module_body:
             # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
@@ -922,7 +910,7 @@ class Interpreter:
                         used.add(node.id)
         return {varname: assignments[varname] for varname in defined - used}
 
-    def unused_variables(self) -> FrozenSet[str]:
+    def unused_variables(self) -> frozenset[str]:
         return self.unused_assignments().keys()  # type: ignore
 
     def stop(self):
@@ -952,7 +940,7 @@ class Interpreter:
         opcode.run(self)
         return opcode
 
-    def new_variable(self, value: ast.expr, name: Optional[str] = None) -> str:
+    def new_variable(self, value: ast.expr, name: str | None = None) -> str:
         if name is None:
             name = f"_var{self._var_counter}"
             self._var_counter += 1
@@ -971,7 +959,7 @@ class Proto(NoOp):
     name = "PROTO"
 
     @staticmethod
-    def create(version: int) -> "Proto":
+    def create(version: int) -> Proto:
         return Proto(version)
 
     def encode_body(self) -> bytes:
@@ -992,7 +980,7 @@ class Global(Opcode):
     name = "GLOBAL"
 
     @staticmethod
-    def create(module: str, attr: str) -> "Global":
+    def create(module: str, attr: str) -> Global:
         return Global(f"{module} {attr}")
 
     @property
@@ -1010,11 +998,7 @@ class Global(Opcode):
             # no need to emit an import for builtins!
             pass
         else:
-            if sys.version_info < (3, 9):
-                # workaround for a bug in astunparse
-                alias = ast.alias(attr, asname=None)
-            else:
-                alias = ast.alias(attr)
+            alias = ast.alias(attr)
             interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
@@ -1036,11 +1020,7 @@ class StackGlobal(NoOp):
             # no need to emit an import for builtins!
             pass
         else:
-            if sys.version_info < (3, 9):
-                # workaround for a bug in astunparse
-                alias = ast.alias(attr, asname=None)
-            else:
-                alias = ast.alias(attr)
+            alias = ast.alias(attr)
             interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
@@ -1049,7 +1029,7 @@ class Inst(StackSliceOpcode):
     name = "INST"
 
     @staticmethod
-    def create(module: str, classname: str) -> "Inst":
+    def create(module: str, classname: str) -> Inst:
         return Inst(f"{module} {classname}")
 
     @property
@@ -1067,11 +1047,7 @@ class Inst(StackSliceOpcode):
             # no need to emit an import for builtins!
             pass
         else:
-            if sys.version_info < (3, 9):
-                # workaround for a bug in astunparse
-                alias = ast.alias(classname, asname=None)
-            else:
-                alias = ast.alias(classname)
+            alias = ast.alias(classname)
             interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         args = ast.Tuple(tuple(stack_slice))
         call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
@@ -1401,7 +1377,7 @@ class Get(Opcode):
         return f"{self.memo_id}\n".encode()
 
     @staticmethod
-    def create(memo_id: int) -> "Get":
+    def create(memo_id: int) -> Get:
         return Get(f"{memo_id}\n".encode())
 
 
@@ -1662,16 +1638,12 @@ class Dict(Opcode):
         interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
 
 
-if sys.version_info < (3, 9):
-    # abstract collections were not subscriptable until Python 3.9
-    PickledSequence = Sequence
-else:
-    PickledSequence = Sequence[Pickled]
+PickledSequence = Sequence[Pickled]
 
 
 class StackedPickle(PickledSequence):
     def __init__(self, pickled: Iterable[Pickled]):
-        self.pickled: TupleType[Pickled, ...] = tuple(pickled)
+        self.pickled: tuple[Pickled, ...] = tuple(pickled)
 
     def __getitem__(self, index: int) -> Pickled:
         return self.pickled[index]
@@ -1680,7 +1652,7 @@ class StackedPickle(PickledSequence):
         return len(self.pickled)
 
     @staticmethod
-    def load(pickled: Union[Buffer, BinaryIO]) -> "StackedPickle":
+    def load(pickled: Buffer | BinaryIO) -> StackedPickle:
         pickled = Pickled.make_stream(pickled)
         pickles: List[Pickled] = []
         while True:
