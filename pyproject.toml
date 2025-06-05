@@ -80,7 +80,6 @@ warn_unused_ignores = true
 [tool.ruff]
 line-length = 140
 lint.select = ["E", "F", "W", "UP", "I", "N", "YTT", "BLE", "C4"]
-target-version = "py39"
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore 'line too long' for this file because it contains lots of text
