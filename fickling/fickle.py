@@ -4,14 +4,13 @@ import re
 import struct
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import MutableSequence, Sequence
+from collections.abc import Buffer, MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
-    ByteString,
     Dict,
     FrozenSet,
     Generic,
@@ -715,15 +714,15 @@ class Pickled(OpcodeSequence):
         return iter(self)
 
     @staticmethod
-    def make_stream(data: Union[ByteString, BinaryIO]) -> BinaryIO:
-        if isinstance(data, (bytes, bytearray, ByteString)):
+    def make_stream(data: Union[Buffer, BinaryIO]) -> BinaryIO:
+        if isinstance(data, (bytes, bytearray, Buffer)):
             data = BytesIO(data)
         elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
             data = BytesIO(data.read())
         return data
 
     @staticmethod
-    def load(pickled: Union[ByteString, BinaryIO]) -> "Pickled":
+    def load(pickled: Union[Buffer, BinaryIO]) -> "Pickled":
         pickled = Pickled.make_stream(pickled)
         first_pos = pickled.tell()
         opcodes: List[Opcode] = []
@@ -1733,7 +1732,7 @@ class StackedPickle(PickledSequence):
         return len(self.pickled)
 
     @staticmethod
-    def load(pickled: Union[ByteString, BinaryIO]) -> "StackedPickle":
+    def load(pickled: Union[Buffer, BinaryIO]) -> "StackedPickle":
         pickled = Pickled.make_stream(pickled)
         pickles: List[Pickled] = []
         while True:
