@@ -4,7 +4,7 @@ import re
 import struct
 import sys
 from abc import ABC, abstractmethod
-from collections.abc import Buffer, MutableSequence, Sequence
+from collections.abc import MutableSequence, Sequence
 from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
