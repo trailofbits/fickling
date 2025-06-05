@@ -11,7 +11,6 @@ from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
-    TYPE_CHECKING,
     Any,
     BinaryIO,
     Dict,
@@ -37,11 +36,10 @@ from fickling.exception import WrongMethodError
 
 T = TypeVar("T")
 
-if TYPE_CHECKING:
-    if sys.version_info < (3, 12):
-        from typing_extensions import Buffer
-    else:
-        from collections.abc import Buffer
+if sys.version_info < (3, 12):
+    from typing_extensions import Buffer
+else:
+    from collections.abc import Buffer
 
 
 OpcodeSequence = MutableSequence["Opcode"]
