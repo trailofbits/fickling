@@ -22,7 +22,7 @@ Fickling can be used both as a **python library** and a **CLI**.
 
 ## Installation
 
-Fickling has been tested on Python 3.8 through Python 3.13 and has very few dependencies.
+Fickling has been tested on Python 3.9 through Python 3.13 and has very few dependencies.
 Both the library and command line utility can be installed through pip:
 
 ```bash
