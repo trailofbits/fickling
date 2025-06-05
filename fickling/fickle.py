@@ -9,6 +9,7 @@ from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
+    TYPE_CHECKING,
     Any,
     BinaryIO,
     Dict,
@@ -34,23 +35,16 @@ from fickling.exception import WrongMethodError
 
 T = TypeVar("T")
 
-if sys.version_info < (3, 9):
-    # abstract collections were not subscriptable until Python 3.9
-    OpcodeSequence = MutableSequence
-    GenericSequence = Sequence
+if TYPE_CHECKING:
+    if sys.version_info < (3, 12):
+        from typing_extensions import Buffer
+    else:
+        from collections.abc import Buffer
 
-    def make_constant(*args, **kwargs) -> ast.Constant:
-        # prior to Python 3.9, the ast.Constant class did not have a `kind` member, but the
-        # `astunparse` module expects that!
-        ret = ast.Constant(*args, **kwargs)
-        if not hasattr(ret, "kind"):
-            setattr(ret, "kind", None)
-        return ret
 
-else:
-    OpcodeSequence = MutableSequence["Opcode"]
-    GenericSequence = Sequence[T]
-    make_constant = ast.Constant
+OpcodeSequence = MutableSequence["Opcode"]
+GenericSequence = Sequence[T]
+make_constant = ast.Constant
 
 BUILTIN_MODULE_NAMES: FrozenSet[str] = frozenset(sys.builtin_module_names)
 
