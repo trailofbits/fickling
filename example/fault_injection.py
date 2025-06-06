@@ -48,9 +48,7 @@ injected_model = fault_injection(
 
 b, layer, C, H, W, err_val = [0], [2], [4], [2], [4], [10000]
 
-injected_model = injected_model.declare_neuron_fi(
-    batch=b, layer_num=layer, dim1=C, dim2=H, dim3=W, value=err_val
-)
+injected_model = injected_model.declare_neuron_fi(batch=b, layer_num=layer, dim1=C, dim2=H, dim3=W, value=err_val)
 
 injected_output = injected_model(random_image)
 injected_label = list(torch.argmax(injected_output, dim=1))[0].item()
