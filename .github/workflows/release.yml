@@ -42,10 +42,4 @@ jobs:
           path: dist/
 
       - name: publish
-        uses: pypa/gh-action-pypi-publish@v1.10.3
-
-      - name: sign
-        uses: sigstore/gh-action-sigstore-python@v2.1.1
-        with:
-          inputs: ./dist/*.tar.gz ./dist/*.whl
-          release-signing-artifacts: true
+        uses: pypa/gh-action-pypi-publish@v1.12.4
