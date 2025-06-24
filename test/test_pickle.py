@@ -1,16 +1,11 @@
 import os
+from ast import unparse
 from contextlib import redirect_stdout
 from functools import wraps
 from pathlib import Path
 from pickle import dumps, loads
-from sys import version_info
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
-
-if version_info >= (3, 9):
-    from ast import unparse
-else:
-    from astunparse import unparse
 
 from fickling import fickle as fpickle
 from fickling.analysis import check_safety
@@ -160,9 +155,7 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval(
-            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False
-        )
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False)
         self.assertEqual(sum(1 for op in loaded if isinstance(op, fpickle.Stop)), 1)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
 
@@ -179,9 +172,7 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval(
-            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
-        )
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
         evaluated = loads(loaded.dumps())
         self.assertEqual([5, 6, 7, 8], evaluated)
@@ -190,16 +181,12 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval(
-            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
-        )
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True)
         interpreter = Interpreter(loaded)
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
-        test_unused_variables_results = check_safety(
-            loaded, json_output_path="test_unused_variables.json"
-        ).to_dict()
+        test_unused_variables_results = check_safety(loaded, json_output_path="test_unused_variables.json").to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
         os.remove("test_unused_variables.json")
 
@@ -216,9 +203,7 @@ class TestInterpreter(TestCase):
             tmpfile.close()
 
             # Ensure it fails if we try and inject into the fourth stacked pickle (there are only 3)
-            self.assertNotEqual(
-                main(["", tmpfile.name, "--inject", 'print("foo")', "--inject-target", "3"]), 0
-            )
+            self.assertNotEqual(main(["", tmpfile.name, "--inject", 'print("foo")', "--inject-target", "3"]), 0)
 
             # Inject into the second pickle (this should work)
             try:
@@ -250,16 +235,12 @@ class TestInterpreter(TestCase):
     def test_duplicate_proto(self):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
-        test_duplicate_proto_one_results = check_safety(
-            loaded, json_output_path="test_duplicate_proto_one.json"
-        ).to_dict()
+        test_duplicate_proto_one_results = check_safety(loaded, json_output_path="test_duplicate_proto_one.json").to_dict()
         print(test_duplicate_proto_one_results)
         self.assertEqual(test_duplicate_proto_one_results["severity"], "LIKELY_SAFE")
         os.remove("test_duplicate_proto_one.json")
         loaded.insert(-1, fpickle.Proto.create(1))
         loaded.insert(-1, fpickle.Proto.create(2))
-        test_duplicate_proto_two_results = check_safety(
-            loaded, json_output_path="test_duplicate_proto_two.json"
-        ).to_dict()
+        test_duplicate_proto_two_results = check_safety(loaded, json_output_path="test_duplicate_proto_two.json").to_dict()
         self.assertEqual(test_duplicate_proto_two_results["severity"], "LIKELY_UNSAFE")
         os.remove("test_duplicate_proto_two.json")

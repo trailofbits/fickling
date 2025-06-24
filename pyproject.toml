@@ -17,14 +17,33 @@ classifiers = [
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Utilities",
 ]
-dependencies = ["astunparse ~= 1.6.3", "stdlib_list ~= 0.10.0"]
-requires-python = ">=3.8"
+dependencies = ["stdlib_list ~= 0.11.1"]
+requires-python = ">=3.9"
 
 [project.optional-dependencies]
 torch = ["torch >= 2.1.0", "torchvision >= 0.16.1"]
-lint = ["black", "mypy", "ruff==0.5.4"]
-test = ["pytest", "pytest-cov", "coverage[toml]", "torch >= 2.1.0", "torchvision >= 0.16.1"]
-dev = ["build", "fickling[lint,test]", "twine", "torch >= 2.1.0", "torchvision >= 0.16.1"]
+lint = [
+  "black",
+  "mypy",
+  "ruff==0.5.4",
+  # for the Buffer ABC before Python 3.12
+  "typing-extensions; python_version < '3.12'",
+]
+test = [
+  "pytest",
+  "pytest-cov",
+  "coverage[toml]",
+  "numpy==2.0.2",
+  "torch >= 2.1.0",
+  "torchvision >= 0.16.1",
+]
+dev = [
+  "build",
+  "fickling[lint,test]",
+  "twine",
+  "torch >= 2.1.0",
+  "torchvision >= 0.16.1",
+]
 examples = ["numpy", "pytorchfi"]
 
 [project.scripts]
@@ -62,7 +81,6 @@ warn_unused_ignores = true
 [tool.ruff]
 line-length = 140
 lint.select = ["E", "F", "W", "UP", "I", "N", "YTT", "BLE", "C4"]
-target-version = "py37"
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore 'line too long' for this file because it contains lots of text

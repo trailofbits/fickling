@@ -3,8 +3,9 @@ import importlib.machinery
 import sys
 import types
 import warnings
+from collections.abc import Sequence
 from types import ModuleType
-from typing import Sequence, Union
+from typing import Union
 
 import fickling.loader as loader
 
