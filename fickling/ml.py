@@ -44,6 +44,10 @@ ML_ALLOWLIST = {
         "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
         "`PyArray_NewFromDescr` constructor under the hood."
     },
+    "numpy._core.multiarray": {
+        "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
+        "`PyArray_NewFromDescr` constructor under the hood."
+    },
     "torch": {
         "ByteStorage": CALLABLE_NEW_SAFE_MSG,
         "DoubleStorage": CALLABLE_NEW_SAFE_MSG,
@@ -67,6 +71,7 @@ ML_ALLOWLIST = {
         "Tensor": CALLABLE_NEW_SAFE_MSG,
         "bfloat16": SIMPLE_CLASS_MSG,
         "float16": SIMPLE_CLASS_MSG,
+        "float32": SIMPLE_CLASS_MSG,
     },
     "torch._tensor": {
         "_rebuild_from_type_v2": "This function accepts another function as argument and calls it on the rest of the arguments. "
@@ -111,6 +116,8 @@ ML_ALLOWLIST = {
         "HubStrategy": ENUM_MSG,
         "EvaluationStrategy": ENUM_MSG,
         "FSDPOption": ENUM_MSG,
+        "SaveStrategy": ENUM_MSG,
+        "ShardedDDPOption": ENUM_MSG,
     },
     "simpletransformers.config.model_args": {
         "Seq2SeqArgs": DATACLASS_MSG,
@@ -139,6 +146,57 @@ ML_ALLOWLIST = {
     },
     "torch.nn.modules.linear": {
         "Linear": SIMPLE_CLASS_MSG,
+        "Identity": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.upsampling": {
+        "Upsample": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.pooling": {
+        "MaxPool2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.batchnorm": {
+        "BatchNorm2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.conv": {
+        "Conv2d": SIMPLE_CLASS_MSG,
+        "ConvTranspose2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.activation": {
+        "SiLU": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.loss": {
+        "BCEWithLogitsLoss": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.block": {
+        "SPPF": SIMPLE_CLASS_MSG,
+        "DFL": SIMPLE_CLASS_MSG,
+        "Bottleneck": SIMPLE_CLASS_MSG,
+        "C2f": SIMPLE_CLASS_MSG,
+        "Proto": SIMPLE_CLASS_MSG,
+        "PSABlock": SIMPLE_CLASS_MSG,
+        "C3k2": SIMPLE_CLASS_MSG,
+        "C3k": SIMPLE_CLASS_MSG,
+        "C2PSA": SIMPLE_CLASS_MSG,
+        "Attention": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.head": {
+        "Detect": SIMPLE_CLASS_MSG,
+        "Segment": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.batchnorm": {
+        "BatchNorm2d": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.conv": {
+        "Concat": SIMPLE_CLASS_MSG,
+        "Conv": SIMPLE_CLASS_MSG,
+        "DWConv": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.utils.loss": {
+        "BboxLoss": SIMPLE_CLASS_MSG,
+        "v8SegmentationLoss": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.utils.tal": {
+        "TaskAlignedAssigner": SIMPLE_CLASS_MSG,
     },
     "_io": {"BytesIO": SIMPLE_CLASS_MSG},
     "_codecs": {"encode": SIMPLE_FUNCTION_MSG},
@@ -177,6 +235,7 @@ ML_ALLOWLIST = {
     },
     "alignment.configs": {
         "SFTConfig": f"Same as `trl.SFTConfig`. {TRAININGARGS_SUBCLASS_MSG}",
+        "DPOConfig": f"Same as `trl.DPOConfig`. {TRAININGARGS_SUBCLASS_MSG}",
     },
     "copyreg": {
         "_reconstructor": "This function is used to rebuild instances of extension types written in C. "
@@ -194,6 +253,22 @@ ML_ALLOWLIST = {
     },
     "llava.train.train_dpo_ori": {
         "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
+    },
+    "trl.trainer.dpo_config": {"FDivergenceType": ENUM_MSG},
+    "open_r1.configs": {
+        "SFTConfig": TRANSFORMERS_TRAININGARGS_MSG,
+        "GRPOConfig": TRANSFORMERS_TRAININGARGS_MSG,
+    },
+    "sentence_transformers.training_args": {
+        "BatchSamplers": ENUM_MSG,
+        "MultiDatasetBatchSamplers": ENUM_MSG,
+        "SentenceTransformerTrainingArguments": TRANSFORMERS_TRAININGARGS_MSG,
+    },
+    "axolotl.core.trainer_builder": {"AxolotlTrainingArguments": TRANSFORMERS_TRAININGARGS_MSG},
+    "pyannote.audio.core.task": {
+        "Specifications": SIMPLE_CLASS_MSG,
+        "Problem": ENUM_MSG,
+        "Resolution": ENUM_MSG,
     },
 }
 
