@@ -6,7 +6,7 @@ import tarfile
 import tempfile
 import zipfile
 
-import numpy.lib.format as npformat
+import numpy.lib._format_impl as npformat
 
 from fickling.fickle import Pickled, StackedPickle
 
