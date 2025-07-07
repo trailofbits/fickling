@@ -23,7 +23,7 @@ To run this benchmark you'll need to install
 ### Finding pickle files on HuggingFace
 ```bash
 # Find 20000 files on HuggingFace that are or contain pickle files and store file info and URLs in pickle_files.json
-python3 listfiles pickle_files.json 20000
+python3 listfiles.py pickle_files.json 20000
 ```
 
 ### Downloading ML/pickle files
@@ -31,7 +31,7 @@ python3 listfiles pickle_files.json 20000
 # Download the pickle files specified in pickle_files.json into folder 'dataset'.
 # Download 1000 files, discard files above 10MB and below 1KB. Overwrite files in
 # the 'dataset' folder if it already exists
-python3 download.py pickle_files.json dataset 1000 overwrite 10000000 1000
+python3 download.py pickle_files.json dataset 1000 -m overwrite --maxsize 10000000 --minsize 1000 -e
 ```
 
 ### Injecting malicious payloads in pickle files
