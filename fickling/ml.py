@@ -27,7 +27,7 @@ TRANSFORMERS_TRAININGARGS_MSG = (
 
 TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
 MAIN_IMPORT_MSG = (
-    "We consider this name safe to import from __main__ because it doesn't overlap " "with names of known pickle exploit primitives."
+    "We consider this name safe to import from __main__ because it doesn't overlap " "with names of known pickle exploit primitives. "
 )
 
 # Allowlist for imports that can be considered safe when scanning a file
@@ -243,7 +243,10 @@ ML_ALLOWLIST = {
     },
     "__main__": {
         "TrainingArguments": MAIN_IMPORT_MSG,
+        "DistillationTrainingArguments": MAIN_IMPORT_MSG,
         "DistillTrainingArguments": MAIN_IMPORT_MSG,
+        "SimPOConfig": MAIN_IMPORT_MSG,
+        "TrAr": MAIN_IMPORT_MSG,
     },
     "sklearn.preprocessing._label": {
         "LabelEncoder": SIMPLE_CLASS_MSG,
@@ -255,6 +258,10 @@ ML_ALLOWLIST = {
         "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
     },
     "trl.trainer.dpo_config": {"FDivergenceType": ENUM_MSG},
+    "trl.trainer.grpo_config": {"GRPOConfig": TRAININGARGS_SUBCLASS_MSG},
+    "trl.trainer.kto_config": {"KTOConfig": TRAININGARGS_SUBCLASS_MSG},
+    "trl.trainer.ppov2_config": {"PPOv2Config": TRAININGARGS_SUBCLASS_MSG},
+    "swift.trainers.rlhf_arguments": {"DPOConfig": "Alias for trl.DPOConfig" + TRAININGARGS_SUBCLASS_MSG},
     "open_r1.configs": {
         "SFTConfig": TRANSFORMERS_TRAININGARGS_MSG,
         "GRPOConfig": TRANSFORMERS_TRAININGARGS_MSG,

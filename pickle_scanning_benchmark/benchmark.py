@@ -38,6 +38,8 @@ DEVNULL = open(os.devnull, "w")
 
 # TODO(boyan): do this when downloading the files
 def is_valid(filepath, filetype):
+    if not os.path.isfile(filepath):
+        return False
     with open(filepath, "rb") as f:
         if f.read(100).startswith(b"Access to model"):
             # HF access denied...
