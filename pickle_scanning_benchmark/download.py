@@ -122,7 +122,7 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
     res = []
     if extract_pickles:
         # If we keep only the pickle and discard the archive, use temporary file
-        "/tmp/torchfile.zip"
+        archive_file = "/tmp/torchfile.zip"
     else:
         # archive_file is actually outfile
         archive_file = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
