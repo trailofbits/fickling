@@ -172,7 +172,7 @@ fickling --trace file.pkl
 Fickling allows to inject arbitrary code in a pickle file that will run every time the file is loaded
 
 ```console
-fickling --inject "print('Malicious')" file.pkl
+fickling --inject "print('Malicious')" file.pkl > malicious.pkl
 ```
 
 ### Pickle decompilation

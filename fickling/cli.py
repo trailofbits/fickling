@@ -109,7 +109,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             file = open(args.PICKLE_FILE, "rb")
         try:
-            stacked_pickled = fickle.StackedPickle.load(file)
+            stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
         except fickle.PickleDecodeError as e:
             sys.stderr.write(f"Error: {str(e)}\n")
             return 1

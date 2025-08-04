@@ -356,10 +356,13 @@ class EmptyPickleError(PickleDecodeError):
 
 
 class Pickled(OpcodeSequence):
-    def __init__(self, opcodes: Iterable[Opcode]):
+    def __init__(self, opcodes: Iterable[Opcode], has_invalid_opcode: bool = False):
         self._opcodes: list[Opcode] = list(opcodes)
         self._ast: ast.Module | None = None
         self._properties: ASTProperties | None = None
+        # Whether the pickled sequence was interrupted because of
+        # an invalid opcode
+        self._has_invalid_opcode: bool = has_invalid_opcode
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -674,6 +677,10 @@ class Pickled(OpcodeSequence):
     def opcodes(self) -> Iterator[Opcode]:
         return iter(self)
 
+    @property
+    def has_invalid_opcode(self) -> bool:
+        return self._has_invalid_opcode
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, (bytes, bytearray, Buffer)):
@@ -683,10 +690,18 @@ class Pickled(OpcodeSequence):
         return data
 
     @staticmethod
-    def load(pickled: Buffer | BinaryIO) -> Pickled:
+    def load(pickled: Buffer | BinaryIO, fail_on_decode_error: bool = True) -> Pickled:
+        """
+        :arg fail_on_decode_error: If a decoding error such as unknown opcode happens
+            and this parameter is set to False, then the error is ignored and the
+            returns the list of opcodes decoded until the error. If set to True,
+            then raises a decode error exception
+        """
+
         pickled = Pickled.make_stream(pickled)
         first_pos = pickled.tell()
         opcodes: List[Opcode] = []
+        has_invalid_opcode = False
 
         try:
             for info, arg, pos in genops(pickled):
@@ -718,7 +733,10 @@ class Pickled(OpcodeSequence):
                     pickled.seek(pos_before)
         except ValueError as e:
             if opcodes:
-                raise PickleDecodeError(e)
+                if fail_on_decode_error:
+                    raise PickleDecodeError(e)
+                else:
+                    has_invalid_opcode = True
             else:
                 raise EmptyPickleError()
         if opcodes:
@@ -730,7 +748,7 @@ class Pickled(OpcodeSequence):
                 pickled.seek(last_pos)
         else:
             pickled.seek(first_pos)
-        return Pickled(opcodes)
+        return Pickled(opcodes, has_invalid_opcode=has_invalid_opcode)
 
     @property
     def properties(self) -> ASTProperties:
@@ -1652,12 +1670,12 @@ class StackedPickle(PickledSequence):
         return len(self.pickled)
 
     @staticmethod
-    def load(pickled: Buffer | BinaryIO) -> StackedPickle:
+    def load(pickled: Buffer | BinaryIO, fail_on_decode_error: bool = True) -> StackedPickle:
         pickled = Pickled.make_stream(pickled)
         pickles: List[Pickled] = []
         while True:
             try:
-                p = Pickled.load(pickled)
+                p = Pickled.load(pickled, fail_on_decode_error=fail_on_decode_error)
                 if len(p) == 0:
                     break
                 pickles.append(p)
