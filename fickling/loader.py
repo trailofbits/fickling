@@ -14,12 +14,19 @@ def load(
     **kwargs,
 ):
     """Exposed as fickling.load()"""
-    pickled_data = Pickled.load(file)
+    pickled_data = Pickled.load(file, fail_on_decode_error=False)
     result = check_safety(pickled=pickled_data, json_output_path=json_output_path)
-    if result.severity <= max_acceptable_severity:
+    if result.severity <= max_acceptable_severity and not pickled_data.has_invalid_opcode:
         # We don't do pickle.load(file) because it could allow for a race
         # condition where the file we check is not the same that gets
         # loaded after the analysis.
         return pickle.loads(pickled_data.dumps(), *args, **kwargs)
+    elif pickled_data.has_invalid_opcode:
+        raise UnsafeFileError(
+            file,
+            "This file contains an invalid opcode sequence. It is"
+            "either corrupted or maliciously attempting to bypass"
+            "pickle analysis tools",
+        )
     else:
         raise UnsafeFileError(file, result.to_dict())

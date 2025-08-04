@@ -183,6 +183,15 @@ class MisplacedProtoAnalysis(Analysis):
                     )
 
 
+class InvalidOpcode(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        if context.pickled.has_invalid_opcode:
+            yield AnalysisResult(
+                Severity.LIKELY_UNSAFE,
+                "The file has invalid opcode(s). It is either corrupted" " or attempting to bypass the pickle security analysis",
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
@@ -391,8 +400,9 @@ def check_safety(
         analyzer = Analyzer.default_instance
 
     results = analyzer.analyze(pickled)
-    severity_data = results.to_dict(verbosity)
+
     if json_output_path:
+        severity_data = results.to_dict(verbosity)
         # This is intentionally "a" to handle the case of stacked pickles
         with open(json_output_path, "a") as json_file:
             json.dump(severity_data, json_file, indent=4)
@@ -401,4 +411,8 @@ def check_safety(
 
 def is_likely_safe(filepath: str):
     with open(filepath, "rb") as f:
-        return check_safety(Pickled.load(f)).severity == Severity.LIKELY_SAFE
+        pickled = Pickled.load(f, fail_on_decode_error=False)
+        if pickled.has_invalid_opcode:
+            # Invalid pickle file, likely not safe
+            return False
+        return check_safety(pickled).severity == Severity.LIKELY_SAFE
