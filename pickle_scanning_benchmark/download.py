@@ -65,9 +65,9 @@ def hf_download_pickle_files(
                 continue
             size = int(size)
             if size > maxsize:
-                print(f"> Skipping {url}, file too big ({size/1000} kb)")
+                print(f"> Skipping {url}, file too big ({size / 1000} kb)")
             elif size < minsize:
-                print(f"> Skipping {url}, file too small ({size/1000} kb)")
+                print(f"> Skipping {url}, file too small ({size / 1000} kb)")
             else:
                 # File suitable for download
                 if file["filename"].endswith((".pkl", ".pickle", ".pk")) or file["filename"] == "pickle":
@@ -125,7 +125,7 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
         archive_file = "/tmp/torchfile.zip"
     else:
         # archive_file is actually outfile
-        archive_file = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
+        archive_file = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.', 1)[0]}"
 
     print(f"> Downloading {url}")
     resp = requests.get(f"{url}?download=true", allow_redirects=True)
@@ -140,7 +140,7 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
                 print(f"\t> Extracting {element.filename}")
                 outfile = (
                     outdir
-                    / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}_{element.filename.replace('/', '_')}"
+                    / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.', 1)[0]}_{element.filename.replace('/', '_')}"
                 )
                 with archive.open(element.filename, "r") as inf, open(outfile, "wb") as outf:
                     shutil.copyfileobj(inf, outf)

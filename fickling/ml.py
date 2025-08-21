@@ -27,7 +27,7 @@ TRANSFORMERS_TRAININGARGS_MSG = (
 
 TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
 MAIN_IMPORT_MSG = (
-    "We consider this name safe to import from __main__ because it doesn't overlap " "with names of known pickle exploit primitives. "
+    "We consider this name safe to import from __main__ because it doesn't overlap with names of known pickle exploit primitives. "
 )
 
 # Allowlist for imports that can be considered safe when scanning a file

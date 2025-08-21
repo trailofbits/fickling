@@ -258,9 +258,9 @@ class ToolResults:
         tp_rate = self.tp_malicious / bench_res.nb_malicious_files
         scan_rate = self.nb_scanned_files / self.total_files
         res = f"""
-    Files successfully analyzed: {scan_rate*100:.1f}%
-    Clean files correctly classified: {tn_rate*100:.1f}%
-    Malicious files correctly classified: {tp_rate*100:.1f}%
+    Files successfully analyzed: {scan_rate * 100:.1f}%
+    Clean files correctly classified: {tn_rate * 100:.1f}%
+    Malicious files correctly classified: {tp_rate * 100:.1f}%
 """
         if self.fn_payload_types:
             res += "    Types of payloads not detected by tool:"
