@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
         type=str,
         nargs="?",
         default="-",
-        help="path to the pickle file to either " "analyze or create (default is '-' for " "STDIN/STDOUT)",
+        help="path to the pickle file to either analyze or create (default is '-' for STDIN/STDOUT)",
     )
     options = parser.add_mutually_exclusive_group()
     options.add_argument(
@@ -28,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
         "-i",
         type=str,
         default=None,
-        help="inject the specified Python code to be run at the end of unpickling, " "and output the resulting pickle data",
+        help="inject the specified Python code to be run at the end of unpickling, and output the resulting pickle data",
     )
     parser.add_argument(
         "--inject-target",
@@ -132,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
             pickled = stacked_pickled[args.inject_target]
             if not isinstance(pickled[-1], fickle.Stop):
                 sys.stderr.write(
-                    "Warning: The last opcode of the input file was expected to be STOP, but was " f"in fact {pickled[-1].info.name}"
+                    f"Warning: The last opcode of the input file was expected to be STOP, but was in fact {pickled[-1].info.name}"
                 )
             pickled.insert_python_eval(
                 args.inject,

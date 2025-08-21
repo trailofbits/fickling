@@ -64,7 +64,7 @@ class Opcode:
             if info is None:
                 raise TypeError("The Opcode class must be constructed with the `info` argument")
         elif info is not None and info != self.info:
-            raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got " f"{info!r}")
+            raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got {info!r}")
         self.arg: Any = argument
         self.pos: int | None = position
         self._data: bytes | None = data
@@ -168,12 +168,10 @@ class DynamicLength(Opcode, ABC):
     @classmethod
     def encode_length(cls, length: int) -> bytes:
         if cls.length_bytes not in cls.struct_types:
-            raise TypeError(
-                f"{cls.__name__}.struct_types does not include a value for " f"{cls.__name__}.length_bytes = {cls.length_bytes}"
-            )
+            raise TypeError(f"{cls.__name__}.struct_types does not include a value for {cls.__name__}.length_bytes = {cls.length_bytes}")
         if length < cls.min_value or length > cls.max_value:
             raise ValueError(
-                f"Invalid length {length}: {cls.__name__} can only represent lengths in the range " f"[{cls.min_value}, {cls.max_value}]"
+                f"Invalid length {length}: {cls.__name__} can only represent lengths in the range [{cls.min_value}, {cls.max_value}]"
             )
         st = cls.struct_types[cls.length_bytes]
         if not cls.length_signed:
@@ -231,9 +229,7 @@ class ConstantOpcode(Opcode):
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
             elif not hasattr(cls, "priority") or not isinstance(cls.priority, int) or cls.priority is None:
-                raise TypeError(
-                    f"{cls.__name__} must define an integer priority used for auto-instantiation " "from ConstantOpcode.new(...)"
-                )
+                raise TypeError(f"{cls.__name__} must define an integer priority used for auto-instantiation from ConstantOpcode.new(...)")
             ConstantOpcode.ConstantOpcodePriorities[cls] = cls.priority
         return ret
 
@@ -256,7 +252,7 @@ class ConstantOpcode(Opcode):
                 return subclass(subclass.validate(obj))
             except ValueError:
                 pass
-        raise ValueError("There is no subclass of ConstantOpcode that handles objects of type " f"{type(obj)!r} for {obj!r}")
+        raise ValueError(f"There is no subclass of ConstantOpcode that handles objects of type {type(obj)!r} for {obj!r}")
 
 
 class ConstantInt(ConstantOpcode, ABC):
@@ -289,10 +285,10 @@ class ConstantInt(ConstantOpcode, ABC):
         if not isinstance(obj, int):
             raise ValueError(f"{cls.__name__} can only be instantiated from integers, not {obj!r}")
         elif cls.num_bytes not in cls.struct_types:
-            raise TypeError(f"{cls.__name__}.struct_types does not include a value for " f"{cls.__name__}.length_bytes = {cls.num_bytes}")
+            raise TypeError(f"{cls.__name__}.struct_types does not include a value for {cls.__name__}.length_bytes = {cls.num_bytes}")
         elif obj < cls.min_value or obj > cls.max_value:
             raise ValueError(
-                f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range " f"[{cls.min_value}, {cls.max_value}]"
+                f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range [{cls.min_value}, {cls.max_value}]"
             )
         return obj
 
@@ -864,7 +860,7 @@ class ModuleBody:
     def append(self, stmt: ast.stmt):
         lineno = len(self._list) + 1
         if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
-            raise ValueError(f"Statement {stmt} was expected to have line number {lineno} but instead has " f"{stmt.lineno}")
+            raise ValueError(f"Statement {stmt} was expected to have line number {lineno} but instead has {stmt.lineno}")
         setattr(stmt, "lineno", lineno)
         self._list.append(stmt)
 
