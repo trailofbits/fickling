@@ -4,7 +4,9 @@ from collections.abc import Iterator
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from fickling.exception import UnsafeFileError
 
-CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
+CALLABLE_NEW_SAFE_MSG = (
+    "This class is callable but the call redirects to __new__ which just builds a new object."
+)
 BW_HOOKS_SAFE_MSG = (
     "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
     "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
@@ -13,7 +15,9 @@ BW_HOOKS_SAFE_MSG = (
 )
 
 ENUM_MSG = "A simple enumeration."
-DATACLASS_MSG = "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
+DATACLASS_MSG = (
+    "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
+)
 SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a code exec or `getattr` primitive. "
 "The class doesn't have security-sensitive parameters or attributes."
 SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
@@ -27,7 +31,8 @@ TRANSFORMERS_TRAININGARGS_MSG = (
 
 TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
 MAIN_IMPORT_MSG = (
-    "We consider this name safe to import from __main__ because it doesn't overlap " "with names of known pickle exploit primitives. "
+    "We consider this name safe to import from __main__ because it doesn't overlap "
+    "with names of known pickle exploit primitives. "
 )
 
 # Allowlist for imports that can be considered safe when scanning a file
@@ -261,7 +266,9 @@ ML_ALLOWLIST = {
     "trl.trainer.grpo_config": {"GRPOConfig": TRAININGARGS_SUBCLASS_MSG},
     "trl.trainer.kto_config": {"KTOConfig": TRAININGARGS_SUBCLASS_MSG},
     "trl.trainer.ppov2_config": {"PPOv2Config": TRAININGARGS_SUBCLASS_MSG},
-    "swift.trainers.rlhf_arguments": {"DPOConfig": "Alias for trl.DPOConfig" + TRAININGARGS_SUBCLASS_MSG},
+    "swift.trainers.rlhf_arguments": {
+        "DPOConfig": "Alias for trl.DPOConfig" + TRAININGARGS_SUBCLASS_MSG
+    },
     "open_r1.configs": {
         "SFTConfig": TRANSFORMERS_TRAININGARGS_MSG,
         "GRPOConfig": TRANSFORMERS_TRAININGARGS_MSG,

