@@ -96,10 +96,12 @@ ALL_PAYLOADS = {
     "dl and run binary": inject_download_and_run_binary,
 }
 
+
 def _rand_split_import(import_str):
-    pos = random.randint(1,import_str.count("."))
+    pos = random.randint(1, import_str.count("."))
     import_str = import_str.split(".")
     return ".".join(import_str[:pos]), ".".join(import_str[pos:])
+
 
 def _add_simple_payload(key, pl):
     function = pl[0]

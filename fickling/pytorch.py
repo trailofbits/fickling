@@ -112,14 +112,18 @@ class PyTorchModelWrapper:
         if self._pickled is None:
             self.validate_file_format()
             with zipfile.ZipFile(self.path, "r") as zip_ref:
-                data_pkl_path = next((name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None)
+                data_pkl_path = next(
+                    (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None
+                )
                 if data_pkl_path is None:
                     raise ValueError("data.pkl not found in the zip archive")
                 with zip_ref.open(data_pkl_path, "r") as pickle_file:
                     self._pickled = Pickled.load(pickle_file)
         return self._pickled
 
-    def inject_payload(self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False) -> None:
+    def inject_payload(
+        self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
+    ) -> None:
         self.output_path = output_path
         if self.formats[0] == "TorchScript v1.4":
             warnings.warn(

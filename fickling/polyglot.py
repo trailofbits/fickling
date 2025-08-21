@@ -39,13 +39,17 @@ except ModuleNotFoundError:
     )
 
 
-def check_and_find_in_zip(zip_path, file_name_or_extension, return_path=False, check_extension=False):
+def check_and_find_in_zip(
+    zip_path, file_name_or_extension, return_path=False, check_extension=False
+):
     """Check for a file in the zip and return its path or boolean if found."""
     try:
         if not (return_path):
             with zipfile.ZipFile(zip_path, "r") as zip_file:
                 if check_extension:
-                    return any(entry.endswith(file_name_or_extension) for entry in zip_file.namelist())
+                    return any(
+                        entry.endswith(file_name_or_extension) for entry in zip_file.namelist()
+                    )
                 else:
                     return any(file_name_or_extension in entry for entry in zip_file.namelist())
         else:
@@ -155,7 +159,10 @@ def find_file_properties(file_path, print_properties=False):
                 "attributes.pkl",
             ]
             torch_zip_results = {
-                f"has_{'_'.join(f.split('.'))}": check_and_find_in_zip(file, f, check_extension=False) for f in torch_zip_checks
+                f"has_{'_'.join(f.split('.'))}": check_and_find_in_zip(
+                    file, f, check_extension=False
+                )
+                for f in torch_zip_checks
             }
         properties.update(torch_zip_results)
     if print_properties:
@@ -184,7 +191,9 @@ def find_file_properties_recursively(file_path, print_properties=False):
                 for fname in zipped_file.namelist():
                     zipped_file.extract(fname, path=tempdir)
                     fname_path = os.path.join(tempdir, fname)
-                    properties["children"][fname] = find_file_properties_recursively(fname_path, print_properties)
+                    properties["children"][fname] = find_file_properties_recursively(
+                        fname_path, print_properties
+                    )
 
     # check tar
     if properties["is_tar"]:  # tar archive
@@ -198,7 +207,9 @@ def find_file_properties_recursively(file_path, print_properties=False):
                         continue
                     fname_path = os.path.join(tempdir, os.path.basename(fname))
                     open(fname_path, "wb").write(content.read())
-                    properties["children"][fname] = find_file_properties_recursively(fname_path, print_properties)
+                    properties["children"][fname] = find_file_properties_recursively(
+                        fname_path, print_properties
+                    )
 
     return properties
 
@@ -230,9 +241,9 @@ def check_if_model_archive_format(file, properties):
     """
     if properties["is_standard_zip"]:
         has_json = check_and_find_in_zip(file, ".json", check_extension=True)
-        has_serialized_model = check_and_find_in_zip(file, ".pt", check_extension=True) or check_and_find_in_zip(
-            file, ".pth", check_extension=True
-        )
+        has_serialized_model = check_and_find_in_zip(
+            file, ".pt", check_extension=True
+        ) or check_and_find_in_zip(file, ".pth", check_extension=True)
         has_code = check_and_find_in_zip(file, ".py", check_extension=True)
         return has_json and has_serialized_model and has_code
 
@@ -243,7 +254,11 @@ def check_for_corruption(properties):
     reason = ""
     # We expect this to be expanded upon
     if properties["is_torch_zip"]:
-        if properties["has_model_json"] and not properties["has_attributes_pkl"] and not properties["has_constants_pkl"]:
+        if (
+            properties["has_model_json"]
+            and not properties["has_attributes_pkl"]
+            and not properties["has_constants_pkl"]
+        ):
             corrupted = True
             reason = """Your file may be corrupted. It contained a
             model.json file without an attributes.pkl or constants.pkl file."""
@@ -269,7 +284,11 @@ def identify_pytorch_file_format(file, print_properties=False, print_results=Fal
             (["has_model_json", "has_attributes_pkl"], "TorchScript v1.1"),
             (["has_data_pkl"], "PyTorch v1.3"),
         ]
-        formats = [format_name for keys, format_name in format_conditions if all(properties[key] for key in keys)]
+        formats = [
+            format_name
+            for keys, format_name in format_conditions
+            if all(properties[key] for key in keys)
+        ]
 
     if properties["is_tar"]:
         is_pytorch_legacy_format = check_if_legacy_format(file)
@@ -293,7 +312,9 @@ def identify_pytorch_file_format(file, print_properties=False, print_results=Fal
         secondary = formats[1:]
         if len(secondary) != 0:
             if print_results:
-                print("It is also possible that your file can be validly interpreted as: ", secondary)
+                print(
+                    "It is also possible that your file can be validly interpreted as: ", secondary
+                )
     else:
         if print_results:
             print(
@@ -316,7 +337,9 @@ def create_zip_pickle_polyglot(zip_file, pickle_file):
     append_file(zip_file, pickle_file)
 
 
-def create_mar_legacy_pickle_polyglot(files, print_results=False, polyglot_file_name="polyglot.mar.pt"):
+def create_mar_legacy_pickle_polyglot(
+    files, print_results=False, polyglot_file_name="polyglot.mar.pt"
+):
     files.sort(key=lambda x: x[1] != "PyTorch model archive format")
     if print_results:
         print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
@@ -326,7 +349,9 @@ def create_mar_legacy_pickle_polyglot(files, print_results=False, polyglot_file_
     return polyglot_found
 
 
-def create_standard_torchscript_polyglot(files, print_results=False, polyglot_file_name="polyglot.pt"):
+def create_standard_torchscript_polyglot(
+    files, print_results=False, polyglot_file_name="polyglot.pt"
+):
     if print_results:
         print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
         print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
@@ -337,7 +362,9 @@ def create_standard_torchscript_polyglot(files, print_results=False, polyglot_fi
     shutil.copy(standard_pytorch_file, polyglot_file_name)
 
     with zipfile.ZipFile(torchscript_file, "r") as zip_b:
-        constants_pkl_path = check_and_find_in_zip(zip_b, "constants.pkl", check_extension=False, return_path=True)
+        constants_pkl_path = check_and_find_in_zip(
+            zip_b, "constants.pkl", check_extension=False, return_path=True
+        )
         version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
         if constants_pkl_path and version_path:
             zip_b.extract(constants_pkl_path, "temp")
@@ -352,7 +379,9 @@ def create_standard_torchscript_polyglot(files, print_results=False, polyglot_fi
     return polyglot_found
 
 
-def create_mar_legacy_tar_polyglot(files, print_results=False, polyglot_file_name="polyglot.mar.tar"):
+def create_mar_legacy_tar_polyglot(
+    files, print_results=False, polyglot_file_name="polyglot.mar.tar"
+):
     if print_results:
         print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
     mar_file = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
@@ -381,7 +410,9 @@ def create_polyglot(first_file, second_file, polyglot_file_name=None, print_resu
     if {"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats):
         if polyglot_file_name is None:
             polyglot_file_name = "polyglot.pt"
-        polyglot_found = create_standard_torchscript_polyglot(files, print_results, polyglot_file_name)
+        polyglot_found = create_standard_torchscript_polyglot(
+            files, print_results, polyglot_file_name
+        )
     if {"PyTorch model archive format", "PyTorch v0.1.1"}.issubset(formats):
         if polyglot_file_name is None:
             polyglot_file_name = "polyglot.mar.tar"

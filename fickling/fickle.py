@@ -64,7 +64,10 @@ class Opcode:
             if info is None:
                 raise TypeError("The Opcode class must be constructed with the `info` argument")
         elif info is not None and info != self.info:
-            raise ValueError(f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got " f"{info!r}")
+            raise ValueError(
+                f"Invalid info type for {self.__class__.__name__}; expected {self.info!r} but got "
+                f"{info!r}"
+            )
         self.arg: Any = argument
         self.pos: int | None = position
         self._data: bytes | None = data
@@ -92,7 +95,9 @@ class Opcode:
     def encode_body(self) -> bytes:
         if self.info.arg is None or self.info.arg.n == 0:
             return b""
-        raise NotImplementedError(f"encode_body() is not yet implemented for opcode {self.__class__.__name__}")
+        raise NotImplementedError(
+            f"encode_body() is not yet implemented for opcode {self.__class__.__name__}"
+        )
 
     def __new__(cls, *args, **kwargs):
         if cls is Opcode:
@@ -169,11 +174,13 @@ class DynamicLength(Opcode, ABC):
     def encode_length(cls, length: int) -> bytes:
         if cls.length_bytes not in cls.struct_types:
             raise TypeError(
-                f"{cls.__name__}.struct_types does not include a value for " f"{cls.__name__}.length_bytes = {cls.length_bytes}"
+                f"{cls.__name__}.struct_types does not include a value for "
+                f"{cls.__name__}.length_bytes = {cls.length_bytes}"
             )
         if length < cls.min_value or length > cls.max_value:
             raise ValueError(
-                f"Invalid length {length}: {cls.__name__} can only represent lengths in the range " f"[{cls.min_value}, {cls.max_value}]"
+                f"Invalid length {length}: {cls.__name__} can only represent lengths in the range "
+                f"[{cls.min_value}, {cls.max_value}]"
             )
         st = cls.struct_types[cls.length_bytes]
         if not cls.length_signed:
@@ -230,9 +237,14 @@ class ConstantOpcode(Opcode):
         if not cls.__name__ == "ConstantInt":
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
-            elif not hasattr(cls, "priority") or not isinstance(cls.priority, int) or cls.priority is None:
+            elif (
+                not hasattr(cls, "priority")
+                or not isinstance(cls.priority, int)
+                or cls.priority is None
+            ):
                 raise TypeError(
-                    f"{cls.__name__} must define an integer priority used for auto-instantiation " "from ConstantOpcode.new(...)"
+                    f"{cls.__name__} must define an integer priority used for auto-instantiation "
+                    "from ConstantOpcode.new(...)"
                 )
             ConstantOpcode.ConstantOpcodePriorities[cls] = cls.priority
         return ret
@@ -249,14 +261,19 @@ class ConstantOpcode(Opcode):
 
     @classmethod
     def new(cls: type[T], obj) -> T:
-        for subclass, _ in sorted(ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]):
+        for subclass, _ in sorted(
+            ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]
+        ):
             if not issubclass(subclass, cls):
                 continue
             try:
                 return subclass(subclass.validate(obj))
             except ValueError:
                 pass
-        raise ValueError("There is no subclass of ConstantOpcode that handles objects of type " f"{type(obj)!r} for {obj!r}")
+        raise ValueError(
+            "There is no subclass of ConstantOpcode that handles objects of type "
+            f"{type(obj)!r} for {obj!r}"
+        )
 
 
 class ConstantInt(ConstantOpcode, ABC):
@@ -289,10 +306,14 @@ class ConstantInt(ConstantOpcode, ABC):
         if not isinstance(obj, int):
             raise ValueError(f"{cls.__name__} can only be instantiated from integers, not {obj!r}")
         elif cls.num_bytes not in cls.struct_types:
-            raise TypeError(f"{cls.__name__}.struct_types does not include a value for " f"{cls.__name__}.length_bytes = {cls.num_bytes}")
+            raise TypeError(
+                f"{cls.__name__}.struct_types does not include a value for "
+                f"{cls.__name__}.length_bytes = {cls.num_bytes}"
+            )
         elif obj < cls.min_value or obj > cls.max_value:
             raise ValueError(
-                f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range " f"[{cls.min_value}, {cls.max_value}]"
+                f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range "
+                f"[{cls.min_value}, {cls.max_value}]"
             )
         return obj
 
@@ -707,7 +728,13 @@ class Pickled(OpcodeSequence):
             for info, arg, pos in genops(pickled):
                 pos_before = pickled.tell()
                 try:
-                    if pos is not None and opcodes and opcodes[-1].pos is not None and not opcodes[-1].has_data() and opcodes[-1].pos < pos:
+                    if (
+                        pos is not None
+                        and opcodes
+                        and opcodes[-1].pos is not None
+                        and not opcodes[-1].has_data()
+                        and opcodes[-1].pos < pos
+                    ):
                         pickled.seek(opcodes[-1].pos)
                         opcodes[-1].data = pickled.read(pos - opcodes[-1].pos)
                     if pos is not None:
@@ -780,7 +807,9 @@ on the Pickled object instead"""
         )
 
     def is_likely_safe(self):
-        raise WrongMethodError("This method has been removed. Use fickling.is_likely_safe() on the pickle file instead")
+        raise WrongMethodError(
+            "This method has been removed. Use fickling.is_likely_safe() on the pickle file instead"
+        )
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
@@ -864,7 +893,10 @@ class ModuleBody:
     def append(self, stmt: ast.stmt):
         lineno = len(self._list) + 1
         if hasattr(stmt, "lineno") and stmt.lineno is not None and stmt.lineno != lineno:
-            raise ValueError(f"Statement {stmt} was expected to have line number {lineno} but instead has " f"{stmt.lineno}")
+            raise ValueError(
+                f"Statement {stmt} was expected to have line number {lineno} but instead has "
+                f"{stmt.lineno}"
+            )
         setattr(stmt, "lineno", lineno)
         self._list.append(stmt)
 
@@ -883,7 +915,9 @@ class ModuleBody:
 
 
 class Interpreter:
-    def __init__(self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"):
+    def __init__(
+        self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"
+    ):
         self.pickled: Pickled = pickled
         self.memory: dict[int, ast.expr] = {}
         self.stack: Stack[ast.expr | MarkObject] = Stack()
@@ -911,7 +945,11 @@ class Interpreter:
         for statement in self.module_body:
             # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
-                if len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name) and statement.targets[0].id == "result":
+                if (
+                    len(statement.targets) == 1
+                    and isinstance(statement.targets[0], ast.Name)
+                    and statement.targets[0].id == "result"
+                ):
                     # this is the return value of the program
                     break
                 for target in statement.targets:
@@ -919,7 +957,9 @@ class Interpreter:
                         defined.add(target.id)
                         if target.id in assignments:
                             # this should never happen, since Fickling constructs the AST
-                            sys.stderr.write(f"Warning: Duplicate declaration of variable {target.id}\n")
+                            sys.stderr.write(
+                                f"Warning: Duplicate declaration of variable {target.id}\n"
+                            )
                         assignments[target.id] = statement
                 statement = statement.value
             if statement is not None:
@@ -1148,7 +1188,9 @@ class AddItems(Opcode):
             raise ValueError("Stack was empty; expected a pyset")
         pyset = interpreter.stack.pop()
         if not isinstance(pyset, ast.Set):
-            raise ValueError(f"{pyset!r} was expected to be a set-like object with an `add` function")
+            raise ValueError(
+                f"{pyset!r} was expected to be a set-like object with an `add` function"
+            )
         pyset.elts.extend(reversed(to_add))
 
 
@@ -1551,7 +1593,9 @@ class ShortBinBytes(DynamicLength, ConstantOpcode):
     @classmethod
     def validate(cls, obj):
         if not isinstance(obj, bytes):
-            raise ValueError(f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}")
+            raise ValueError(
+                f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}"
+            )
         return super().validate(obj)
 
 
@@ -1651,7 +1695,9 @@ class Dict(Opcode):
             raise ValueError("Exhausted the stack while searching for a MarkObject!")
 
         if len(keys) != len(values):
-            raise ValueError(f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match")
+            raise ValueError(
+                f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
+            )
 
         interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
 
