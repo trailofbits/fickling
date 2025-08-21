@@ -5,7 +5,7 @@ class UnsafeFileError(Exception):
         self.info = info
 
     def __str__(self):
-        return f"Safety results for {self.filepath} : {str(self.info)}"
+        return f"Safety results for {self.filepath} : {self.info!s}"
 
 
 class WrongMethodError(Exception):

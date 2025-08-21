@@ -79,8 +79,7 @@ class Opcode:
     def data(self) -> bytes:
         if self._data is None:
             return self.encode()
-        else:
-            return self._data
+        return self._data
 
     @data.setter
     def data(self, value: bytes):
@@ -103,13 +102,11 @@ class Opcode:
         if cls is Opcode:
             if "info" not in kwargs:
                 raise ValueError(f"You must provide an `info` argument to construct {cls.__name__}")
-            else:
-                info = kwargs["info"]
+            info = kwargs["info"]
             if info.name in OPCODES_BY_NAME:
                 del kwargs["info"]
                 return OPCODES_BY_NAME[info.name](*args, **kwargs)
-            else:
-                raise NotImplementedError(f"TODO: Add support for Opcode {info.name}")
+            raise NotImplementedError(f"TODO: Add support for Opcode {info.name}")
         return super().__new__(cls)
 
     def run(self, interpreter: Interpreter):
@@ -125,12 +122,12 @@ class Opcode:
         ):
             if not hasattr(cls, "name") or cls.name is None:
                 raise TypeError("Opcode subclasses must define a name")
-            elif cls.name in OPCODES_BY_NAME:
+            if cls.name in OPCODES_BY_NAME:
                 raise TypeError(f"An Opcode named {cls.name} is already defined")
-            elif cls.name not in OPCODE_INFO_BY_NAME:
+            if cls.name not in OPCODE_INFO_BY_NAME:
                 raise TypeError(f"An Opcode named {cls.name} is not defined in `pickletools`")
             OPCODES_BY_NAME[cls.name] = cls
-            setattr(cls, "info", OPCODE_INFO_BY_NAME[cls.name])
+            cls.info = OPCODE_INFO_BY_NAME[cls.name]
             # find the associated `pickletools` OpcodeInfo:
         return super().__init_subclass__(**kwargs)
 
@@ -237,7 +234,7 @@ class ConstantOpcode(Opcode):
         if not cls.__name__ == "ConstantInt":
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
-            elif (
+            if (
                 not hasattr(cls, "priority")
                 or not isinstance(cls.priority, int)
                 or cls.priority is None
@@ -305,12 +302,12 @@ class ConstantInt(ConstantOpcode, ABC):
     def validate(cls, obj):
         if not isinstance(obj, int):
             raise ValueError(f"{cls.__name__} can only be instantiated from integers, not {obj!r}")
-        elif cls.num_bytes not in cls.struct_types:
+        if cls.num_bytes not in cls.struct_types:
             raise TypeError(
                 f"{cls.__name__}.struct_types does not include a value for "
                 f"{cls.__name__}.length_bytes = {cls.num_bytes}"
             )
-        elif obj < cls.min_value or obj > cls.max_value:
+        if obj < cls.min_value or obj > cls.max_value:
             raise ValueError(
                 f"Invalid value {obj!r}: {cls.__name__} can only represent lengths in the range "
                 f"[{cls.min_value}, {cls.max_value}]"
@@ -334,12 +331,11 @@ class StackSliceOpcode(Opcode):
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
-                else:
-                    args.append(obj)
+                args.append(obj)
             args = list(reversed(args))
             return orig_run(self, interpreter, args)
 
-        setattr(cls, "run", run_wrapper)
+        cls.run = run_wrapper
 
         return ret
 
@@ -356,13 +352,13 @@ class ASTProperties(ast.NodeVisitor):
         if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
             self.likely_safe_imports |= {name.name for name in node.names}
 
-    def visit_Import(self, node: ast.Import):  # noqa: N802
+    def visit_Import(self, node: ast.Import):
         self._process_import(node)
 
-    def visit_ImportFrom(self, node: ast.ImportFrom):  # noqa: N802
+    def visit_ImportFrom(self, node: ast.ImportFrom):
         self._process_import(node)
 
-    def visit_Call(self, node: ast.Call):  # noqa: N802
+    def visit_Call(self, node: ast.Call):
         self.calls.append(node)
         if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
             self.non_setstate_calls.append(node)
@@ -407,7 +403,7 @@ class Pickled(OpcodeSequence):
         pickle VM stack"""
         if self._is_constant_type(obj):
             return [ConstantOpcode.new(obj)]
-        elif isinstance(obj, list):
+        if isinstance(obj, list):
             res = [Mark()]
             for item in obj:
                 if self._is_constant_type(item):
@@ -416,7 +412,7 @@ class Pickled(OpcodeSequence):
                     res += self._encode_python_obj(item)
             res.append(List())
             return res
-        elif isinstance(obj, dict):
+        if isinstance(obj, dict):
             if len(obj) == 0:
                 res = [EmptyDict()]
             else:
@@ -429,8 +425,7 @@ class Pickled(OpcodeSequence):
                         res += self._encode_python_obj(val)
                 res.append(Dict())
             return res
-        else:
-            raise ValueError(f"Type {type(obj)} not supported")
+        raise ValueError(f"Type {type(obj)} not supported")
 
     def insert_python_obj(self, index: int, obj: Any) -> int:
         """Insert an opcode sequence that constructs a python object on the stack.
@@ -484,30 +479,29 @@ class Pickled(OpcodeSequence):
                 self.insert(-1, Pop())
                 self.insert(-1, Get.create(321987))  # Get back obj
             return i + 1
+        # Inject call
+        if use_output_as_unpickle_result:
+            # the top of the stack should be the original unpickled value, but we can throw
+            # that away because we are replacing it with the result of calling eval:
+            self.insert(-1, Pop())
+            # now the top of the stack should be our original Global, Mark, Unicode,
+            # Tuple setup, ready for Reduce:
+            self.insert(-1, Reduce())
         else:
-            # Inject call
-            if use_output_as_unpickle_result:
-                # the top of the stack should be the original unpickled value, but we can throw
-                # that away because we are replacing it with the result of calling eval:
-                self.insert(-1, Pop())
-                # now the top of the stack should be our original Global, Mark, Unicode,
-                # Tuple setup, ready for Reduce:
-                self.insert(-1, Reduce())
-            else:
-                # we need to preserve the "real" output of the preexisting unpickling, which should
-                # be at the top of the stack, directly above our Tuple, Unicode, Mark, and Global
-                # stack items we added above.
-                # So, we have to save the original result to the memo. First, interpret the existing
-                # code to see which memo location it would be saved to:
-                interpreter = Interpreter(self)
-                interpreter.run()
-                memo_id = len(interpreter.memory)
-                self.insert(-1, Memoize())
-                self.insert(-1, Pop())
-                self.insert(-1, Reduce())
-                self.insert(-1, Pop())
-                self.insert(-1, Get.create(memo_id))
-            return -1
+            # we need to preserve the "real" output of the preexisting unpickling, which should
+            # be at the top of the stack, directly above our Tuple, Unicode, Mark, and Global
+            # stack items we added above.
+            # So, we have to save the original result to the memo. First, interpret the existing
+            # code to see which memo location it would be saved to:
+            interpreter = Interpreter(self)
+            interpreter.run()
+            memo_id = len(interpreter.memory)
+            self.insert(-1, Memoize())
+            self.insert(-1, Pop())
+            self.insert(-1, Reduce())
+            self.insert(-1, Pop())
+            self.insert(-1, Get.create(memo_id))
+        return -1
 
     insert_python_eval = insert_python
 
@@ -762,8 +756,7 @@ class Pickled(OpcodeSequence):
             if opcodes:
                 if fail_on_decode_error:
                     raise PickleDecodeError(e)
-                else:
-                    has_invalid_opcode = True
+                has_invalid_opcode = True
             else:
                 raise EmptyPickleError()
         if opcodes:
@@ -868,10 +861,8 @@ class Stack(GenericSequence, Generic[T]):
         if not self._stack:
             if self.opcode is None:
                 raise IndexError("Stack is empty")
-            else:
-                raise IndexError(f"Opcode {self.opcode!s} attempted to pop from an empty stack")
-        else:
-            return self._stack.pop()
+            raise IndexError(f"Opcode {self.opcode!s} attempted to pop from an empty stack")
+        return self._stack.pop()
 
     def push(self, obj: T):
         self._stack.append(obj)
@@ -897,7 +888,7 @@ class ModuleBody:
                 f"Statement {stmt} was expected to have line number {lineno} but instead has "
                 f"{stmt.lineno}"
             )
-        setattr(stmt, "lineno", lineno)
+        stmt.lineno = lineno
         self._list.append(stmt)
 
     def extend(self, stmts: Iterable[ast.stmt]):
@@ -990,8 +981,8 @@ class Interpreter:
             finished = True
         if finished:
             for i, stmt in enumerate(self.module_body):
-                setattr(stmt, "lineno", i + 1)
-                setattr(stmt, "col_offset", 0)
+                stmt.lineno = i + 1
+                stmt.col_offset = 0
             self._module = ast.Module(list(self.module_body), type_ignores=[])
             raise StopIteration()
         self.stack.opcode = opcode
@@ -1027,11 +1018,10 @@ class Proto(NoOp):
     def version(self) -> int:
         if self.arg is None:
             return 0
-        elif isinstance(self.arg, int):
+        if isinstance(self.arg, int):
             return self.arg
-        else:
-            # Endianness shouldn't really matter here because there is only one byte for the version
-            return int.from_bytes(self.arg, "big", signed=False)
+        # Endianness shouldn't really matter here because there is only one byte for the version
+        return int.from_bytes(self.arg, "big", signed=False)
 
 
 class Global(Opcode):
