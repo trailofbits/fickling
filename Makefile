@@ -1,59 +1,63 @@
 PY_MODULE := fickling
 
-# Optionally overriden by the user, if they're using a virtual environment manager.
-VENV ?= env
-VENV_EXISTS := $(VENV)/pyvenv.cfg
-
-# On Windows, venv scripts/shims are under `Scripts` instead of `bin`.
-VENV_BIN := $(VENV)/bin
-ifeq ($(OS),Windows_NT)
-	VENV_BIN := $(VENV)/Scripts
-endif
-
-# Optionally overridden by the user/CI, to limit the installation to a specific
-# subset of development dependencies.
-INSTALL_EXTRA := dev
-
 ALL_PY_SRCS := $(shell find $(PY_MODULE) -name '*.py') \
 	$(shell find test -name '*.py') \
-	$(shell find example -name '*.py') \
+	$(shell find example -name '*.py')
 
 .PHONY: all
 all:
 	@echo "Run my targets individually!"
 
-$(VENV)/pyvenv.cfg: pyproject.toml
-	python -m venv env
-	. $(VENV_BIN)/activate && \
-		pip install --upgrade pip setuptools && \
-		pip install -e .[$(INSTALL_EXTRA)]
-
 .PHONY: dev
-dev: $(VENV)/pyvenv.cfg
+dev:
+	uv sync --all-extras
 
 .PHONY: lint
-lint: $(VENV_EXISTS)
-	. $(VENV_BIN)/activate && \
-		ruff format --check $(ALL_PY_SRCS) && \
-		ruff check $(PY_MODULE)
+lint:
+	uv run ruff format --check $(ALL_PY_SRCS)
+	uv run ruff check $(PY_MODULE)
+	uv run mypy $(PY_MODULE)
 
 .PHONY: format
-format: $(VENV_EXISTS)
-	. $(VENV_BIN)/activate && \
-		ruff check --fix $(PY_MODULE) && \
-		ruff format $(ALL_PY_SRCS)
+format:
+	uv run ruff check --fix $(PY_MODULE)
+	uv run ruff format $(ALL_PY_SRCS)
 
 .PHONY: test
-test: $(VENV_EXISTS)
-	. $(VENV_BIN)/activate && \
-		pytest --cov=$(PY_MODULE) test/ && \
-		python -m coverage report
+test:
+	uv run pytest --cov=$(PY_MODULE) test/
+	uv run coverage report
+
+.PHONY: test-quick
+test-quick:
+	uv run pytest -q test/
+
+.PHONY: typecheck
+typecheck:
+	uv run mypy $(PY_MODULE)
 
 .PHONY: dist
-dist: $(VENV_EXISTS)
-	. $(VENV_BIN)/activate && \
-		python -m build
+dist:
+	uv build
 
-.PHONY: edit
-edit:
-	$(EDITOR) $(ALL_PY_SRCS)
+.PHONY: clean
+clean:
+	rm -rf dist/ build/ *.egg-info .coverage .pytest_cache .mypy_cache .ruff_cache
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+
+.PHONY: install
+install:
+	uv pip install -e .
+
+.PHONY: install-dev
+install-dev:
+	uv pip install -e ".[dev]"
+
+.PHONY: pre-commit-install
+pre-commit-install:
+	uv run pre-commit install
+
+.PHONY: pre-commit
+pre-commit:
+	uv run pre-commit run --all-files

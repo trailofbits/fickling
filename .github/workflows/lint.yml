@@ -8,10 +8,30 @@ on:
 
 jobs:
   lint-python:
-    uses: trailofbits/.github/.github/workflows/make-lint.yml@v0.1.3
-    with:
-      language: "python"
-      python-version: "3.9"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: uv sync --extra lint
+
+      - name: Check formatting with ruff
+        run: uv run ruff format --check .
+
+      - name: Lint with ruff
+        run: uv run ruff check fickling
+
+      - name: Type check with mypy
+        run: uv run mypy fickling
 
   all-lints-pass:
     if: always()
