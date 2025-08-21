@@ -3,5 +3,5 @@ huggingface_hub==0.23.5
 model_unpickler==0.1
 modelscan==0.8.1
 picklescan==0.0.27
-Requests==2.32.3
+Requests==2.32.4
 torch==2.2.2
