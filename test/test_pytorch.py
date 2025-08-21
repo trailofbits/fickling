@@ -53,7 +53,9 @@ class TestPyTorchModule(unittest.TestCase):
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
         except Exception as e:  # noqa
-            self.fail(f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}")
+            self.fail(
+                f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
+            )
 
     def test_injection_combination(self):
         try:
@@ -63,4 +65,6 @@ class TestPyTorchModule(unittest.TestCase):
             if os.path.exists(temp_filename):
                 os.remove(temp_filename)
         except Exception as e:  # noqa
-            self.fail(f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}")
+            self.fail(
+                f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
+            )

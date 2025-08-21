@@ -23,17 +23,25 @@ Fickling can be used both as a **python library** and a **CLI**.
 ## Installation
 
 Fickling has been tested on Python 3.9 through Python 3.13 and has very few dependencies.
-Both the library and command line utility can be installed through pip:
+Both the library and command line utility can be installed through pip or uv:
 
 ```bash
+# Using pip
 python -m pip install fickling
+
+# Using uv
+uv pip install fickling
 ```
 
 PyTorch is an optional dependency of Fickling. Therefore, in order to use Fickling's `pytorch`
 and `polyglot` modules, you should run:
 
 ```bash
+# Using pip
 python -m pip install fickling[torch]
+
+# Using uv
+uv pip install fickling[torch]
 ```
 
 ## Securing AI/ML environments

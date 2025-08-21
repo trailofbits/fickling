@@ -11,4 +11,6 @@ print("Identifying PyTorch v1.3 file:")
 potential_formats = polyglot.identify_pytorch_file_format("mobilenet.pth", print_results=True)
 
 print("Identifying PyTorch v0.1.10 file:")
-potential_formats_legacy = polyglot.identify_pytorch_file_format("legacy_mobilenet.pth", print_results=True)
+potential_formats_legacy = polyglot.identify_pytorch_file_format(
+    "legacy_mobilenet.pth", print_results=True
+)
