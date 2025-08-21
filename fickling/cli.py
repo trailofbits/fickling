@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
         except fickle.PickleDecodeError as e:
-            sys.stderr.write(f"Error: {str(e)}\n")
+            sys.stderr.write(f"Error: {e!s}\n")
             return 1
         finally:
             file.close()

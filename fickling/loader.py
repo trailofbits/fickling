@@ -21,12 +21,11 @@ def load(
         # condition where the file we check is not the same that gets
         # loaded after the analysis.
         return pickle.loads(pickled_data.dumps(), *args, **kwargs)
-    elif pickled_data.has_invalid_opcode:
+    if pickled_data.has_invalid_opcode:
         raise UnsafeFileError(
             file,
             "This file contains an invalid opcode sequence. It is"
             "either corrupted or maliciously attempting to bypass"
             "pickle analysis tools",
         )
-    else:
-        raise UnsafeFileError(file, result.to_dict())
+    raise UnsafeFileError(file, result.to_dict())

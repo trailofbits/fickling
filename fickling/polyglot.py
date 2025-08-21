@@ -50,8 +50,7 @@ def check_and_find_in_zip(
                     return any(
                         entry.endswith(file_name_or_extension) for entry in zip_file.namelist()
                     )
-                else:
-                    return any(file_name_or_extension in entry for entry in zip_file.namelist())
+                return any(file_name_or_extension in entry for entry in zip_file.namelist())
         else:
             return next(
                 (entry for entry in zip_path.namelist() if entry.endswith(file_name_or_extension)),

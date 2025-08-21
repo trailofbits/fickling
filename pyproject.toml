@@ -125,6 +125,26 @@ ignore = [
   "E501",  # line too long (handled by formatter)
   "T201",  # print statements (needed for CLI)
   "T203",  # pprint statements
+  # Pre-existing issues to fix in future PRs
+  "PTH123",  # open() should be replaced by Path.open()
+  "PTH107",  # os.remove should be replaced by Path.unlink
+  "PTH118",  # os.path.join should be replaced by Path
+  "PTH119",  # os.path.basename should be replaced by Path.name
+  "RUF012",  # Mutable class attributes should use ClassVar
+  "RUF013",  # PEP 484 prohibits implicit Optional
+  "B028",   # No explicit stacklevel in warnings
+  "B904",   # Use raise ... from within except blocks
+  "SIM102",  # Use single if instead of nested if
+  "SIM108",  # Use ternary operator instead of if-else
+  "SIM114",  # Combine if branches with same body
+  "SIM115",  # Use context handler for opening files
+  "SIM117",  # Use single with statement for multiple contexts
+  "SIM118",  # Use `key in dict` instead of `key in dict.keys()`
+  "SIM201",  # Use `!=` instead of `not ==`
+  "PERF203", # try-except in loop could be moved outside
+  "RET503",  # Missing explicit return
+  "RET504",  # Unnecessary assignment before return
+  "RUF015",  # Prefer next() over list indexing
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -342,7 +342,7 @@ class FicklingMLUnpickler(pickle.Unpickler):
                 "the standard library that is not whitelisted; "
                 "this could execute arbitrary code and should be considered unsafe",
             )
-        elif name not in self.allowlist[module]:
+        if name not in self.allowlist[module]:
             raise UnsafeFileError(
                 "<file>",
                 f"`{import_str}` imports the non-standard Python function `{name}` that is not whitelisted as safe; "

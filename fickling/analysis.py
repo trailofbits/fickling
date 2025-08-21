@@ -120,8 +120,7 @@ class AnalysisResult:
     def __str__(self):
         if self.message is None:
             return "No issues found"
-        else:
-            return self.message
+        return self.message
 
 
 class Analysis(ABC):
