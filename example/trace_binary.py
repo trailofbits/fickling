@@ -1,6 +1,5 @@
 import io
-
-from astunparse import unparse
+from ast import unparse
 
 import fickling.tracing as tracing
 from fickling.fickle import Interpreter, Pickled

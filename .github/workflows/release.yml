@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,16 +36,10 @@ jobs:
       - build-release
     steps:
       - name: fetch dists
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: fickling-dists
           path: dist/
 
       - name: publish
-        uses: pypa/gh-action-pypi-publish@v1.10.3
-
-      - name: sign
-        uses: sigstore/gh-action-sigstore-python@v2.1.1
-        with:
-          inputs: ./dist/*.tar.gz ./dist/*.whl
-          release-signing-artifacts: true
+        uses: pypa/gh-action-pypi-publish@v1.12.4

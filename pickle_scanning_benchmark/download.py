@@ -70,10 +70,7 @@ def hf_download_pickle_files(
                 print(f"> Skipping {url}, file too small ({size/1000} kb)")
             else:
                 # File suitable for download
-                if (
-                    file["filename"].endswith((".pkl", ".pickle", ".pk"))
-                    or file["filename"] == "pickle"
-                ):
+                if file["filename"].endswith((".pkl", ".pickle", ".pk")) or file["filename"] == "pickle":
                     file = _download_pickle_file(url, file, outdir)
                     index.append(file)
                     n -= 1  # Update counter of remaining files to download
@@ -125,13 +122,10 @@ def _download_torch_file(url, file, outdir, extract_pickles=False):
     res = []
     if extract_pickles:
         # If we keep only the pickle and discard the archive, use temporary file
-        "/tmp/torchfile.zip"
+        archive_file = "/tmp/torchfile.zip"
     else:
         # archive_file is actually outfile
-        archive_file = (
-            outdir
-            / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
-        )
+        archive_file = outdir / f"{file['project'].replace('/', '_')}_{file['filename'].replace('/', '_').rsplit('.',1)[0]}"
 
     print(f"> Downloading {url}")
     resp = requests.get(f"{url}?download=true", allow_redirects=True)
@@ -176,12 +170,8 @@ if __name__ == "__main__":
         choices=["add", "overwrite", "default"],
         default="default",
     )
-    parser.add_argument(
-        "--maxsize", help="Discard files above this size (in bytes)", default=10000000, type=int
-    )
-    parser.add_argument(
-        "--minsize", help="Discard files above this size (in bytes)", default=1000, type=int
-    )
+    parser.add_argument("--maxsize", help="Discard files above this size (in bytes)", default=10000000, type=int)
+    parser.add_argument("--minsize", help="Discard files above this size (in bytes)", default=1000, type=int)
     parser.add_argument(
         "-e",
         "--extract-pickles",

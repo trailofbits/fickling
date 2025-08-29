@@ -22,7 +22,7 @@ Fickling can be used both as a **python library** and a **CLI**.
 
 ## Installation
 
-Fickling has been tested on Python 3.8 through Python 3.11 and has very few dependencies.
+Fickling has been tested on Python 3.9 through Python 3.13 and has very few dependencies.
 Both the library and command line utility can be installed through pip:
 
 ```bash
@@ -38,7 +38,7 @@ python -m pip install fickling[torch]
 
 ## Securing AI/ML environments
 
-Fickling can help securing AI/ML codebases by automatically scanning pickle files contained in 
+Fickling can help securing AI/ML codebases by automatically scanning pickle files contained in
 models. Fickling hooks the pickle module and verifies imports made when loading a model. It only
 checks the imports against an allowlist of imports from ML libraries that are considered safe, and blocks files that contain other imports.
 
@@ -50,7 +50,7 @@ import fickling
 fickling.hook.activate_safe_ml_environment()
 ```
 
-To remove the protection: 
+To remove the protection:
 
 ```python
 fickling.hook.deactivate_safe_ml_environment()
@@ -82,7 +82,7 @@ raises an `UnsafeFileError` exception if malicious content is detected in the fi
 # This enforces safety checks every time pickle.load() is used
 fickling.always_check_safety()
 
-# Attempt to load an unsafe file now raises an exception  
+# Attempt to load an unsafe file now raises an exception
 with open("file.pkl", "rb") as f:
     try:
         pickle.load(f)
@@ -108,7 +108,7 @@ pickle.load("file.pkl")
 #### Option 3: check and load a single file
 
 ```python
-# Use fickling.load() in place of pickle.load() to check safety and load a single pickle file 
+# Use fickling.load() in place of pickle.load() to check safety and load a single pickle file
 try:
     fickling.load("file.pkl")
 except fickling.UnsafeFileError as e:
@@ -172,7 +172,7 @@ fickling --trace file.pkl
 Fickling allows to inject arbitrary code in a pickle file that will run every time the file is loaded
 
 ```console
-fickling --inject "print('Malicious')" file.pkl
+fickling --inject "print('Malicious')" file.pkl > malicious.pkl
 ```
 
 ### Pickle decompilation
@@ -201,8 +201,8 @@ Module(
 
 ### PyTorch polyglots
 
-PyTorch contains multiple file formats with which one can make polyglot files, which 
-are files that can be validly interpreted as more than one file format. 
+PyTorch contains multiple file formats with which one can make polyglot files, which
+are files that can be validly interpreted as more than one file format.
 Fickling supports identifying, inspecting, and creating polyglots with the
 following PyTorch file formats:
 
@@ -223,7 +223,7 @@ following PyTorch file formats:
 >> torch.save(model, "mobilenet.pth")
 >> fickled_model = PyTorchModelWrapper("mobilenet.pth")
 >> print(fickled_model.formats)
-Your file is most likely of this format:  PyTorch v1.3 
+Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 

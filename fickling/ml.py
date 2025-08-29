@@ -1,12 +1,10 @@
 import pickle
-from typing import Iterator, List
+from collections.abc import Iterator
 
 from fickling.analysis import Analysis, AnalysisContext, AnalysisResult, Severity
 from fickling.exception import UnsafeFileError
 
-CALLABLE_NEW_SAFE_MSG = (
-    "This class is callable but the call redirects to __new__ which just builds a new object."
-)
+CALLABLE_NEW_SAFE_MSG = "This class is callable but the call redirects to __new__ which just builds a new object."
 BW_HOOKS_SAFE_MSG = (
     "The `backward_hooks` argument can seem unsafe but can be exploited only if the "
     "pickle can generate malicious callable objects. Since generating a malicious callable is sufficient for "
@@ -15,9 +13,7 @@ BW_HOOKS_SAFE_MSG = (
 )
 
 ENUM_MSG = "A simple enumeration."
-DATACLASS_MSG = (
-    "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
-)
+DATACLASS_MSG = "A simple dataclass that can update itself from a dict, and load/save from a JSON file."
 SIMPLE_CLASS_MSG = "A simple class that is not callable and can not be used as a code exec or `getattr` primitive. "
 "The class doesn't have security-sensitive parameters or attributes."
 SIMPLE_FUNCTION_MSG = "A simple function that is not callable and can not be used as a code exec or `getattr` primitive."
@@ -31,8 +27,7 @@ TRANSFORMERS_TRAININGARGS_MSG = (
 
 TRAININGARGS_SUBCLASS_MSG = "A subclass deriving from transformers.training_args.TrainingArguments."
 MAIN_IMPORT_MSG = (
-    "We consider this name safe to import from __main__ because it doesn't overlap "
-    "with names of known pickle exploit primitives."
+    "We consider this name safe to import from __main__ because it doesn't overlap " "with names of known pickle exploit primitives. "
 )
 
 # Allowlist for imports that can be considered safe when scanning a file
@@ -46,6 +41,10 @@ ML_ALLOWLIST = {
         "float64": BINDING_CLASS_MSG,
     },
     "numpy.core.multiarray": {
+        "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
+        "`PyArray_NewFromDescr` constructor under the hood."
+    },
+    "numpy._core.multiarray": {
         "_reconstruct": "Helper function that reconstructs a `ndarray` object. Calls the C-code "
         "`PyArray_NewFromDescr` constructor under the hood."
     },
@@ -72,6 +71,7 @@ ML_ALLOWLIST = {
         "Tensor": CALLABLE_NEW_SAFE_MSG,
         "bfloat16": SIMPLE_CLASS_MSG,
         "float16": SIMPLE_CLASS_MSG,
+        "float32": SIMPLE_CLASS_MSG,
     },
     "torch._tensor": {
         "_rebuild_from_type_v2": "This function accepts another function as argument and calls it on the rest of the arguments. "
@@ -116,6 +116,8 @@ ML_ALLOWLIST = {
         "HubStrategy": ENUM_MSG,
         "EvaluationStrategy": ENUM_MSG,
         "FSDPOption": ENUM_MSG,
+        "SaveStrategy": ENUM_MSG,
+        "ShardedDDPOption": ENUM_MSG,
     },
     "simpletransformers.config.model_args": {
         "Seq2SeqArgs": DATACLASS_MSG,
@@ -144,6 +146,57 @@ ML_ALLOWLIST = {
     },
     "torch.nn.modules.linear": {
         "Linear": SIMPLE_CLASS_MSG,
+        "Identity": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.upsampling": {
+        "Upsample": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.pooling": {
+        "MaxPool2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.batchnorm": {
+        "BatchNorm2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.conv": {
+        "Conv2d": SIMPLE_CLASS_MSG,
+        "ConvTranspose2d": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.activation": {
+        "SiLU": SIMPLE_CLASS_MSG,
+    },
+    "torch.nn.modules.loss": {
+        "BCEWithLogitsLoss": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.block": {
+        "SPPF": SIMPLE_CLASS_MSG,
+        "DFL": SIMPLE_CLASS_MSG,
+        "Bottleneck": SIMPLE_CLASS_MSG,
+        "C2f": SIMPLE_CLASS_MSG,
+        "Proto": SIMPLE_CLASS_MSG,
+        "PSABlock": SIMPLE_CLASS_MSG,
+        "C3k2": SIMPLE_CLASS_MSG,
+        "C3k": SIMPLE_CLASS_MSG,
+        "C2PSA": SIMPLE_CLASS_MSG,
+        "Attention": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.head": {
+        "Detect": SIMPLE_CLASS_MSG,
+        "Segment": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.batchnorm": {
+        "BatchNorm2d": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.nn.modules.conv": {
+        "Concat": SIMPLE_CLASS_MSG,
+        "Conv": SIMPLE_CLASS_MSG,
+        "DWConv": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.utils.loss": {
+        "BboxLoss": SIMPLE_CLASS_MSG,
+        "v8SegmentationLoss": SIMPLE_CLASS_MSG,
+    },
+    "ultralytics.utils.tal": {
+        "TaskAlignedAssigner": SIMPLE_CLASS_MSG,
     },
     "_io": {"BytesIO": SIMPLE_CLASS_MSG},
     "_codecs": {"encode": SIMPLE_FUNCTION_MSG},
@@ -182,6 +235,7 @@ ML_ALLOWLIST = {
     },
     "alignment.configs": {
         "SFTConfig": f"Same as `trl.SFTConfig`. {TRAININGARGS_SUBCLASS_MSG}",
+        "DPOConfig": f"Same as `trl.DPOConfig`. {TRAININGARGS_SUBCLASS_MSG}",
     },
     "copyreg": {
         "_reconstructor": "This function is used to rebuild instances of extension types written in C. "
@@ -189,7 +243,10 @@ ML_ALLOWLIST = {
     },
     "__main__": {
         "TrainingArguments": MAIN_IMPORT_MSG,
+        "DistillationTrainingArguments": MAIN_IMPORT_MSG,
         "DistillTrainingArguments": MAIN_IMPORT_MSG,
+        "SimPOConfig": MAIN_IMPORT_MSG,
+        "TrAr": MAIN_IMPORT_MSG,
     },
     "sklearn.preprocessing._label": {
         "LabelEncoder": SIMPLE_CLASS_MSG,
@@ -199,6 +256,26 @@ ML_ALLOWLIST = {
     },
     "llava.train.train_dpo_ori": {
         "TrainingArguments": TRAININGARGS_SUBCLASS_MSG,
+    },
+    "trl.trainer.dpo_config": {"FDivergenceType": ENUM_MSG},
+    "trl.trainer.grpo_config": {"GRPOConfig": TRAININGARGS_SUBCLASS_MSG},
+    "trl.trainer.kto_config": {"KTOConfig": TRAININGARGS_SUBCLASS_MSG},
+    "trl.trainer.ppov2_config": {"PPOv2Config": TRAININGARGS_SUBCLASS_MSG},
+    "swift.trainers.rlhf_arguments": {"DPOConfig": "Alias for trl.DPOConfig" + TRAININGARGS_SUBCLASS_MSG},
+    "open_r1.configs": {
+        "SFTConfig": TRANSFORMERS_TRAININGARGS_MSG,
+        "GRPOConfig": TRANSFORMERS_TRAININGARGS_MSG,
+    },
+    "sentence_transformers.training_args": {
+        "BatchSamplers": ENUM_MSG,
+        "MultiDatasetBatchSamplers": ENUM_MSG,
+        "SentenceTransformerTrainingArguments": TRANSFORMERS_TRAININGARGS_MSG,
+    },
+    "axolotl.core.trainer_builder": {"AxolotlTrainingArguments": TRANSFORMERS_TRAININGARGS_MSG},
+    "pyannote.audio.core.task": {
+        "Specifications": SIMPLE_CLASS_MSG,
+        "Problem": ENUM_MSG,
+        "Resolution": ENUM_MSG,
     },
 }
 
@@ -236,7 +313,7 @@ class MLAllowlist(Analysis):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
-    def __init__(self, *args, also_allow: List[str] = None, **kwargs):
+    def __init__(self, *args, also_allow: list[str] = None, **kwargs):
         self.allowlist = dict(ML_ALLOWLIST)
         super().__init__(*args, **kwargs)
         # Add additional allowed imports

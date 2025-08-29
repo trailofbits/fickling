@@ -1,23 +1,20 @@
-import json
-import sys
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from enum import Enum
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple, Type
+from __future__ import annotations
 
-if sys.version_info < (3, 9):
-    from astunparse import unparse
-else:
-    from ast import unparse
+import json
+from abc import ABC, abstractmethod
+from ast import unparse
+from collections import defaultdict
+from collections.abc import Iterable, Iterator
+from enum import Enum
 
 from fickling.fickle import Interpreter, Pickled, Proto
 
 
 class AnalyzerMeta(type):
-    _DEFAULT_INSTANCE: Optional["Analyzer"] = None
+    _DEFAULT_INSTANCE: Analyzer | None = None
 
     @property
-    def default_instance(cls) -> "Analyzer":
+    def default_instance(cls) -> Analyzer:
         if cls._DEFAULT_INSTANCE is None:
             cls._DEFAULT_INSTANCE = Analyzer(Analysis.ALL)
         return cls._DEFAULT_INSTANCE
@@ -26,11 +23,11 @@ class AnalyzerMeta(type):
 class AnalysisContext:
     def __init__(self, pickled: Pickled):
         self.pickled: Pickled = pickled
-        self.reported_shortened_code: Set[str] = set()
-        self.previous_results: List[AnalysisResult] = []
-        self.results_by_analysis: Dict[Type[Analysis], List[AnalysisResult]] = defaultdict(list)
+        self.reported_shortened_code: set[str] = set()
+        self.previous_results: list[AnalysisResult] = []
+        self.results_by_analysis: dict[type[Analysis], list[AnalysisResult]] = defaultdict(list)
 
-    def analyze(self, analysis: "Analysis") -> "List[AnalysisResult]":
+    def analyze(self, analysis: Analysis) -> list[AnalysisResult]:
         results = list(analysis.analyze(self))
         if not results:
             self.results_by_analysis[type(analysis)].append(AnalysisResult(Severity.LIKELY_SAFE))
@@ -40,10 +37,10 @@ class AnalysisContext:
         return results
 
     @property
-    def results(self) -> "AnalysisResults":
+    def results(self) -> AnalysisResults:
         return AnalysisResults(pickled=self.pickled, results=self.previous_results)
 
-    def shorten_code(self, ast_node) -> Tuple[str, bool]:
+    def shorten_code(self, ast_node) -> tuple[str, bool]:
         code = unparse(ast_node).strip()
         if len(code) > 32:
             cutoff = code.find("(")
@@ -59,10 +56,10 @@ class AnalysisContext:
 
 
 class Analyzer(metaclass=AnalyzerMeta):
-    def __init__(self, analyses: Iterable["Analysis"]):
-        self.analyses: Tuple[Analysis, ...] = tuple(analyses)
+    def __init__(self, analyses: Iterable[Analysis]):
+        self.analyses: tuple[Analysis, ...] = tuple(analyses)
 
-    def analyze(self, pickled: Pickled) -> "AnalysisResults":
+    def analyze(self, pickled: Pickled) -> AnalysisResults:
         context = AnalysisContext(pickled=pickled)
         for a in self.analyses:
             context.analyze(a)
@@ -101,21 +98,18 @@ class AnalysisResult:
     def __init__(
         self,
         severity: Severity,
-        message: Optional[str] = None,
+        message: str | None = None,
         analysis_name: str = None,
-        trigger: Optional[str] = None,
+        trigger: str | None = None,
     ):
         self.severity: Severity = severity
-        self.message: Optional[str] = message
+        self.message: str | None = message
         self.analysis_name: str = analysis_name
-        self.trigger: Optional[str] = (
-            trigger  # Field to store the trigger code fragment or artifact
-        )
+        self.trigger: str | None = trigger  # Field to store the trigger code fragment or artifact
 
     def __lt__(self, other):
         return isinstance(other, AnalysisResult) and (
-            self.severity < other.severity
-            or (self.severity == other.severity and str(self) < str(other))
+            self.severity < other.severity or (self.severity == other.severity and str(self) < str(other))
         )
 
     def __bool__(self):
@@ -130,7 +124,7 @@ class AnalysisResult:
 
 
 class Analysis(ABC):
-    ALL: "List[Analysis]" = []
+    ALL: list[Analysis] = []
 
     def __init_subclass__(cls, **kwargs):
         Analysis.ALL.append(cls())
@@ -143,7 +137,7 @@ class Analysis(ABC):
 class DuplicateProtoAnalysis(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         had_proto = False
-        proto_versions: Set[int] = set()
+        proto_versions: set[int] = set()
         for i, opcode in enumerate(context.pickled):
             if isinstance(opcode, Proto):
                 if had_proto:
@@ -189,6 +183,15 @@ class MisplacedProtoAnalysis(Analysis):
                     )
 
 
+class InvalidOpcode(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        if context.pickled.has_invalid_opcode:
+            yield AnalysisResult(
+                Severity.LIKELY_UNSAFE,
+                "The file has invalid opcode(s). It is either corrupted" " or attempting to bypass the pickle security analysis",
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
@@ -224,9 +227,7 @@ class UnsafeImportsML(Analysis):
     }
 
     UNSAFE_IMPORTS = {
-        "torch": {
-            "load": "This function can load untrusted files and code from arbitrary web sources."
-        },
+        "torch": {"load": "This function can load untrusted files and code from arbitrary web sources."},
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
         "operator": {
             "getitem": "This function can lead to arbitrary code execution",
@@ -247,9 +248,7 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, _ = context.shorten_code(node)
-            all_modules = [
-                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
-            ]
+            all_modules = [node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     risk_info = self.UNSAFE_MODULES[module_name]
@@ -284,8 +283,7 @@ class BadCalls(Analysis):
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a " "malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
@@ -294,10 +292,7 @@ class BadCalls(Analysis):
 class OvertlyBadEvals(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.non_setstate_calls:
-            if (
-                hasattr(node.func, "id")
-                and node.func.id in context.pickled.properties.likely_safe_imports
-            ):
+            if hasattr(node.func, "id") and node.func.id in context.pickled.properties.likely_safe_imports:
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
@@ -313,8 +308,7 @@ class OvertlyBadEvals(Analysis):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a " "malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
@@ -356,7 +350,7 @@ class UnusedVariables(Analysis):
 class AnalysisResults:
     def __init__(self, pickled: Pickled, results: Iterable[AnalysisResult]):
         self.pickled: Pickled = pickled
-        self.results: Tuple[AnalysisResult, ...] = tuple(results)
+        self.results: tuple[AnalysisResult, ...] = tuple(results)
 
     @property
     def severity(self) -> Severity:
@@ -368,7 +362,7 @@ class AnalysisResults:
         """Returns True if all analyses failed to find any unsafe operations"""
         return all(map(bool, sorted(self.results)))
 
-    def detailed_results(self) -> Dict[str, Dict[str, str]]:
+    def detailed_results(self) -> dict[str, dict[str, str]]:
         detailed = defaultdict(dict)
         for result in self.results:
             if result.trigger:
@@ -398,16 +392,17 @@ class AnalysisResults:
 
 def check_safety(
     pickled: Pickled,
-    analyzer: Optional[Analyzer] = None,
+    analyzer: Analyzer | None = None,
     verbosity: Severity = Severity.POSSIBLY_UNSAFE,
-    json_output_path: Optional[str] = None,
+    json_output_path: str | None = None,
 ) -> AnalysisResults:
     if analyzer is None:
         analyzer = Analyzer.default_instance
 
     results = analyzer.analyze(pickled)
-    severity_data = results.to_dict(verbosity)
+
     if json_output_path:
+        severity_data = results.to_dict(verbosity)
         # This is intentionally "a" to handle the case of stacked pickles
         with open(json_output_path, "a") as json_file:
             json.dump(severity_data, json_file, indent=4)
@@ -416,4 +411,8 @@ def check_safety(
 
 def is_likely_safe(filepath: str):
     with open(filepath, "rb") as f:
-        return check_safety(Pickled.load(f)).severity == Severity.LIKELY_SAFE
+        pickled = Pickled.load(f, fail_on_decode_error=False)
+        if pickled.has_invalid_opcode:
+            # Invalid pickle file, likely not safe
+            return False
+        return check_safety(pickled).severity == Severity.LIKELY_SAFE
