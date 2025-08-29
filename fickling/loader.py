@@ -24,8 +24,8 @@ def load(
     elif pickled_data.has_invalid_opcode:
         raise UnsafeFileError(
             file,
-            "This file contains an invalid opcode sequence. It is"
-            "either corrupted or maliciously attempting to bypass"
+            "This file contains an invalid opcode sequence. It is "
+            "either corrupted or maliciously attempting to bypass "
             "pickle analysis tools",
         )
     else:
