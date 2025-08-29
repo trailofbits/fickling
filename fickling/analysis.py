@@ -145,8 +145,7 @@ class DuplicateProtoAnalysis(Analysis):
                     if opcode.version in proto_versions:
                         yield AnalysisResult(
                             Severity.LIKELY_UNSAFE,
-                            f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual "
-                            f"and may be indicative of a tampered pickle",
+                            f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual and may be indicative of a tampered pickle",
                             "DuplicateProtoAnalysis",
                             trigger=i + 1,
                         )
@@ -188,8 +187,7 @@ class InvalidOpcode(Analysis):
         if context.pickled.has_invalid_opcode:
             yield AnalysisResult(
                 Severity.LIKELY_UNSAFE,
-                "The file has invalid opcode(s). It is either corrupted"
-                " or attempting to bypass the pickle security analysis",
+                "The file has invalid opcode(s). It is either corrupted or attempting to bypass the pickle security analysis",
             )
 
 
@@ -288,8 +286,7 @@ class BadCalls(Analysis):
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
@@ -317,8 +314,7 @@ class OvertlyBadEvals(Analysis):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
-                    f"Call to `{shortened}` is almost certainly evidence of a "
-                    "malicious pickle file",
+                    f"Call to `{shortened}` is almost certainly evidence of a malicious pickle file",
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
