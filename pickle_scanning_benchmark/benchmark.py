@@ -153,7 +153,9 @@ def _analyze_file(
             clean = run_tool_func(fileinfo["file"], fileinfo["type"])
             if clean:
                 results.tools[toolname].add_fn(payload=payload)
-                logger.warning(f"Malicious file missed by {toolname}: {fileinfo['file']}. Payload was: {payload}")
+                logger.warning(
+                    f"Malicious file missed by {toolname}: {fileinfo['file']}. Payload was: {payload}"
+                )
             else:
                 results.tools[toolname].add_tp()
         except KeyboardInterrupt as e:
@@ -204,7 +206,9 @@ def run_benchmark(
                 continue
             results.nb_malicious_files += 1
             for toolname, runtool in tools.items():
-                _analyze_file(toolname, runtool, f, results, expected_scan_result=False, payload=f["payload"])
+                _analyze_file(
+                    toolname, runtool, f, results, expected_scan_result=False, payload=f["payload"]
+                )
     except KeyboardInterrupt:
         pass
 
@@ -251,7 +255,10 @@ class ToolResults:
         self.nb_scanned_files += n
 
     def sanity_check(self):
-        assert self.tn_clean + self.tp_malicious + self.fn_malicious + self.fp_clean == self.nb_scanned_files
+        assert (
+            self.tn_clean + self.tp_malicious + self.fn_malicious + self.fp_clean
+            == self.nb_scanned_files
+        )
 
     def to_str(self, bench_res: "BenchmarkResults"):
         tn_rate = self.tn_clean / bench_res.nb_clean_files
