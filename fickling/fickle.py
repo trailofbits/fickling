@@ -812,6 +812,7 @@ on the Pickled object instead"""
                 "builtins",
                 "os",
                 "posix",
+                "pty",
                 "nt",
                 "subprocess",
                 "sys",
