@@ -46,13 +46,19 @@ class TestHook(unittest.TestCase):
         # Create "unsafe" pickle file
 
         payload = Payload()
+        # Validate that pty-based execution is captured
+        payload_pty = b'''(cpty\nspawn\nS"id"\no.'''
+
 
         # Save the payload in a pickle file
         with open("unsafe.pickle", "wb") as f:
             pickle.dump(payload, f)
+        with open("unsafe_pty.pickle", "wb") as f:
+            f.write(payload_pty)
 
         try:
             numpy.load("unsafe.pickle", allow_pickle=True)
+            numpy.load("unsafe_pty.pickle", allow_pickle=True)
         except UnpicklingError as e:
             if isinstance(e.__cause__, UnsafeFileError):
                 pass
