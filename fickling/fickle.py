@@ -1068,8 +1068,8 @@ class StackGlobal(NoOp):
         # normalize module and attr to strings
         if not isinstance(module, str) or not isinstance(attr, str):
             sys.stdout.write(
-                f"Warning: Malformed pickle file. STACK_GLOBAL called with invalid types."
-                f"'Module' is {type(module).__name__} ({module!r}), 'Attr' is {type(attr).__name__} ({attr!r})."
+                f"Warning: malformed pickle file. STACK_GLOBAL called with invalid types. "
+                f"'Module' is {type(module).__name__} ({module!r}), 'Attr' is {type(attr).__name__} ({attr!r}). "
                 f"Expected str; casting to string to continue analysis.\n"
             )
             module = str(module)
@@ -1413,14 +1413,28 @@ class BinGet(Opcode):
     name = "BINGET"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(interpreter.memory[self.arg])
+        if self.arg not in interpreter.memory:
+            sys.stderr.write(
+                f"Warning: malformed pickle file. BINGET references non-existent memo key {self.arg}; "
+                f"using placeholder None value to continue analysis\n"
+            )
+            interpreter.stack.append(ast.Constant(value=None))
+        else:
+            interpreter.stack.append(interpreter.memory[self.arg])
 
 
 class LongBinGet(Opcode):
     name = "LONG_BINGET"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(interpreter.memory[self.arg])
+        if self.arg not in interpreter.memory:
+            sys.stderr.write(
+                f"Warning: malformed pickle file. LONG_BINGET references non-existent memo key {self.arg}; "
+                f"using placeholder None value to continue analysis\n"
+            )
+            interpreter.stack.append(ast.Constant(value=None))
+        else:
+            interpreter.stack.append(interpreter.memory[self.arg])
 
 
 class Get(Opcode):
@@ -1431,7 +1445,14 @@ class Get(Opcode):
         return int(self.arg)
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(interpreter.memory[self.memo_id])
+        if self.memo_id not in interpreter.memory:
+            sys.stderr.write(
+                f"Warning: malformed pickle file. BINGET references non-existent memo key {self.memo_id}; "
+                f"using placeholder None value to continue analysis\n"
+            )
+            interpreter.stack.append(ast.Constant(value=None))
+        else:
+            interpreter.stack.append(interpreter.memory[self.memo_id])
 
     def encode_body(self) -> bytes:
         return f"{self.memo_id}\n".encode()
