@@ -84,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.add_argument(
         "--print-results",
+        "-p",
         action="store_true",
         help="Print the analysis results to the console when checking safety.",
     )

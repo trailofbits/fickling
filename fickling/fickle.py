@@ -1064,6 +1064,16 @@ class StackGlobal(NoOp):
             module = module.value
         if isinstance(attr, ast.Constant):
             attr = attr.value
+
+        # normalize module and attr to strings
+        if not isinstance(module, str) or not isinstance(attr, str):
+            sys.stdout.write(
+                f"Warning: Malformed pickle file. STACK_GLOBAL called with invalid types."
+                f"'Module' is {type(module).__name__} ({module!r}), 'Attr' is {type(attr).__name__} ({attr!r})."
+                f"Expected str; casting to string to continue analysis.\n"
+            )
+            module = str(module)
+            attr = str(attr)
         if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
