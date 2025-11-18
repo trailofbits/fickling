@@ -84,6 +84,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.add_argument(
         "--print-results",
+        "-p",
         action="store_true",
         help="Print the analysis results to the console when checking safety.",
     )
@@ -116,7 +117,14 @@ def main(argv: list[str] | None = None) -> int:
         try:
             stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
         except fickle.PickleDecodeError as e:
-            sys.stderr.write(f"Error: {e!s}\n")
+            sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
+            if args.check_safety:
+                sys.stderr.write(
+                    "Parsing errors might be indicative of a maliciously crafted pickle file. DO NOT TRUST this file without performing further analysis!\n"
+                )
+                sys.stderr.write(
+                    "\n(If this is a valid pickle file, please report the error at https://github.com/trailofbits/fickling)\n"
+                )
             return 1
         finally:
             file.close()
