@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import keyword
 import marshal
 import re
 import struct
@@ -42,6 +43,61 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 def is_std_module(module_name: str) -> bool:
     return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
+
+
+def extract_identifier_from_ast_node(node: ast.expr | str, fallback_prefix: str = "_malformed") -> str:
+    """
+    Extract a valid Python identifier from an AST node.
+
+    For malformed pickle files where STACK_GLOBAL receives complex AST nodes
+    instead of strings, this function attempts to extract a meaningful identifier
+    or generates a safe fallback.
+
+    Args:
+        node: An AST expression node or string
+        fallback_prefix: Prefix for generated fallback identifiers
+
+    Returns:
+        A valid Python identifier string
+    """
+    # If already a string, validate and return or fix it
+    if isinstance(node, str):
+        if node.isidentifier() and not keyword.iskeyword(node):
+            return node
+        # For invalid string identifiers, create a safe fallback
+        node_hash = abs(hash(node)) % 100000
+        return f"{fallback_prefix}_str_{node_hash}"
+
+    # Handle ast.Name - extract the id attribute
+    if isinstance(node, ast.Name):
+        return node.id
+
+    # Handle ast.Attribute - return the attribute name
+    if isinstance(node, ast.Attribute):
+        return node.attr
+
+    # Handle ast.Call - extract identifier from the function being called
+    if isinstance(node, ast.Call):
+        return extract_identifier_from_ast_node(node.func, fallback_prefix)
+
+    # Handle ast.Constant - extract value if it's a valid identifier string
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if isinstance(value, str):
+            if value.isidentifier() and not keyword.iskeyword(value):
+                return value
+            # For invalid constant strings, create a deterministic fallback
+            value_hash = abs(hash(value)) % 100000
+            return f"{fallback_prefix}_const_{value_hash}"
+        # For non-string constants (int, float, etc.), create a type-based fallback
+        type_name = type(value).__name__
+        value_hash = abs(hash(value)) % 100000
+        return f"{fallback_prefix}_{type_name}_{value_hash}"
+
+    # For any other complex node types, generate a safe placeholder
+    node_type = type(node).__name__.lower()
+    node_hash = abs(hash(id(node))) % 100000
+    return f"{fallback_prefix}_{node_type}_{node_hash}"
 
 
 class MarkObject:
@@ -1060,20 +1116,43 @@ class StackGlobal(NoOp):
     def run(self, interpreter: Interpreter):
         attr = interpreter.stack.pop()
         module = interpreter.stack.pop()
+
+        # Extract values from ast.Constant nodes
         if isinstance(module, ast.Constant):
             module = module.value
         if isinstance(attr, ast.Constant):
             attr = attr.value
 
-        # normalize module and attr to strings
-        if not isinstance(module, str) or not isinstance(attr, str):
+        # Normalize module and attr to strings, extracting meaningful identifiers from AST nodes
+        module_needs_extraction = not isinstance(module, str)
+        attr_needs_extraction = not isinstance(attr, str)
+
+        if module_needs_extraction or attr_needs_extraction:
             sys.stdout.write(
                 f"Warning: malformed pickle file. STACK_GLOBAL called with invalid types. "
                 f"'Module' is {type(module).__name__} ({module!r}), 'Attr' is {type(attr).__name__} ({attr!r}). "
-                f"Expected str; casting to string to continue analysis.\n"
+                f"Expected str; extracting identifiers to continue analysis.\n"
             )
-            module = str(module)
-            attr = str(attr)
+
+            if module_needs_extraction:
+                module = extract_identifier_from_ast_node(module, fallback_prefix="_malformed_module")
+            if attr_needs_extraction:
+                attr = extract_identifier_from_ast_node(attr, fallback_prefix="_malformed_attr")
+
+        # Final validation: ensure both are valid identifier strings
+        if not isinstance(module, str) or not isinstance(attr, str):
+            raise TypeError(
+                f"Failed to extract valid identifiers from STACK_GLOBAL arguments. "
+                f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
+            )
+
+        if not module.isidentifier() or not attr.isidentifier():
+            raise ValueError(
+                f"Extracted identifiers are not valid Python identifiers. "
+                f"Module: {module!r}, Attr: {attr!r}"
+            )
+
+        # Continue with normal processing
         if module in ("__builtin__", "__builtins__", "builtins"):
             # no need to emit an import for builtins!
             pass
