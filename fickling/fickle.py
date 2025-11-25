@@ -1083,6 +1083,46 @@ class StackGlobal(NoOp):
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
+class Ext1(Opcode):
+    name = "EXT1"
+
+    def run(self, interpreter: Interpreter):
+        code = self.arg
+
+        # Generate: import copyreg
+        interpreter.module_body.append(
+            ast.Import(names=[ast.alias('copyreg', None)])
+        )
+
+        # Generate: var_name = copyreg._extension_registry.get(code, (None, None))
+        # Uses .get() with safe default so it won't crash if registry isn't populated
+        lookup_call = ast.Call(
+            ast.Attribute(
+                ast.Attribute(
+                    ast.Name('copyreg', ast.Load()),
+                    '_extension_registry',
+                    ast.Load()
+                ),
+                'get',
+                ast.Load()
+            ),
+            [ast.Constant(code), ast.Tuple([ast.Constant(None), ast.Constant(None)], ast.Load())],
+            []
+        )
+        var_name = interpreter.new_variable(lookup_call)
+
+        # Push the variable onto stack
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
+
+
+class Ext2(Ext1):
+    name = "EXT2"
+
+
+class Ext4(Ext1):
+    name = "EXT4"
+
+
 class Inst(StackSliceOpcode):
     name = "INST"
 
