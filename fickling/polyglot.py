@@ -1,7 +1,5 @@
-import ast
 import os
 import shutil
-import struct
 import tarfile
 import tempfile
 import zipfile
@@ -73,24 +71,22 @@ def check_numpy(file):  # returns isNumpy,isNumpyPickle
     except ValueError:
         return False, False  # not numpy
 
-    # This is a private variable, but the alternative
-    # would require using private functions or
-    # maintaining Numpy's version list in Fickling
-    hinfo = npformat._header_size_info.get(version)
-    if hinfo is None:
-        return False, False  # not a valid version of numpy
-    hlength_type, encoding = hinfo
-
-    hlength_str = file.read(struct.calcsize(hlength_type))
-    header_length = struct.unpack(hlength_type, hlength_str)[0]
-    header = file.read(header_length)
-    header = header.decode(encoding)
-
-    # The literal_eval can be abused to cause a DoS
-    # However this is also what Numpy uses,
-    # so it applies to np.load(fname, allow_pickle=False)
-    d = ast.literal_eval(header)
-    dtype = npformat.descr_to_dtype(d["descr"])
+    # Use numpy's public API to read the array header
+    # This replaces the previous use of private _header_size_info variable
+    try:
+        if version == (1, 0):
+            shape, fortran_order, dtype = npformat.read_array_header_1_0(file)
+        elif version == (2, 0):
+            shape, fortran_order, dtype = npformat.read_array_header_2_0(file)
+        elif version == (3, 0):
+            # Version 3.0 uses the same 4-byte header format as 2.0
+            shape, fortran_order, dtype = npformat.read_array_header_2_0(file)
+        else:
+            # Unknown version
+            return False, False
+    except (ValueError, OSError):
+        # Header parsing failed
+        return False, False
 
     if dtype.hasobject:
         return True, True  # numpy pickle
