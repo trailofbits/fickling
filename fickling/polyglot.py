@@ -75,12 +75,12 @@ def check_numpy(file):  # returns isNumpy,isNumpyPickle
     # This replaces the previous use of private _header_size_info variable
     try:
         if version == (1, 0):
-            shape, fortran_order, dtype = npformat.read_array_header_1_0(file)
+            _shape, _fortran_order, dtype = npformat.read_array_header_1_0(file)
         elif version == (2, 0):
-            shape, fortran_order, dtype = npformat.read_array_header_2_0(file)
+            _shape, _fortran_order, dtype = npformat.read_array_header_2_0(file)
         elif version == (3, 0):
             # Version 3.0 uses the same 4-byte header format as 2.0
-            shape, fortran_order, dtype = npformat.read_array_header_2_0(file)
+            _shape, _fortran_order, dtype = npformat.read_array_header_2_0(file)
         else:
             # Unknown version
             return False, False
