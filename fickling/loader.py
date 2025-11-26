@@ -29,3 +29,45 @@ def load(
             "pickle analysis tools",
         )
     raise UnsafeFileError(file, result.to_dict())
+
+
+def loads(
+    data,
+    max_acceptable_severity=Severity.LIKELY_SAFE,
+    print_results=False,
+    json_output_path=None,
+    *args,
+    **kwargs,
+):
+    """Exposed as fickling.loads()
+
+    Safely loads a pickle from bytes data after performing security analysis.
+
+    Args:
+        data: Bytes data containing the pickled object
+        max_acceptable_severity: Maximum acceptable severity level (default: LIKELY_SAFE)
+        print_results: Whether to print analysis results (default: False)
+        json_output_path: Optional path to write JSON analysis results
+        *args: Additional arguments passed to pickle.loads()
+        **kwargs: Additional keyword arguments passed to pickle.loads()
+
+    Returns:
+        The unpickled object
+
+    Raises:
+        UnsafeFileError: If the pickle data is unsafe or contains invalid opcodes
+    """
+    import io
+
+    # Convert bytes to file-like object
+    file = io.BytesIO(data)
+
+    # Reuse existing load() function which already handles all the logic
+    return load(
+        file,
+        max_acceptable_severity=max_acceptable_severity,
+        print_results=print_results,
+        json_output_path=json_output_path,
+        *args,
+        **kwargs
+    )
