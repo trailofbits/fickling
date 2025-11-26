@@ -282,7 +282,7 @@ class BadCalls(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
-            shortened, already_reported = context.shorten_code(node)
+            shortened, _already_reported = context.shorten_code(node)
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
