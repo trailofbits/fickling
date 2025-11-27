@@ -49,11 +49,11 @@ class TestHook(unittest.TestCase):
         with open("unsafe_pty.pickle", "wb") as f:
             f.write(payload_pty)
 
-        try:
-            numpy.load("unsafe.pickle", allow_pickle=True)
-            numpy.load("unsafe_pty.pickle", allow_pickle=True)
-        except UnpicklingError as e:
-            if isinstance(e.__cause__, UnsafeFileError):
-                pass
-            else:
-                self.fail(e)
+        for f in ["unsafe.pickle", "unsafe_pty.pickle"]:
+            try:
+                numpy.load(f, allow_pickle=True)
+            except UnpicklingError as e:
+                if isinstance(e.__cause__, UnsafeFileError):
+                    pass
+                else:
+                    self.fail(e)
