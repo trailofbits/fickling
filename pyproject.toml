@@ -152,6 +152,7 @@ ignore = [
 "pickle_scanning_benchmark/*.py" = ["BLE", "T20", "N806"]
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
+"fickling/hook.py" = ["N816"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["fickling"]
