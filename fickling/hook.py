@@ -66,7 +66,7 @@ def activate_safe_ml_environment(also_allow=None):
         """Unpickler with pre-configured also_allow list"""
 
         def __init__(self, file, *args, **kwargs):
-            super().__init__(file, also_allow=also_allow, *args, **kwargs)
+            super().__init__(file, *args, also_allow=also_allow, **kwargs)
 
     pickle.Unpickler = SafeMLUnpickler
     _pickle.Unpickler = SafeMLUnpickler
