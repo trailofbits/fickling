@@ -1,4 +1,5 @@
 import pickle
+from io import BytesIO
 
 from fickling.analysis import Severity, check_safety
 from fickling.exception import UnsafeFileError
@@ -57,17 +58,15 @@ def loads(
     Raises:
         UnsafeFileError: If the pickle data is unsafe or contains invalid opcodes
     """
-    import io
-
     # Convert bytes to file-like object
-    file = io.BytesIO(data)
+    file = BytesIO(data)
 
     # Reuse existing load() function which already handles all the logic
     return load(
         file,
+        *args,
         max_acceptable_severity=max_acceptable_severity,
         print_results=print_results,
         json_output_path=json_output_path,
-        *args,
-        **kwargs
+        **kwargs,
     )
