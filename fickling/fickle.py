@@ -45,7 +45,9 @@ def is_std_module(module_name: str) -> bool:
     return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
 
 
-def extract_identifier_from_ast_node(node: ast.expr | str, fallback_prefix: str = "_malformed") -> str:
+def extract_identifier_from_ast_node(
+    node: ast.expr | str, fallback_prefix: str = "_malformed"
+) -> str:
     """
     Extract a valid Python identifier from an AST node.
 
@@ -1135,7 +1137,9 @@ class StackGlobal(NoOp):
             )
 
             if module_needs_extraction:
-                module = extract_identifier_from_ast_node(module, fallback_prefix="_malformed_module")
+                module = extract_identifier_from_ast_node(
+                    module, fallback_prefix="_malformed_module"
+                )
             if attr_needs_extraction:
                 attr = extract_identifier_from_ast_node(attr, fallback_prefix="_malformed_attr")
 
@@ -1215,6 +1219,7 @@ class BinPut(Opcode):
     def encode_body(self):
         assert self.arg <= 255, "BINPUT only supports 1-byte memo indexing"
         return bytes([self.arg])
+
 
 class LongBinPut(BinPut):
     name = "LONG_BINPUT"
@@ -1507,6 +1512,7 @@ class BinGet(Opcode):
     def encode_body(self):
         assert self.arg <= 255, "BINGET only supports 1-byte memo indexing"
         return bytes([self.arg])
+
 
 class LongBinGet(Opcode):
     name = "LONG_BINGET"

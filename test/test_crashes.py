@@ -79,7 +79,9 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
 
     # Based on the CTF challenge shared in https://github.com/trailofbits/fickling/issues/125.
     def test_stack_global_dynamic_import(self):
-        alphabet = "Jw~[v5QpA(BY%aKnyT&*x0r9-OpfF}HN4$GU2VhS@XEq!Zt>6_R7#]1b{z3M^D?)d8eImgckPLiuoClW<js"
+        alphabet = (
+            "Jw~[v5QpA(BY%aKnyT&*x0r9-OpfF}HN4$GU2VhS@XEq!Zt>6_R7#]1b{z3M^D?)d8eImgckPLiuoClW<js"
+        )
         pickled = Pickled(
             [
                 Proto.create(4),
