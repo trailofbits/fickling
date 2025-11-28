@@ -8,6 +8,7 @@ from fickling.exception import UnsafeFileError
 
 class Payload:
     """Malicious payload for testing"""
+
     def __init__(self):
         self.a = 1
 
@@ -50,7 +51,7 @@ class TestLoadsAPI(unittest.TestCase):
         data = pickle.dumps(test_data, protocol=2)
 
         # Should work with extra args like pickle.loads()
-        loaded_data = fickling.loads(data, encoding='ASCII', errors='strict')
+        loaded_data = fickling.loads(data, encoding="ASCII", errors="strict")
 
         self.assertEqual(loaded_data, test_data)
 
