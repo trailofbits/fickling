@@ -3,6 +3,7 @@ import pickle
 import unittest
 
 import fickling
+from fickling.analysis import Severity
 from fickling.exception import UnsafeFileError
 
 
@@ -57,11 +58,11 @@ class TestLoadsAPI(unittest.TestCase):
 
     def test_loads_with_custom_severity(self):
         """Test that fickling.loads() respects custom severity levels"""
-        from fickling.analysis import Severity
+        payload = Payload()
 
-        test_list = [1, 2, 3]
-        data = pickle.dumps(test_list)
+        data = pickle.dumps(payload)
 
-        # Should work with different severity levels
-        loaded_data = fickling.loads(data, max_acceptable_severity=Severity.POSSIBLY_UNSAFE)
-        self.assertEqual(loaded_data, test_list)
+        loaded_data = fickling.loads(
+            data, max_acceptable_severity=Severity.LIKELY_OVERTLY_MALICIOUS
+        )
+        self.assertEqual(loaded_data, 0)
