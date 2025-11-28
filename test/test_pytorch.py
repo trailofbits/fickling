@@ -10,6 +10,7 @@ from fickling.pytorch import PyTorchModelWrapper
 
 _lacks_torch_jit_support = sys.version_info >= (3, 14)
 
+
 class TestPyTorchModule(unittest.TestCase):
     def setUp(self):
         model = models.mobilenet_v2()

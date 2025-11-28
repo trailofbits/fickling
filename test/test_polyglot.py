@@ -14,6 +14,7 @@ import fickling.polyglot as polyglot
 
 _lacks_torch_jit_support = sys.version_info >= (3, 14)
 
+
 def create_pytorch_legacy_tar(tar_file_name):
     # This is an intentional polymock
     os.makedirs("storages", exist_ok=True)
@@ -114,11 +115,13 @@ class TestPolyglotModule(unittest.TestCase):
             self.zip_numpy_pickle,
         ]
         if not _lacks_torch_jit_support:
-            files.extend([
-                self.filename_torchscript,
-                self.filename_torchscript_dup,
-                self.standard_torchscript_polyglot_name,
-            ])
+            files.extend(
+                [
+                    self.filename_torchscript,
+                    self.filename_torchscript_dup,
+                    self.standard_torchscript_polyglot_name,
+                ]
+            )
         for filename in files:
             if os.path.exists(filename):
                 os.remove(filename)
