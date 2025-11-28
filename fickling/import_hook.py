@@ -5,7 +5,6 @@ import types
 import warnings
 from collections.abc import Sequence
 from types import ModuleType
-from typing import Union
 
 import fickling.loader as loader
 
@@ -47,7 +46,7 @@ class PickleFinder(importlib.abc.MetaPathFinder):
     def find_spec(
         self,
         fullname: str,
-        path: Sequence[Union[bytes, str]] | None,
+        path: Sequence[bytes | str] | None,
         target: ModuleType | None = None,
     ):
         if fullname == "pickle":
