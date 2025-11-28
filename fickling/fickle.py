@@ -1212,6 +1212,9 @@ class BinPut(Opcode):
     def run(self, interpreter: Interpreter):
         interpreter.memory[self.arg] = interpreter.stack[-1]
 
+    def encode_body(self):
+        assert self.arg <= 255, "BINPUT only supports 1-byte memo indexing"
+        return bytes([self.arg])
 
 class LongBinPut(BinPut):
     name = "LONG_BINPUT"
@@ -1501,6 +1504,9 @@ class BinGet(Opcode):
         else:
             interpreter.stack.append(interpreter.memory[self.arg])
 
+    def encode_body(self):
+        assert self.arg <= 255, "BINGET only supports 1-byte memo indexing"
+        return bytes([self.arg])
 
 class LongBinGet(Opcode):
     name = "LONG_BINGET"
