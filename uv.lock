@@ -141,9 +141,6 @@ wheels = [
 [[package]]
 name = "fickling"
 source = { editable = "." }
-dependencies = [
-    { name = "stdlib-list" },
-]
 
 [package.optional-dependencies]
 dev = [
@@ -206,7 +203,6 @@ requires-dist = [
     { name = "pytorchfi", marker = "extra == 'examples'" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.8.0" },
-    { name = "stdlib-list", specifier = "~=0.11.1" },
     { name = "torch", marker = "extra == 'dev'", specifier = ">=2.1.0" },
     { name = "torch", marker = "extra == 'test'", specifier = ">=2.1.0" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.1.0" },
@@ -966,15 +962,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/18/5d/3bf57dcd21979b887f014ea83c24ae194cfcd12b9e0fda66b957c69d1fca/setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c", size = 1319958, upload-time = "2025-05-27T00:56:51.443Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922", size = 1201486, upload-time = "2025-05-27T00:56:49.664Z" },
-]
-
-[[package]]
-name = "stdlib-list"
-version = "0.11.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5d/09/8d5c564931ae23bef17420a6c72618463a59222ca4291a7dd88de8a0d490/stdlib_list-0.11.1.tar.gz", hash = "sha256:95ebd1d73da9333bba03ccc097f5bac05e3aa03e6822a0c0290f87e1047f1857", size = 60442, upload-time = "2025-02-18T15:39:38.769Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/88/c7/4102536de33c19d090ed2b04e90e7452e2e3dc653cf3323208034eaaca27/stdlib_list-0.11.1-py3-none-any.whl", hash = "sha256:9029ea5e3dfde8cd4294cfd4d1797be56a67fc4693c606181730148c3fd1da29", size = 83620, upload-time = "2025-02-18T15:39:37.02Z" },
 ]
 
 [[package]]
