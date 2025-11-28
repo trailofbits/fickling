@@ -18,8 +18,6 @@ from typing import (
     overload,
 )
 
-from stdlib_list import in_stdlib
-
 from fickling.exception import WrongMethodError
 
 T = TypeVar("T")
@@ -34,14 +32,14 @@ OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
 
-BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(sys.builtin_module_names)
+BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
 
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
 
 def is_std_module(module_name: str) -> bool:
-    return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
+    return module_name in BUILTIN_STDLIB_MODULE_NAMES
 
 
 class MarkObject:
@@ -396,7 +394,7 @@ class Pickled(OpcodeSequence):
         self._properties = None
 
     def _is_constant_type(self, obj: Any) -> bool:
-        return isinstance(obj, (int, float, str, bytes))
+        return isinstance(obj, int | float | str | bytes)
 
     def _encode_python_obj(self, obj: Any) -> List[Opcode]:
         """Create an opcode sequence that builds an arbitrary python object on the top of the
@@ -453,7 +451,7 @@ class Pickled(OpcodeSequence):
         # its stack so it remains how we left it!
         # TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         i = 0
-        while isinstance(self[i], (Proto, Frame)):
+        while isinstance(self[i], Proto | Frame):
             i += 1
         self.insert(i, Global.create(module, attr))
         i += 1
@@ -698,7 +696,7 @@ class Pickled(OpcodeSequence):
 
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
-        if isinstance(data, (bytes, bytearray, Buffer)):
+        if isinstance(data, bytes | bytearray | Buffer):
             data = BytesIO(data)
         elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
             data = BytesIO(data.read())
@@ -1469,7 +1467,7 @@ class SetItems(StackSliceOpcode):
         pydict = interpreter.stack.pop()
         update_dict_keys = []
         update_dict_values = []
-        for key, value in zip(stack_slice[::2], stack_slice[1::2]):
+        for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
             update_dict_keys.append(key)
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
