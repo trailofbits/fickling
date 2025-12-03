@@ -37,7 +37,9 @@ def create_pytorch_legacy_tar(tmpdir: Path, tar_file_name: Path):
 
 
 def create_random_zip(tmpdir: Path, filename: Path, size=1024):
-    tmp_filename = tmpdir / ("".join(random.choices(string.ascii_letters + string.digits, k=10)) + ".tmp")
+    tmp_filename = tmpdir / (
+        "".join(random.choices(string.ascii_letters + string.digits, k=10)) + ".tmp"
+    )
     tmp_filename.write_bytes(random.randbytes(size))
     with zipfile.ZipFile(filename, "w") as zipf:
         zipf.write(tmp_filename, tmp_filename.name)
