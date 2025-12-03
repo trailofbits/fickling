@@ -1,4 +1,3 @@
-import os
 from ast import unparse
 from contextlib import redirect_stdout
 from functools import wraps
@@ -192,11 +191,8 @@ class TestInterpreter(TestCase):
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
-        test_unused_variables_results = check_safety(
-            loaded, json_output_path="test_unused_variables.json"
-        ).to_dict()
+        test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
-        os.remove("test_unused_variables.json")
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
@@ -245,16 +241,10 @@ class TestInterpreter(TestCase):
     def test_duplicate_proto(self):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
-        test_duplicate_proto_one_results = check_safety(
-            loaded, json_output_path="test_duplicate_proto_one.json"
-        ).to_dict()
+        test_duplicate_proto_one_results = check_safety(loaded).to_dict()
         print(test_duplicate_proto_one_results)
         self.assertEqual(test_duplicate_proto_one_results["severity"], "LIKELY_SAFE")
-        os.remove("test_duplicate_proto_one.json")
         loaded.insert(-1, fpickle.Proto.create(1))
         loaded.insert(-1, fpickle.Proto.create(2))
-        test_duplicate_proto_two_results = check_safety(
-            loaded, json_output_path="test_duplicate_proto_two.json"
-        ).to_dict()
+        test_duplicate_proto_two_results = check_safety(loaded).to_dict()
         self.assertEqual(test_duplicate_proto_two_results["severity"], "LIKELY_UNSAFE")
-        os.remove("test_duplicate_proto_two.json")
