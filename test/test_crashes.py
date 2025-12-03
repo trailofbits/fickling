@@ -8,7 +8,23 @@ from base64 import b64decode
 from functools import wraps
 from unittest import TestCase
 
-from fickling.fickle import Pickled
+from fickling.fickle import (
+    BinGet,
+    BinInt1,
+    BinPut,
+    BinUnicode,
+    Global,
+    Mark,
+    Memoize,
+    Pickled,
+    Pop,
+    Proto,
+    Reduce,
+    ShortBinUnicode,
+    StackGlobal,
+    Stop,
+    Tuple,
+)
 
 
 def unparse_test(pickled: bytes):
@@ -60,3 +76,74 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
     def test_obj(self):
         """Tests the correctness of the OBJ opcode"""
         pass
+
+    # Based on the CTF challenge shared in https://github.com/trailofbits/fickling/issues/125.
+    def test_stack_global_dynamic_import(self):
+        alphabet = (
+            "Jw~[v5QpA(BY%aKnyT&*x0r9-OpfF}HN4$GU2VhS@XEq!Zt>6_R7#]1b{z3M^D?)d8eImgckPLiuoClW<js"
+        )
+        pickled = Pickled(
+            [
+                Proto.create(4),
+                # Save itemgetter to memo[0]
+                Global.create("operator", "itemgetter"),
+                BinPut(0),
+                Pop(),
+                # _var0 = getattr('', 'join')
+                Global.create("builtins", "getattr"),
+                Mark(),
+                ShortBinUnicode(""),
+                ShortBinUnicode("join"),
+                Tuple(),
+                Reduce(),
+                Memoize(),  # memo[1] = join method
+                # _var1 = itemgetter(77, 83)(ALPHABET) -> ('o', 's')
+                BinGet(0),
+                Mark(),
+                BinInt1(77),
+                BinInt1(83),
+                Tuple(),
+                Reduce(),  # itemgetter(77, 83)
+                Mark(),
+                BinUnicode(alphabet),
+                Tuple(),
+                Reduce(),
+                Memoize(),  # memo[2] = ('o', 's')
+                # _var2 = ''.join(_var1) -> "os"
+                BinGet(1),
+                Mark(),
+                BinGet(2),
+                Tuple(),
+                Reduce(),
+                Memoize(),  # memo[3] = "os"
+                # _var3 = itemgetter(83, 16, 83, 47, 67, 69)(ALPHABET) -> ('s','y','s','t','e','m')
+                BinGet(0),
+                Mark(),
+                BinInt1(83),
+                BinInt1(16),
+                BinInt1(83),
+                BinInt1(47),
+                BinInt1(67),
+                BinInt1(69),
+                Tuple(),
+                Reduce(),  # itemgetter(...)
+                Mark(),
+                BinUnicode(alphabet),
+                Tuple(),
+                Reduce(),
+                Memoize(),  # memo[4] = ('s','y','s','t','e','m')
+                # _var4 = ''.join(_var3) -> "system"
+                BinGet(1),
+                Mark(),
+                BinGet(4),
+                Tuple(),
+                Reduce(),
+                Memoize(),  # memo[5] = "system"
+                # from _var2 import _var4 (dynamic import via StackGlobal)
+                BinGet(3),  # "os"
+                BinGet(5),  # "system"
+                StackGlobal(),
+                Stop(),
+            ]
+        )
+        unparse(pickled.ast)
