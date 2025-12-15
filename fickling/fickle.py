@@ -875,6 +875,8 @@ on the Pickled object instead"""
                 "sys",
                 "builtins",
                 "socket",
+                "marshal",
+                "types",
             ):
                 yield node
             elif "eval" in (n.name for n in node.names):
