@@ -223,6 +223,7 @@ class UnsafeImportsML(Analysis):
         "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
         "dill": "This module can load and execute arbitrary code.",
         "code": "This module can compile and execute arbitrary code.",
+        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
     }
 
     UNSAFE_IMPORTS = {

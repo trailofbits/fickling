@@ -875,6 +875,7 @@ on the Pickled object instead"""
                 "sys",
                 "builtins",
                 "socket",
+                "pty",
                 "marshal",
                 "types",
             ):
