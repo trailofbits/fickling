@@ -37,8 +37,8 @@ class TestBypasses(TestCase):
         pickled = Pickled(
             [
                 op.Mark(),
-                op.Global('pty spawn'),
-                op.String('id'),
+                op.Global("pty spawn"),
+                op.String("id"),
                 op.Obj(),
                 op.Stop(),
             ]
