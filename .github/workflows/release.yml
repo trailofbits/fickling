@@ -7,8 +7,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build-release:
+    name: Build release artifacts
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -36,6 +41,7 @@ jobs:
           path: dist/
 
   publish:
+    name: Publish to PyPI
     runs-on: ubuntu-latest
     environment: release
     permissions:
