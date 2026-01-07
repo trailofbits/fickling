@@ -83,3 +83,31 @@ class TestBypasses(TestCase):
         )
 
         self.assertGreater(check_safety(opcodes).severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-wfq2-52f7-7qvj
+    def test_missing_runpy(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.Frame(46),
+                op.ShortBinUnicode("runpy"),
+                op.Memoize(),
+                op.ShortBinUnicode("run_path"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("/tmp/malicious.py"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from runpy import run_path",
+        )
