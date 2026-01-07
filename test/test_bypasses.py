@@ -111,3 +111,31 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from runpy import run_path",
         )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-p523-jq9w-64x9
+    def test_missing_cprofile(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.Frame(58),
+                op.ShortBinUnicode("cProfile"),
+                op.Memoize(),
+                op.ShortBinUnicode("run"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("print('CPROFILE_RCE_CONFIRMED')"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from cProfile import run",
+        )

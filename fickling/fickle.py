@@ -879,6 +879,7 @@ on the Pickled object instead"""
                 "marshal",
                 "types",
                 "runpy",
+                "cProfile",
             ):
                 yield node
             elif "eval" in (n.name for n in node.names):
