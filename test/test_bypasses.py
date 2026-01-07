@@ -139,3 +139,85 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from cProfile import run",
         )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-q5qq-mvfm-j35x
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5hvc-6wx8-mvv4
+    def test_missing_ctypes(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.ShortBinUnicode("builtins"),
+                op.Memoize(),
+                op.ShortBinUnicode("getattr"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("ctypes"),
+                op.Memoize(),
+                op.ShortBinUnicode("CDLL"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("libc.dylib"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinUnicode("system"),
+                op.Memoize(),
+                op.TupleTwo(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinBytes(b"id"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from ctypes import CDLL",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5hvc-6wx8-mvv4
+    def test_missing_pydoc(self):
+        pickled = Pickled(
+            [
+                op.Global("pydoc locate"),
+                op.String("ctypes.windll.kernel32.WinExec"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Put(0),
+                op.Pop(),
+                op.Get(0),
+                op.ShortBinBytes(b"calc.exe"),
+                op.BinInt1(1),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Put(1),
+                op.Pop(),
+                op.Global("builtins Exception"),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Put(2),
+                op.EmptyDict(),
+                op.String("rce_status"),
+                op.Get(1),
+                op.SetItem(),
+                op.Build(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from pydoc import locate",
+        )
