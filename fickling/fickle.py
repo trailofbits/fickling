@@ -880,6 +880,8 @@ on the Pickled object instead"""
                 "types",
                 "runpy",
                 "cProfile",
+                "ctypes",
+                "pydoc",
             ):
                 yield node
             elif "eval" in (n.name for n in node.names):
