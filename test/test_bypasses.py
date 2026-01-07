@@ -85,6 +85,7 @@ class TestBypasses(TestCase):
         self.assertGreater(check_safety(opcodes).severity, Severity.LIKELY_SAFE)
 
     # https://github.com/trailofbits/fickling/security/advisories/GHSA-wfq2-52f7-7qvj
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-q5qq-mvfm-j35x
     def test_missing_runpy(self):
         pickled = Pickled(
             [
