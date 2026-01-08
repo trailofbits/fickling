@@ -275,7 +275,12 @@ class UnsafeImportsML(Analysis):
             # NOTE(boyan): Special case with eval?
             # Copy pasted from pickled.unsafe_imports() original implementation
             elif "eval" in (n.name for n in node.names):
-                yield node
+                yield AnalysisResult(
+                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                    f"`{shortened}` imports `eval` which can execute arbitrary code",
+                    "UnsafeImportsML",
+                    trigger=shortened,
+                )
 
 
 class BadCalls(Analysis):
