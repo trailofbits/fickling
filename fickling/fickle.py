@@ -864,7 +864,7 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if node.module in (
+            if node.module and node.module.split(".")[0] in (
                 "__builtin__",
                 "__builtins__",
                 "builtins",
@@ -1157,7 +1157,7 @@ class StackGlobal(NoOp):
                 f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
             )
 
-        if not module.isidentifier() or not attr.isidentifier():
+        if not all(m.isidentifier() for m in module.split(".")) or not attr.isidentifier():
             raise ValueError(
                 f"Extracted identifiers are not valid Python identifiers. "
                 f"Module: {module!r}, Attr: {attr!r}"
