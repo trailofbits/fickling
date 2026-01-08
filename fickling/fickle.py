@@ -882,6 +882,9 @@ on the Pickled object instead"""
                 "cProfile",
                 "ctypes",
                 "pydoc",
+                "importlib",
+                "code",
+                "multiprocessing",
             ):
                 yield node
             elif "eval" in (n.name for n in node.names):
