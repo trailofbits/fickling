@@ -222,3 +222,129 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from pydoc import locate",
         )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-q5qq-mvfm-j35x
+    def test_missing_importlib(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.ShortBinUnicode("builtins"),
+                op.Memoize(),
+                op.ShortBinUnicode("getattr"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("importlib"),
+                op.Memoize(),
+                op.ShortBinUnicode("import_module"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("os"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinUnicode("system"),
+                op.Memoize(),
+                op.TupleTwo(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinUnicode("id"),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from importlib import import_module",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-q5qq-mvfm-j35x
+    def test_missing_code(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.ShortBinUnicode("builtins"),
+                op.Memoize(),
+                op.ShortBinUnicode("getattr"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinUnicode("code"),
+                op.Memoize(),
+                op.ShortBinUnicode("InteractiveInterpreter"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.EmptyTuple(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinUnicode("runsource"),
+                op.Memoize(),
+                op.TupleTwo(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.ShortBinUnicode('import os; os.system("id")'),
+                op.Memoize(),
+                op.TupleOne(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from code import InteractiveInterpreter",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-q5qq-mvfm-j35x
+    def test_missing_multiprocessing(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(5),
+                op.Frame(74),
+                op.ShortBinUnicode("multiprocessing.util"),
+                op.Memoize(),
+                op.ShortBinUnicode("spawnv_passfds"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.ShortBinBytes(b"/bin/sh"),
+                op.Memoize(),
+                op.EmptyList(),
+                op.Memoize(),
+                op.Mark(),
+                op.BinGet(3),
+                op.ShortBinBytes(b"-c"),
+                op.Memoize(),
+                op.ShortBinBytes(b"id"),
+                op.Memoize(),
+                op.Appends(),
+                op.EmptyTuple(),
+                op.TupleThree(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from multiprocessing.util import spawnv_passfds",
+        )
