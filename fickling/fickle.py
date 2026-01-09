@@ -40,27 +40,30 @@ BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(sys.builtin_module_names)
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
-UNSAFE_IMPORTS: frozenset[str] = frozenset([
-    "__builtin__",
-    "__builtins__",
-    "builtins",
-    "os",
-    "posix",
-    "nt",
-    "subprocess",
-    "sys",
-    "socket",
-    "pty",
-    "marshal",
-    "types",
-    "runpy",
-    "cProfile",
-    "ctypes",
-    "pydoc",
-    "importlib",
-    "code",
-    "multiprocessing",
-])
+UNSAFE_IMPORTS: frozenset[str] = frozenset(
+    [
+        "__builtin__",
+        "__builtins__",
+        "builtins",
+        "os",
+        "posix",
+        "nt",
+        "subprocess",
+        "sys",
+        "socket",
+        "pty",
+        "marshal",
+        "types",
+        "runpy",
+        "cProfile",
+        "ctypes",
+        "pydoc",
+        "importlib",
+        "code",
+        "multiprocessing",
+    ]
+)
+
 
 def is_std_module(module_name: str) -> bool:
     return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
@@ -885,7 +888,9 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if node.module and any(component in UNSAFE_IMPORTS for component in node.module.split(".")):
+            if node.module and any(
+                component in UNSAFE_IMPORTS for component in node.module.split(".")
+            ):
                 yield node
             elif "eval" in (n.name for n in node.names):
                 yield node
