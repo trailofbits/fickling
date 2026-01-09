@@ -1,7 +1,7 @@
 fickling @ git+https://github.com/trailofbits/fickling.git@master
-huggingface_hub==0.23.5
+huggingface_hub==1.2.3
 model_unpickler==0.1
-modelscan==0.8.1
+modelscan==0.8.7
 picklescan==0.0.35
-Requests==2.32.4
+Requests==2.32.5
 torch==2.8.0
