@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import sys
 import tarfile
 import unittest
 import zipfile
@@ -10,6 +11,8 @@ import torch
 import torchvision.models as models
 
 import fickling.polyglot as polyglot
+
+_lacks_torch_jit_support = sys.version_info >= (3, 14)
 
 
 def create_pytorch_legacy_tar(tar_file_name):
@@ -61,14 +64,17 @@ class TestPolyglotModule(unittest.TestCase):
         self.filename_legacy_pickle = "model_legacy_pickle.pth"
         torch.save(model, self.filename_legacy_pickle, _use_new_zipfile_serialization=False)
 
-        # TorchScript v1.4
-        m = torch.jit.script(model)
-        self.filename_torchscript = "model_torchscript.pt"
-        torch.jit.save(m, self.filename_torchscript)
+        if not _lacks_torch_jit_support:
+            # TorchScript v1.4
+            m = torch.jit.script(model)
+            self.filename_torchscript = "model_torchscript.pt"
+            torch.jit.save(m, self.filename_torchscript)
 
-        # TorchScript v1.4
-        self.filename_torchscript_dup = "model_torchscript_dup.pt"
-        torch.jit.save(m, self.filename_torchscript_dup)
+            # TorchScript v1.4
+            self.filename_torchscript_dup = "model_torchscript_dup.pt"
+            torch.jit.save(m, self.filename_torchscript_dup)
+
+            self.standard_torchscript_polyglot_name = "test_polyglot.pt"
 
         # PyTorch v0.1.1
         self.filename_legacy_tar = "model_legacy_tar.pth"
@@ -96,23 +102,27 @@ class TestPolyglotModule(unittest.TestCase):
         archive.write(self.numpy_pickle, self.numpy_pickle)
         archive.close()
 
-        self.standard_torchscript_polyglot_name = "test_polyglot.pt"
-
     def tearDown(self):
-        for filename in [
+        files = [
             self.filename_v1_3,
             self.filename_legacy_pickle,
-            self.filename_torchscript,
             self.filename_legacy_tar,
             self.zip_filename,
-            self.filename_torchscript_dup,
             self.filename_v1_3_dup,
-            self.standard_torchscript_polyglot_name,
             self.numpy_not_pickle,
             self.numpy_pickle,
             self.tar_numpy_pickle,
             self.zip_numpy_pickle,
-        ]:
+        ]
+        if not _lacks_torch_jit_support:
+            files.extend(
+                [
+                    self.filename_torchscript,
+                    self.filename_torchscript_dup,
+                    self.standard_torchscript_polyglot_name,
+                ]
+            )
+        for filename in files:
             if os.path.exists(filename):
                 os.remove(filename)
 
@@ -125,6 +135,7 @@ class TestPolyglotModule(unittest.TestCase):
     #     formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
     #     self.assertEqual(formats, ["PyTorch v0.1.10"])
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_torchscript)
         self.assertEqual(formats, ["TorchScript v1.4", "TorchScript v1.3", "PyTorch v1.3"])
@@ -279,6 +290,7 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_properties(self):
         properties = polyglot.find_file_properties(self.filename_torchscript)
         proper_result = {
@@ -316,6 +328,7 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_create_standard_torchscript_polyglot(self):
         polyglot.create_polyglot(
             self.filename_v1_3_dup,

@@ -16,20 +16,24 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Security",
   "Topic :: Software Development :: Testing",
   "Topic :: Utilities",
 ]
-dependencies = ["stdlib_list ~= 0.11.1"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [project.optional-dependencies]
-torch = ["torch >= 2.1.0", "torchvision >= 0.16.1", "numpy >= 1.24.0"]
+torch = [
+    "torch >= 2.1.0",
+    "torchvision >= 0.24.1",
+    "numpy >= 1.24.0; python_version < '3.14'",
+    "numpy >= 2.3.5; python_version >= '3.14'",
+    ]
 lint = [
   "ruff >= 0.8.0",
   "mypy >= 1.10.0",
@@ -42,7 +46,7 @@ test = [
   "coverage[toml] >= 7.0.0",
   "numpy",
   "torch >= 2.1.0",
-  "torchvision >= 0.16.1",
+  "torchvision >= 0.24.1",
 ]
 dev = [
   "fickling[lint,test,torch]",
@@ -100,7 +104,7 @@ packages = ["fickling"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
