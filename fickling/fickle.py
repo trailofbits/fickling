@@ -1110,12 +1110,8 @@ class Global(Opcode):
 
     def run(self, interpreter: Interpreter):
         module, attr = self.module, self.attr
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(attr)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+        alias = ast.alias(attr)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
@@ -1166,13 +1162,8 @@ class StackGlobal(NoOp):
                 f"Module: {module!r}, Attr: {attr!r}"
             )
 
-        # Continue with normal processing
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(attr)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+        alias = ast.alias(attr)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
@@ -1194,12 +1185,8 @@ class Inst(StackSliceOpcode):
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
         module, classname = self.module, self.cls
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(classname)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+        alias = ast.alias(classname)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         args = ast.Tuple(tuple(stack_slice))
         call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
         var_name = interpreter.new_variable(call)
