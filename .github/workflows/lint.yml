@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-python:
+    name: Lint Python with Ruff and mypy
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,6 +47,7 @@ jobs:
         continue-on-error: true  # TODO: Remove once type annotations are fixed
 
   all-lints-pass:
+    name: All lints pass
     if: always()
     permissions:
       contents: read

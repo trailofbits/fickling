@@ -11,8 +11,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pip-audit:
+    name: Scan dependencies with pip-audit
     runs-on: ubuntu-latest
     permissions:
       contents: read

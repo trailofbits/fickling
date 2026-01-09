@@ -5,3 +5,9 @@ updates:
     directory: /
     schedule:
       interval: daily
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 7
