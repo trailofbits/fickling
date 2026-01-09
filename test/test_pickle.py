@@ -87,7 +87,7 @@ class TestInterpreter(TestCase):
     def test_call(self):
         pickled = Pickled(
             [
-                fpickle.Global.create("__builtins__", "eval"),
+                fpickle.Global.create("builtins", "eval"),
                 fpickle.Mark(),
                 fpickle.Unicode("(lambda:1234)()"),
                 fpickle.Tuple(),
@@ -102,7 +102,7 @@ class TestInterpreter(TestCase):
             [
                 fpickle.Mark(),
                 fpickle.Unicode("1234"),
-                fpickle.Inst.create("__builtins__", "int"),
+                fpickle.Inst.create("builtins", "int"),
                 fpickle.Stop(),
             ]
         )

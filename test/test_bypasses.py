@@ -345,3 +345,34 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from multiprocessing.util import spawnv_passfds",
         )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-h4rm-mm56-xf63
+    def test_builtins_import_bypass(self):
+        pickled = Pickled(
+            [
+                op.Global("builtins __import__"),
+                op.String("os"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Put(0),
+                op.Pop(),
+                op.Global("builtins getattr"),
+                op.Get(0),
+                op.String("system"),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Put(1),
+                op.Pop(),
+                op.Get(1),
+                op.String("whoami"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from builtins import getattr",
+        )
