@@ -362,14 +362,13 @@ def create_standard_torchscript_polyglot(
         )
         version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
         if constants_pkl_path and version_path:
-            zip_b.extract(constants_pkl_path, "temp")
-            zip_b.extract(version_path, "temp")
+            constants_data = zip_b.read(constants_pkl_path)
+            version_data = zip_b.read(version_path)
 
-    with zipfile.ZipFile(polyglot_file_name, "a") as zip_out:
-        zip_out.write(f"temp/{constants_pkl_path}", "constants.pkl")
-        zip_out.write(f"temp/{version_path}", "version")
+            with zipfile.ZipFile(polyglot_file_name, "a") as zip_out:
+                zip_out.writestr("constants.pkl", constants_data)
+                zip_out.writestr("version", version_data)
 
-    shutil.rmtree("temp")
     polyglot_found = True
     return polyglot_found
 
