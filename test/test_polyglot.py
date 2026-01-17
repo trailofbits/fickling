@@ -49,6 +49,8 @@ def prepend_random_string(filename, str_length=20):
 
 class TestPolyglotModule(unittest.TestCase):
     def setUp(self):
+        # Seed RNG for deterministic test data
+        random.seed(42)
         # Not covered: PyTorch MAR & earlier TorchScript versions
 
         # PyTorch v1.3
@@ -309,7 +311,6 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
-    @unittest.skip("FIXME: Failing for python 3.13")
     def test_zip_properties(self):
         properties = polyglot.find_file_properties(self.zip_filename)
         proper_result = {
