@@ -309,7 +309,8 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
-    @unittest.skip("FIXME: Failing for python 3.13")
+    # Previously skipped for Python 3.13 due to numpy private API usage in check_numpy().
+    # Fixed in commit 50e206b by switching to public numpy.lib.format APIs.
     def test_zip_properties(self):
         properties = polyglot.find_file_properties(self.zip_filename)
         proper_result = {
