@@ -1,8 +1,10 @@
 import os
 import shutil
+import stat
 import tarfile
 import tempfile
 import zipfile
+from pathlib import Path
 
 import numpy.lib.format as npformat
 
@@ -181,30 +183,41 @@ def find_file_properties_recursively(file_path, print_properties=False):
     # actually check the zip
     if check_zip:
         properties["children"] = {}
-        with tempfile.TemporaryDirectory() as tempdir:
-            with zipfile.ZipFile(file_path) as zipped_file:
-                for fname in zipped_file.namelist():
-                    zipped_file.extract(fname, path=tempdir)
-                    fname_path = os.path.join(tempdir, fname)
-                    properties["children"][fname] = find_file_properties_recursively(
-                        fname_path, print_properties
-                    )
+        with zipfile.ZipFile(file_path) as zipped_file:
+            for fname in zipped_file.namelist():
+                info = zipped_file.getinfo(fname)
+                mode = info.external_attr >> 16
+                if info.is_dir():
+                    continue
+                if mode == 0 or stat.S_ISREG(mode):
+                    _tempfile = tempfile.NamedTemporaryFile(delete=False)
+                    try:
+                        _tempfile.write(zipped_file.read(fname))
+                        _tempfile.close()
+                        properties["children"][fname] = find_file_properties_recursively(
+                            _tempfile.name, print_properties
+                        )
+                    finally:
+                        Path(_tempfile.name).unlink()
 
     # check tar
     if properties["is_tar"]:  # tar archive
         properties["children"] = {}
-        with tempfile.TemporaryDirectory() as tempdir:
-            with tarfile.TarFile(file_path) as tarred_file:
-                for fname in tarred_file.getnames():
-                    content = tarred_file.extractfile(fname)
-                    if content is None:
-                        properties["children"][fname] = None
+        with tarfile.TarFile(file_path) as tarred_file:
+            for fname in tarred_file.getmembers():
+                if fname.isfile():
+                    if not (content := tarred_file.extractfile(fname)):
+                        properties["children"][fname.name] = None
                         continue
-                    fname_path = os.path.join(tempdir, os.path.basename(fname))
-                    open(fname_path, "wb").write(content.read())
-                    properties["children"][fname] = find_file_properties_recursively(
-                        fname_path, print_properties
-                    )
+                    _tempfile = tempfile.NamedTemporaryFile(delete=False)
+                    try:
+                        _tempfile.write(content.read())
+                        _tempfile.close()
+                        properties["children"][fname.name] = find_file_properties_recursively(
+                            _tempfile.name, print_properties
+                        )
+                    finally:
+                        Path(_tempfile.name).unlink()
 
     return properties
 
@@ -362,14 +375,13 @@ def create_standard_torchscript_polyglot(
         )
         version_path = check_and_find_in_zip(zip_b, "version", return_path=True)
         if constants_pkl_path and version_path:
-            zip_b.extract(constants_pkl_path, "temp")
-            zip_b.extract(version_path, "temp")
+            constants_data = zip_b.read(constants_pkl_path)
+            version_data = zip_b.read(version_path)
 
-    with zipfile.ZipFile(polyglot_file_name, "a") as zip_out:
-        zip_out.write(f"temp/{constants_pkl_path}", "constants.pkl")
-        zip_out.write(f"temp/{version_path}", "version")
+            with zipfile.ZipFile(polyglot_file_name, "a") as zip_out:
+                zip_out.writestr("constants.pkl", constants_data)
+                zip_out.writestr("version", version_data)
 
-    shutil.rmtree("temp")
     polyglot_found = True
     return polyglot_found
 
