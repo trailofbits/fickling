@@ -320,7 +320,7 @@ class MLAllowlist(Analysis):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
-    def __init__(self, *args, also_allow: list[str] = None, **kwargs):
+    def __init__(self, *args, also_allow: list[str] | None = None, **kwargs):
         self.allowlist = dict(ML_ALLOWLIST)
         super().__init__(*args, **kwargs)
         # Add additional allowed imports

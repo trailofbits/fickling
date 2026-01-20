@@ -32,7 +32,7 @@ with open("example_pickle_file.pkl", "rb") as file:
 
 
 class FickleLoader(importlib.abc.Loader):
-    def create_module(self, spec: importlib.machinery.ModuleSpec) -> types.ModuleType:
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> types.ModuleType | None:
         return None
 
     def exec_module(self, module: types.ModuleType) -> None:

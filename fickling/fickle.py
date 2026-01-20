@@ -429,7 +429,11 @@ class ASTProperties(ast.NodeVisitor):
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
-        if isinstance(node, ast.ImportFrom) and is_std_module(node.module):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module is not None
+            and is_std_module(node.module)
+        ):
             self.likely_safe_imports |= {name.name for name in node.names}
 
     def visit_Import(self, node: ast.Import):
@@ -591,7 +595,7 @@ class Pickled(OpcodeSequence):
         module: str = "builtins",
         attr: str = "eval",
         pop_result: bool = False,
-    ) -> int:
+    ) -> None:
         """Append python code to run at the end of the pickle.
 
         :param pop_result: whether to pop the result of the run off the stack. Appends
@@ -895,8 +899,15 @@ on the Pickled object instead"""
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if not is_std_module(node.module):
-                yield node
+            if isinstance(node, ast.ImportFrom):
+                # from module import x - check if module is standard
+                # module can be None for relative imports (from . import x)
+                if node.module is None or not is_std_module(node.module):
+                    yield node
+            else:
+                # import x, y, z - check if any name is non-standard
+                if any(not is_std_module(alias.name) for alias in node.names):
+                    yield node
 
     @property
     def ast(self) -> ast.Module:
