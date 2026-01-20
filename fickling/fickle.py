@@ -407,7 +407,9 @@ class StackSliceOpcode(Opcode):
             args = []
             while True:
                 if not interpreter.stack:
-                    raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
+                    raise InterpretationError(
+                        "Exhausted the stack while searching for a MarkObject!"
+                    )
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
