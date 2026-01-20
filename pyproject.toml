@@ -36,7 +36,7 @@ torch = [
 ]
 lint = [
   "ruff >= 0.8.0",
-  "mypy >= 1.10.0",
+  "ty >= 0.0.12",
   # for the Buffer ABC before Python 3.12
   "typing-extensions; python_version < '3.12'",
 ]
@@ -50,7 +50,7 @@ test = [
 ]
 dev = [
   "fickling[lint,test,torch]",
-  "pre-commit >= 3.5.0",
+  # For git hooks: install prek (brew install prek / pipx install prek), then run: prek install
 ]
 examples = ["numpy", "pytorchfi"]
 
@@ -68,22 +68,10 @@ Source = "https://github.com/trailofbits/fickling"
 # don't attempt code coverage for the CLI entrypoints
 omit = ["fickling/__main__.py", "fickling/cli.py"]
 
-[tool.mypy]
-allow_redefinition = true
-check_untyped_defs = true
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-ignore_missing_imports = true
-no_implicit_optional = true
-show_error_codes = true
-sqlite_cache = true
-strict_equality = true
-warn_no_return = true
-warn_redundant_casts = true
-warn_return_any = true
-warn_unreachable = true
-warn_unused_configs = true
-warn_unused_ignores = true
+[tool.ty]
+# ty uses src layout detection automatically
+# Most mypy options don't have direct equivalents yet
+# See: https://docs.astral.sh/ty/configuration/
 
 [tool.hatch.version]
 path = "fickling/__init__.py"

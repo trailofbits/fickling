@@ -99,12 +99,12 @@ class AnalysisResult:
         self,
         severity: Severity,
         message: str | None = None,
-        analysis_name: str = None,
+        analysis_name: str | None = None,
         trigger: str | None = None,
     ):
         self.severity: Severity = severity
         self.message: str | None = message
-        self.analysis_name: str = analysis_name
+        self.analysis_name: str | None = analysis_name
         self.trigger: str | None = trigger  # Field to store the trigger code fragment or artifact
 
     def __lt__(self, other):
@@ -147,7 +147,7 @@ class DuplicateProtoAnalysis(Analysis):
                             Severity.LIKELY_UNSAFE,
                             f"The {i + 1}{suffix} opcode is a duplicate PROTO, which is unusual and may be indicative of a tampered pickle",
                             "DuplicateProtoAnalysis",
-                            trigger=i + 1,
+                            trigger=str(i + 1),
                         )
                     else:
                         yield AnalysisResult(
@@ -156,7 +156,7 @@ class DuplicateProtoAnalysis(Analysis):
                             f"version than reported in the previous PROTO opcode, which is almost "
                             f"certainly a sign of a tampered pickle",
                             "DuplicateProtoAnalysis",
-                            trigger=i + 1,
+                            trigger=str(i + 1),
                         )
                 else:
                     had_proto = True
@@ -178,7 +178,7 @@ class MisplacedProtoAnalysis(Analysis):
                         f"the first opcode in the pickle, as required for versions 2 and later; "
                         f"this may be indicative of a tampered pickle",
                         "MisplacedProtoAnalysis",
-                        trigger=opcode.version,
+                        trigger=str(opcode.version),
                     )
 
 
@@ -355,7 +355,7 @@ class UnusedVariables(Analysis):
                 f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
                 f"this is suspicious and indicative of a malicious pickle file",
                 "UnusedVariables",
-                trigger=(varname, shortened),
+                trigger=f"{varname}: {shortened}",
             )
 
 
