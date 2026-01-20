@@ -1,6 +1,5 @@
 import ast
 from ast import unparse
-from typing import Union
 
 from .fickle import Interpreter, MarkObject, Opcode, Stack
 
@@ -9,14 +8,14 @@ class Trace:
     def __init__(self, interpreter: Interpreter):
         self.interpreter: Interpreter = interpreter
 
-    def on_pop(self, popped_value: Union[ast.expr, MarkObject]):
+    def on_pop(self, popped_value: ast.expr | MarkObject):
         if isinstance(popped_value, MarkObject):
             value = "MARK"
         else:
             value = unparse(popped_value).strip()
         print(f"\tPopped {value}")
 
-    def on_push(self, pushed_value: Union[ast.expr, MarkObject]):
+    def on_push(self, pushed_value: ast.expr | MarkObject):
         if isinstance(pushed_value, MarkObject):
             value = "MARK"
         else:
@@ -51,7 +50,7 @@ class Trace:
             for added in self.interpreter.module_body[len_module_before:]:
                 self.on_statement(added)
             common_prefix_length = 0
-            for before, after in zip(stack_before, self.interpreter.stack):
+            for before, after in zip(stack_before, self.interpreter.stack, strict=False):
                 if before != after:
                     break
                 common_prefix_length += 1

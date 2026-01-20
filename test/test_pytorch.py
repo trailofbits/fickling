@@ -1,5 +1,7 @@
-import os
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 import torch
 import torchvision.models as models
@@ -7,21 +9,25 @@ import torchvision.models as models
 from fickling.fickle import Pickled
 from fickling.pytorch import PyTorchModelWrapper
 
+_lacks_torch_jit_support = sys.version_info >= (3, 14)
+
 
 class TestPyTorchModule(unittest.TestCase):
     def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        tmppath = Path(self.tmpdir.name)
+
         model = models.mobilenet_v2()
-        self.filename_v1_3 = "test_model.pth"
+        self.filename_v1_3 = tmppath / "test_model.pth"
         torch.save(model, self.filename_v1_3)
-        self.zip_filename = "test_random_data.zip"
-        m = torch.jit.script(model)
-        self.torchscript_filename = "test_model_torchscript.pth"
-        torch.jit.save(m, self.torchscript_filename)
+
+        if not _lacks_torch_jit_support:
+            m = torch.jit.script(model)
+            self.torchscript_filename = tmppath / "test_model_torchscript.pth"
+            torch.jit.save(m, self.torchscript_filename)
 
     def tearDown(self):
-        for filename in [self.filename_v1_3, self.zip_filename, self.torchscript_filename]:
-            if os.path.exists(filename):
-                os.remove(filename)
+        self.tmpdir.cleanup()
 
     def test_wrapper(self):
         try:
@@ -29,6 +35,7 @@ class TestPyTorchModule(unittest.TestCase):
         except Exception as e:  # noqa
             self.fail(f"PyTorchModelWrapper was not able to load a PyTorch v1.3 file: {e}")
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_wrapper(self):
         try:
             PyTorchModelWrapper(self.torchscript_filename)
@@ -40,6 +47,7 @@ class TestPyTorchModule(unittest.TestCase):
         pickled_portion = result.pickled
         self.assertIsInstance(pickled_portion, Pickled)
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_pickled(self):
         result = PyTorchModelWrapper(self.torchscript_filename)
         pickled_portion = result.pickled
@@ -48,10 +56,8 @@ class TestPyTorchModule(unittest.TestCase):
     def test_injection_insertion(self):
         try:
             result = PyTorchModelWrapper(self.filename_v1_3)
-            temp_filename = "temp_filename"
+            temp_filename = Path(self.tmpdir.name) / "temp_filename"
             result.inject_payload("print('Hello, World!')", temp_filename, injection="insertion")
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
         except Exception as e:  # noqa
             self.fail(
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
@@ -60,10 +66,8 @@ class TestPyTorchModule(unittest.TestCase):
     def test_injection_combination(self):
         try:
             result = PyTorchModelWrapper(self.filename_v1_3)
-            temp_filename = "temp_filename"
+            temp_filename = Path(self.tmpdir.name) / "temp_filename"
             result.inject_payload("print('Hello, World!')", temp_filename, injection="combination")
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
         except Exception as e:  # noqa
             self.fail(
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"

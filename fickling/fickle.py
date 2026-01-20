@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import keyword
 import marshal
 import re
 import struct
@@ -18,8 +19,6 @@ from typing import (
     overload,
 )
 
-from stdlib_list import in_stdlib
-
 from fickling.exception import WrongMethodError
 
 T = TypeVar("T")
@@ -34,14 +33,95 @@ OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
 
-BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(sys.builtin_module_names)
+BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
 
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
 
+UNSAFE_IMPORTS: frozenset[str] = frozenset(
+    [
+        "__builtin__",
+        "__builtins__",
+        "builtins",
+        "os",
+        "posix",
+        "nt",
+        "subprocess",
+        "sys",
+        "socket",
+        "pty",
+        "marshal",
+        "types",
+        "runpy",
+        "cProfile",
+        "ctypes",
+        "pydoc",
+        "importlib",
+        "code",
+        "multiprocessing",
+    ]
+)
+
 
 def is_std_module(module_name: str) -> bool:
-    return in_stdlib(module_name) or module_name in BUILTIN_MODULE_NAMES
+    return module_name in BUILTIN_STDLIB_MODULE_NAMES
+
+
+def extract_identifier_from_ast_node(
+    node: ast.expr | str, fallback_prefix: str = "_malformed"
+) -> str:
+    """
+    Extract a valid Python identifier from an AST node.
+
+    For malformed pickle files where STACK_GLOBAL receives complex AST nodes
+    instead of strings, this function attempts to extract a meaningful identifier
+    or generates a safe fallback.
+
+    Args:
+        node: An AST expression node or string
+        fallback_prefix: Prefix for generated fallback identifiers
+
+    Returns:
+        A valid Python identifier string
+    """
+    # If already a string, validate and return or fix it
+    if isinstance(node, str):
+        if node.isidentifier() and not keyword.iskeyword(node):
+            return node
+        # For invalid string identifiers, create a safe fallback
+        node_hash = abs(hash(node)) % 100000
+        return f"{fallback_prefix}_str_{node_hash}"
+
+    # Handle ast.Name - extract the id attribute
+    if isinstance(node, ast.Name):
+        return node.id
+
+    # Handle ast.Attribute - return the attribute name
+    if isinstance(node, ast.Attribute):
+        return node.attr
+
+    # Handle ast.Call - extract identifier from the function being called
+    if isinstance(node, ast.Call):
+        return extract_identifier_from_ast_node(node.func, fallback_prefix)
+
+    # Handle ast.Constant - extract value if it's a valid identifier string
+    if isinstance(node, ast.Constant):
+        value = node.value
+        if isinstance(value, str):
+            if value.isidentifier() and not keyword.iskeyword(value):
+                return value
+            # For invalid constant strings, create a deterministic fallback
+            value_hash = abs(hash(value)) % 100000
+            return f"{fallback_prefix}_const_{value_hash}"
+        # For non-string constants (int, float, etc.), create a type-based fallback
+        type_name = type(value).__name__
+        value_hash = abs(hash(value)) % 100000
+        return f"{fallback_prefix}_{type_name}_{value_hash}"
+
+    # For any other complex node types, generate a safe placeholder
+    node_type = type(node).__name__.lower()
+    node_hash = abs(hash(id(node))) % 100000
+    return f"{fallback_prefix}_{node_type}_{node_hash}"
 
 
 class MarkObject:
@@ -396,7 +476,7 @@ class Pickled(OpcodeSequence):
         self._properties = None
 
     def _is_constant_type(self, obj: Any) -> bool:
-        return isinstance(obj, (int, float, str, bytes))
+        return isinstance(obj, int | float | str | bytes)
 
     def _encode_python_obj(self, obj: Any) -> List[Opcode]:
         """Create an opcode sequence that builds an arbitrary python object on the top of the
@@ -453,7 +533,7 @@ class Pickled(OpcodeSequence):
         # its stack so it remains how we left it!
         # TODO: Add code to emulate the code afterward and confirm that the stack is sane!
         i = 0
-        while isinstance(self[i], (Proto, Frame)):
+        while isinstance(self[i], Proto | Frame):
             i += 1
         self.insert(i, Global.create(module, attr))
         i += 1
@@ -698,7 +778,7 @@ class Pickled(OpcodeSequence):
 
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
-        if isinstance(data, (bytes, bytearray, Buffer)):
+        if isinstance(data, bytes | bytearray | Buffer):
             data = BytesIO(data)
         elif (not hasattr(data, "seekable") or not data.seekable()) and hasattr(data, "read"):
             data = BytesIO(data.read())
@@ -806,17 +886,8 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if node.module in (
-                "__builtin__",
-                "__builtins__",
-                "builtins",
-                "os",
-                "posix",
-                "nt",
-                "subprocess",
-                "sys",
-                "builtins",
-                "socket",
+            if node.module and any(
+                component in UNSAFE_IMPORTS for component in node.module.split(".")
             ):
                 yield node
             elif "eval" in (n.name for n in node.names):
@@ -1042,12 +1113,8 @@ class Global(Opcode):
 
     def run(self, interpreter: Interpreter):
         module, attr = self.module, self.attr
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(attr)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+        alias = ast.alias(attr)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
     def encode(self) -> bytes:
@@ -1060,26 +1127,46 @@ class StackGlobal(NoOp):
     def run(self, interpreter: Interpreter):
         attr = interpreter.stack.pop()
         module = interpreter.stack.pop()
+
+        # Extract values from ast.Constant nodes
         if isinstance(module, ast.Constant):
             module = module.value
         if isinstance(attr, ast.Constant):
             attr = attr.value
 
-        # normalize module and attr to strings
-        if not isinstance(module, str) or not isinstance(attr, str):
+        # Normalize module and attr to strings, extracting meaningful identifiers from AST nodes
+        module_needs_extraction = not isinstance(module, str)
+        attr_needs_extraction = not isinstance(attr, str)
+
+        if module_needs_extraction or attr_needs_extraction:
             sys.stdout.write(
                 f"Warning: malformed pickle file. STACK_GLOBAL called with invalid types. "
                 f"'Module' is {type(module).__name__} ({module!r}), 'Attr' is {type(attr).__name__} ({attr!r}). "
-                f"Expected str; casting to string to continue analysis.\n"
+                f"Expected str; extracting identifiers to continue analysis.\n"
             )
-            module = str(module)
-            attr = str(attr)
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(attr)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+
+            if module_needs_extraction:
+                module = extract_identifier_from_ast_node(
+                    module, fallback_prefix="_malformed_module"
+                )
+            if attr_needs_extraction:
+                attr = extract_identifier_from_ast_node(attr, fallback_prefix="_malformed_attr")
+
+        # Final validation: ensure both are valid identifier strings
+        if not isinstance(module, str) or not isinstance(attr, str):
+            raise TypeError(
+                f"Failed to extract valid identifiers from STACK_GLOBAL arguments. "
+                f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
+            )
+
+        if not all(m.isidentifier() for m in module.split(".")) or not attr.isidentifier():
+            raise ValueError(
+                f"Extracted identifiers are not valid Python identifiers. "
+                f"Module: {module!r}, Attr: {attr!r}"
+            )
+
+        alias = ast.alias(attr)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
@@ -1141,12 +1228,8 @@ class Inst(StackSliceOpcode):
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
         module, classname = self.module, self.cls
-        if module in ("__builtin__", "__builtins__", "builtins"):
-            # no need to emit an import for builtins!
-            pass
-        else:
-            alias = ast.alias(classname)
-            interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
+        alias = ast.alias(classname)
+        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
         args = ast.Tuple(tuple(stack_slice))
         call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
         var_name = interpreter.new_variable(call)
@@ -1172,6 +1255,10 @@ class BinPut(Opcode):
 
     def run(self, interpreter: Interpreter):
         interpreter.memory[self.arg] = interpreter.stack[-1]
+
+    def encode_body(self):
+        assert self.arg <= 255, "BINPUT only supports 1-byte memo indexing"
+        return bytes([self.arg])
 
 
 class LongBinPut(BinPut):
@@ -1462,6 +1549,10 @@ class BinGet(Opcode):
         else:
             interpreter.stack.append(interpreter.memory[self.arg])
 
+    def encode_body(self):
+        assert self.arg <= 255, "BINGET only supports 1-byte memo indexing"
+        return bytes([self.arg])
+
 
 class LongBinGet(Opcode):
     name = "LONG_BINGET"
@@ -1509,7 +1600,7 @@ class SetItems(StackSliceOpcode):
         pydict = interpreter.stack.pop()
         update_dict_keys = []
         update_dict_values = []
-        for key, value in zip(stack_slice[::2], stack_slice[1::2]):
+        for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
             update_dict_keys.append(key)
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:

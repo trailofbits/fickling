@@ -223,6 +223,7 @@ class UnsafeImportsML(Analysis):
         "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
         "dill": "This module can load and execute arbitrary code.",
         "code": "This module can compile and execute arbitrary code.",
+        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
     }
 
     UNSAFE_IMPORTS = {
@@ -274,7 +275,12 @@ class UnsafeImportsML(Analysis):
             # NOTE(boyan): Special case with eval?
             # Copy pasted from pickled.unsafe_imports() original implementation
             elif "eval" in (n.name for n in node.names):
-                yield node
+                yield AnalysisResult(
+                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                    f"`{shortened}` imports `eval` which can execute arbitrary code",
+                    "UnsafeImportsML",
+                    trigger=shortened,
+                )
 
 
 class BadCalls(Analysis):
@@ -282,7 +288,7 @@ class BadCalls(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
-            shortened, already_reported = context.shorten_code(node)
+            shortened, _already_reported = context.shorten_code(node)
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,

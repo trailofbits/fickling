@@ -1,9 +1,11 @@
-import os
 import random
 import string
+import sys
 import tarfile
+import tempfile
 import unittest
 import zipfile
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -11,110 +13,106 @@ import torchvision.models as models
 
 import fickling.polyglot as polyglot
 
+_lacks_torch_jit_support = sys.version_info >= (3, 14)
 
-def create_pytorch_legacy_tar(tar_file_name):
+
+def create_pytorch_legacy_tar(tmpdir: Path, tar_file_name: Path):
     # This is an intentional polymock
-    os.makedirs("storages", exist_ok=True)
-    os.makedirs("tensors", exist_ok=True)
-    with open("pickle", "w") as f:
-        f.write("dummy content")
+    storages = tmpdir / "storages"
+    tensors = tmpdir / "tensors"
+    pickle_file = tmpdir / "pickle"
+
+    storages.mkdir(exist_ok=True)
+    tensors.mkdir(exist_ok=True)
+    pickle_file.write_text("dummy content")
+
     with tarfile.open(tar_file_name, mode="w:") as tar:
-        tar.add("pickle")
-        tar.add("storages", arcname="storages/")
-        tar.add("tensors", arcname="tensors/")
-    os.remove("pickle")
-    os.rmdir("storages")
-    os.rmdir("tensors")
+        tar.add(pickle_file, arcname="pickle")
+        tar.add(storages, arcname="storages/")
+        tar.add(tensors, arcname="tensors/")
+
+    pickle_file.unlink()
+    storages.rmdir()
+    tensors.rmdir()
 
 
-def create_random_zip(filename, size=1024):
-    tmp_filename = "".join(random.choices(string.ascii_letters + string.digits, k=10)) + ".tmp"
-    with open(tmp_filename, "wb") as f:
-        f.write(os.urandom(size))
+def create_random_zip(tmpdir: Path, filename: Path, size=1024):
+    tmp_filename = tmpdir / (
+        "".join(random.choices(string.ascii_letters + string.digits, k=10)) + ".tmp"
+    )
+    tmp_filename.write_bytes(random.randbytes(size))
     with zipfile.ZipFile(filename, "w") as zipf:
-        zipf.write(tmp_filename)
-    os.remove(tmp_filename)
+        zipf.write(tmp_filename, tmp_filename.name)
+    tmp_filename.unlink()
 
 
-def prepend_random_string(filename, str_length=20):
+def prepend_random_string(filename: Path, str_length=20):
     random_string = "".join(random.choices(string.ascii_letters + string.digits, k=str_length))
-    with open(filename, "rb") as original_file:
-        data = original_file.read()
-    with open(filename, "wb") as modified_file:
-        modified_file.write(random_string.encode() + data)
+    data = filename.read_bytes()
+    filename.write_bytes(random_string.encode() + data)
 
 
 class TestPolyglotModule(unittest.TestCase):
     def setUp(self):
+        random.seed(42)  # Deterministic test data
+        self.tmpdir = tempfile.TemporaryDirectory()
+        tmppath = Path(self.tmpdir.name)
+
         # Not covered: PyTorch MAR & earlier TorchScript versions
 
         # PyTorch v1.3
         model = models.mobilenet_v2()
-        self.filename_v1_3 = "model_v1_3.pth"
+        self.filename_v1_3 = tmppath / "model_v1_3.pth"
         torch.save(model, self.filename_v1_3)
 
         # PyTorch v1.3 Dup (for testing)
-        self.filename_v1_3_dup = "model_v1_3_dup.pth"
+        self.filename_v1_3_dup = tmppath / "model_v1_3_dup.pth"
         torch.save(model, self.filename_v1_3_dup)
 
         # PyTorch v0.1.10 (Stacked pickle files)
-        self.filename_legacy_pickle = "model_legacy_pickle.pth"
+        self.filename_legacy_pickle = tmppath / "model_legacy_pickle.pth"
         torch.save(model, self.filename_legacy_pickle, _use_new_zipfile_serialization=False)
 
-        # TorchScript v1.4
-        m = torch.jit.script(model)
-        self.filename_torchscript = "model_torchscript.pt"
-        torch.jit.save(m, self.filename_torchscript)
+        if not _lacks_torch_jit_support:
+            # TorchScript v1.4
+            m = torch.jit.script(model)
+            self.filename_torchscript = tmppath / "model_torchscript.pt"
+            torch.jit.save(m, self.filename_torchscript)
 
-        # TorchScript v1.4
-        self.filename_torchscript_dup = "model_torchscript_dup.pt"
-        torch.jit.save(m, self.filename_torchscript_dup)
+            # TorchScript v1.4 Dup
+            self.filename_torchscript_dup = tmppath / "model_torchscript_dup.pt"
+            torch.jit.save(m, self.filename_torchscript_dup)
+
+            self.standard_torchscript_polyglot_name = tmppath / "test_polyglot.pt"
 
         # PyTorch v0.1.1
-        self.filename_legacy_tar = "model_legacy_tar.pth"
-        create_pytorch_legacy_tar(self.filename_legacy_tar)
+        self.filename_legacy_tar = tmppath / "model_legacy_tar.pth"
+        create_pytorch_legacy_tar(tmppath, self.filename_legacy_tar)
 
         # Random ZIP file
-        self.zip_filename = "test_random.zip"
-        create_random_zip(self.zip_filename)
+        self.zip_filename = tmppath / "test_random.zip"
+        create_random_zip(tmppath, self.zip_filename)
         prepend_random_string(self.zip_filename)
 
         # Numpy Not Pickles
-        self.numpy_not_pickle = "not_pickle.npy"
+        self.numpy_not_pickle = tmppath / "not_pickle.npy"
         np.save(self.numpy_not_pickle, [1, 2, 3])
 
-        self.numpy_pickle = "pickle.npy"
+        self.numpy_pickle = tmppath / "pickle.npy"
         np.save(self.numpy_pickle, {"test": [1, 2, 3]})
 
-        self.tar_numpy_pickle = "testtar.anything"
+        self.tar_numpy_pickle = tmppath / "testtar.anything"
         archive = tarfile.open(self.tar_numpy_pickle, "w")
-        archive.add(self.numpy_pickle)
+        archive.add(self.numpy_pickle, arcname="pickle.npy")
         archive.close()
 
-        self.zip_numpy_pickle = "testzip.anything"
+        self.zip_numpy_pickle = tmppath / "testzip.anything"
         archive = zipfile.ZipFile(self.zip_numpy_pickle, "w")
-        archive.write(self.numpy_pickle, self.numpy_pickle)
+        archive.write(self.numpy_pickle, "pickle.npy")
         archive.close()
-
-        self.standard_torchscript_polyglot_name = "test_polyglot.pt"
 
     def tearDown(self):
-        for filename in [
-            self.filename_v1_3,
-            self.filename_legacy_pickle,
-            self.filename_torchscript,
-            self.filename_legacy_tar,
-            self.zip_filename,
-            self.filename_torchscript_dup,
-            self.filename_v1_3_dup,
-            self.standard_torchscript_polyglot_name,
-            self.numpy_not_pickle,
-            self.numpy_pickle,
-            self.tar_numpy_pickle,
-            self.zip_numpy_pickle,
-        ]:
-            if os.path.exists(filename):
-                os.remove(filename)
+        self.tmpdir.cleanup()
 
     def test_v1_3(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_v1_3)
@@ -125,6 +123,7 @@ class TestPolyglotModule(unittest.TestCase):
     #     formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
     #     self.assertEqual(formats, ["PyTorch v0.1.10"])
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_torchscript)
         self.assertEqual(formats, ["TorchScript v1.4", "TorchScript v1.3", "PyTorch v1.3"])
@@ -279,6 +278,7 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_properties(self):
         properties = polyglot.find_file_properties(self.filename_torchscript)
         proper_result = {
@@ -297,7 +297,8 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
-    @unittest.skip("FIXME: Failing for python 3.13")
+    # Previously skipped for Python 3.13 due to numpy private API usage in check_numpy().
+    # Fixed in commit 50e206b by switching to public numpy.lib.format APIs.
     def test_zip_properties(self):
         properties = polyglot.find_file_properties(self.zip_filename)
         proper_result = {
@@ -316,6 +317,7 @@ class TestPolyglotModule(unittest.TestCase):
         }
         self.assertEqual(properties, proper_result)
 
+    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_create_standard_torchscript_polyglot(self):
         polyglot.create_polyglot(
             self.filename_v1_3_dup,
