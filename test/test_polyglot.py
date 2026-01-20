@@ -54,6 +54,7 @@ def prepend_random_string(filename: Path, str_length=20):
 
 class TestPolyglotModule(unittest.TestCase):
     def setUp(self):
+        random.seed(42)  # Deterministic test data
         self.tmpdir = tempfile.TemporaryDirectory()
         tmppath = Path(self.tmpdir.name)
 
