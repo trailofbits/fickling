@@ -1176,29 +1176,49 @@ class Ext1(Opcode):
     def run(self, interpreter: Interpreter):
         code = self.arg
 
-        # Generate: import copyreg
+        # Generate: import copyreg, sys
         interpreter.module_body.append(
-            ast.Import(names=[ast.alias('copyreg', None)])
+            ast.Import(names=[ast.alias("copyreg", None), ast.alias("sys", None)])
         )
 
-        # Generate: var_name = copyreg._extension_registry.get(code, (None, None))
-        # Uses .get() with safe default so it won't crash if registry isn't populated
+        # Look up (module, name) from _inverted_registry
+        # Generate: _reg_entry = copyreg._inverted_registry.get(code, (None, None))
         lookup_call = ast.Call(
             ast.Attribute(
-                ast.Attribute(
-                    ast.Name('copyreg', ast.Load()),
-                    '_extension_registry',
-                    ast.Load()
-                ),
-                'get',
-                ast.Load()
+                ast.Attribute(ast.Name("copyreg", ast.Load()), "_inverted_registry", ast.Load()),
+                "get",
+                ast.Load(),
             ),
-            [ast.Constant(code), ast.Tuple([ast.Constant(None), ast.Constant(None)], ast.Load())],
-            []
+            [
+                ast.Constant(code),
+                ast.Tuple([ast.Constant(None), ast.Constant(None)], ast.Load()),
+            ],
+            [],
         )
-        var_name = interpreter.new_variable(lookup_call)
+        registry_var = interpreter.new_variable(lookup_call)
 
-        # Push the variable onto stack
+        # Generate: __import__(_reg_entry[0])
+        import_call = ast.Call(
+            ast.Name("__import__", ast.Load()),
+            [ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(0), ast.Load())],
+            [],
+        )
+        interpreter.module_body.append(ast.Expr(import_call))
+
+        # Generate: var = getattr(sys.modules[_reg_entry[0]], _reg_entry[1])
+        getattr_call = ast.Call(
+            ast.Name("getattr", ast.Load()),
+            [
+                ast.Subscript(
+                    ast.Attribute(ast.Name("sys", ast.Load()), "modules", ast.Load()),
+                    ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(0), ast.Load()),
+                    ast.Load(),
+                ),
+                ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(1), ast.Load()),
+            ],
+            [],
+        )
+        var_name = interpreter.new_variable(getattr_call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
