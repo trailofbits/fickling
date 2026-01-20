@@ -426,8 +426,7 @@ class TestBypasses(TestCase):
         # Should be flagged by at least one of the unsafe import checkers
         detailed = res.detailed_results().get("AnalysisResult", {})
         has_unsafe_import = (
-            detailed.get("UnsafeImports") is not None
-            or detailed.get("UnsafeImportsML") is not None
+            detailed.get("UnsafeImports") is not None or detailed.get("UnsafeImportsML") is not None
         )
         self.assertTrue(has_unsafe_import)
 

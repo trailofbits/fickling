@@ -249,18 +249,59 @@ class UnsafeImportsML(Analysis):
 
     # Builtins that are safe to import - pure functions and type constructors
     # that cannot be used for code execution or system access
-    SAFE_BUILTINS = frozenset([
-        # Type constructors (create data, cannot execute code)
-        "bool", "int", "float", "complex", "str", "bytes", "bytearray",
-        "list", "tuple", "set", "frozenset", "dict",
-        # Pure functions (no side effects, no code execution)
-        "len", "abs", "sum", "min", "max", "round", "pow", "divmod",
-        "sorted", "reversed", "enumerate", "zip", "range",
-        "map", "filter", "slice", "iter", "next",
-        "all", "any", "hash", "id", "repr", "ascii", "bin", "hex", "oct", "ord", "chr",
-        "isinstance", "issubclass", "type", "object",
-        "callable", "format",
-    ])
+    SAFE_BUILTINS = frozenset(
+        [
+            # Type constructors (create data, cannot execute code)
+            "bool",
+            "int",
+            "float",
+            "complex",
+            "str",
+            "bytes",
+            "bytearray",
+            "list",
+            "tuple",
+            "set",
+            "frozenset",
+            "dict",
+            # Pure functions (no side effects, no code execution)
+            "len",
+            "abs",
+            "sum",
+            "min",
+            "max",
+            "round",
+            "pow",
+            "divmod",
+            "sorted",
+            "reversed",
+            "enumerate",
+            "zip",
+            "range",
+            "map",
+            "filter",
+            "slice",
+            "iter",
+            "next",
+            "all",
+            "any",
+            "hash",
+            "id",
+            "repr",
+            "ascii",
+            "bin",
+            "hex",
+            "oct",
+            "ord",
+            "chr",
+            "isinstance",
+            "issubclass",
+            "type",
+            "object",
+            "callable",
+            "format",
+        ]
+    )
 
     # Builtins that are DANGEROUS and must remain blocked
     # (for documentation - these are NOT in SAFE_BUILTINS)
