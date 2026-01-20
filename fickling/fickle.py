@@ -1170,6 +1170,66 @@ class StackGlobal(NoOp):
         interpreter.stack.append(ast.Name(attr, ast.Load()))
 
 
+class Ext1(Opcode):
+    name = "EXT1"
+
+    def run(self, interpreter: Interpreter):
+        code = self.arg
+
+        # Generate: import copyreg, sys
+        interpreter.module_body.append(
+            ast.Import(names=[ast.alias("copyreg", None), ast.alias("sys", None)])
+        )
+
+        # Look up (module, name) from _inverted_registry
+        # Generate: _reg_entry = copyreg._inverted_registry.get(code, (None, None))
+        lookup_call = ast.Call(
+            ast.Attribute(
+                ast.Attribute(ast.Name("copyreg", ast.Load()), "_inverted_registry", ast.Load()),
+                "get",
+                ast.Load(),
+            ),
+            [
+                ast.Constant(code),
+                ast.Tuple([ast.Constant(None), ast.Constant(None)], ast.Load()),
+            ],
+            [],
+        )
+        registry_var = interpreter.new_variable(lookup_call)
+
+        # Generate: __import__(_reg_entry[0])
+        import_call = ast.Call(
+            ast.Name("__import__", ast.Load()),
+            [ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(0), ast.Load())],
+            [],
+        )
+        interpreter.module_body.append(ast.Expr(import_call))
+
+        # Generate: var = getattr(sys.modules[_reg_entry[0]], _reg_entry[1])
+        getattr_call = ast.Call(
+            ast.Name("getattr", ast.Load()),
+            [
+                ast.Subscript(
+                    ast.Attribute(ast.Name("sys", ast.Load()), "modules", ast.Load()),
+                    ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(0), ast.Load()),
+                    ast.Load(),
+                ),
+                ast.Subscript(ast.Name(registry_var, ast.Load()), ast.Constant(1), ast.Load()),
+            ],
+            [],
+        )
+        var_name = interpreter.new_variable(getattr_call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
+
+
+class Ext2(Ext1):
+    name = "EXT2"
+
+
+class Ext4(Ext1):
+    name = "EXT4"
+
+
 class Inst(StackSliceOpcode):
     name = "INST"
 
