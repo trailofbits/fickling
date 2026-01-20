@@ -248,3 +248,135 @@ class TestInterpreter(TestCase):
         loaded.insert(-1, fpickle.Proto.create(2))
         test_duplicate_proto_two_results = check_safety(loaded).to_dict()
         self.assertEqual(test_duplicate_proto_two_results["severity"], "LIKELY_UNSAFE")
+
+    def test_ext1(self):
+        """Test EXT1 opcode (1-byte extension code)."""
+        import copyreg
+        import io
+        from collections import OrderedDict
+
+        # Register extension for test
+        copyreg.add_extension("collections", "OrderedDict", 42)
+        try:
+            # Build raw pickle bytes: PROTO 2, EXT1(42), EMPTY_TUPLE, REDUCE, STOP
+            pickle_bytes = bytes(
+                [
+                    0x80,
+                    0x02,  # PROTO 2
+                    0x82,
+                    42,  # EXT1 with code 42
+                    0x29,  # EMPTY_TUPLE
+                    0x52,  # REDUCE
+                    0x2E,  # STOP
+                ]
+            )
+            pickled = Pickled.load(io.BytesIO(pickle_bytes))
+            result = get_result(pickled)
+            self.assertIsInstance(result, OrderedDict)
+            self.assertEqual(result, OrderedDict())
+
+            # Compare with real pickle
+            real_result = loads(pickle_bytes)
+            self.assertEqual(type(result), type(real_result))
+        finally:
+            copyreg.remove_extension("collections", "OrderedDict", 42)
+
+    def test_ext2(self):
+        """Test EXT2 opcode (2-byte extension code)."""
+        import copyreg
+        import io
+        import struct
+        from collections import Counter
+
+        # Register extension with code > 255 (requires EXT2)
+        copyreg.add_extension("collections", "Counter", 1000)
+        try:
+            # Build raw pickle bytes: PROTO 2, EXT2(1000), EMPTY_TUPLE, REDUCE, STOP
+            pickle_bytes = (
+                bytes([0x80, 0x02, 0x83])  # PROTO 2, EXT2
+                + struct.pack("<H", 1000)  # 1000 as 2-byte little-endian
+                + bytes([0x29, 0x52, 0x2E])  # EMPTY_TUPLE, REDUCE, STOP
+            )
+            pickled = Pickled.load(io.BytesIO(pickle_bytes))
+            result = get_result(pickled)
+            self.assertIsInstance(result, Counter)
+            self.assertEqual(result, Counter())
+
+            # Compare with real pickle
+            real_result = loads(pickle_bytes)
+            self.assertEqual(type(result), type(real_result))
+        finally:
+            copyreg.remove_extension("collections", "Counter", 1000)
+
+    def test_ext4(self):
+        """Test EXT4 opcode (4-byte extension code)."""
+        import copyreg
+        import io
+        import struct
+        from collections import deque
+
+        # Register extension with code > 65535 (requires EXT4)
+        copyreg.add_extension("collections", "deque", 100000)
+        try:
+            # Build raw pickle bytes: PROTO 2, EXT4(100000), EMPTY_TUPLE, REDUCE, STOP
+            pickle_bytes = (
+                bytes([0x80, 0x02, 0x84])  # PROTO 2, EXT4
+                + struct.pack("<I", 100000)  # 100000 as 4-byte little-endian
+                + bytes([0x29, 0x52, 0x2E])  # EMPTY_TUPLE, REDUCE, STOP
+            )
+            pickled = Pickled.load(io.BytesIO(pickle_bytes))
+            result = get_result(pickled)
+            self.assertIsInstance(result, deque)
+            self.assertEqual(result, deque())
+
+            # Compare with real pickle
+            real_result = loads(pickle_bytes)
+            self.assertEqual(type(result), type(real_result))
+        finally:
+            copyreg.remove_extension("collections", "deque", 100000)
+
+    def test_ext_with_function(self):
+        """Test EXT opcode with a function (not just classes)."""
+        import copyreg
+        import io
+        import os.path
+
+        # Register a function as extension
+        copyreg.add_extension("os.path", "join", 200)
+        try:
+            # Build raw pickle bytes:
+            # PROTO 2, EXT1(200), SHORT_BINUNICODE("/home"),
+            # SHORT_BINUNICODE("user"), TUPLE2, REDUCE, STOP
+            pickle_bytes = bytes(
+                [
+                    0x80,
+                    0x02,  # PROTO 2
+                    0x82,
+                    200,  # EXT1 with code 200
+                    0x8C,
+                    5,
+                    ord("/"),
+                    ord("h"),
+                    ord("o"),
+                    ord("m"),
+                    ord("e"),  # SHORT_BINUNICODE "/home"
+                    0x8C,
+                    4,
+                    ord("u"),
+                    ord("s"),
+                    ord("e"),
+                    ord("r"),  # SHORT_BINUNICODE "user"
+                    0x86,  # TUPLE2 (creates tuple from top 2 stack items)
+                    0x52,  # REDUCE
+                    0x2E,  # STOP
+                ]
+            )
+            pickled = Pickled.load(io.BytesIO(pickle_bytes))
+            result = get_result(pickled)
+            self.assertEqual(result, os.path.join("/home", "user"))
+
+            # Compare with real pickle
+            real_result = loads(pickle_bytes)
+            self.assertEqual(result, real_result)
+        finally:
+            copyreg.remove_extension("os.path", "join", 200)
