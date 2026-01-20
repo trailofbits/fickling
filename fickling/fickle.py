@@ -890,12 +890,22 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if node.module and any(
-                component in UNSAFE_IMPORTS for component in node.module.split(".")
-            ):
-                yield node
-            elif "eval" in (n.name for n in node.names):
-                yield node
+            if isinstance(node, ast.ImportFrom):
+                if node.module and any(
+                    component in UNSAFE_IMPORTS for component in node.module.split(".")
+                ):
+                    yield node
+                elif "eval" in (n.name for n in node.names):
+                    yield node
+            else:
+                # ast.Import: check if any imported module is unsafe
+                if any(
+                    any(component in UNSAFE_IMPORTS for component in alias.name.split("."))
+                    for alias in node.names
+                ):
+                    yield node
+                elif "eval" in (alias.name for alias in node.names):
+                    yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:

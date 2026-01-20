@@ -1,3 +1,4 @@
+import ast
 import pickle
 from collections.abc import Iterator
 
@@ -295,7 +296,11 @@ class MLAllowlist(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, already_reported = context.shorten_code(node)
-            if not already_reported:
+            if already_reported:
+                continue
+
+            if isinstance(node, ast.ImportFrom):
+                # from module import x
                 if node.module not in self.allowlist:
                     yield AnalysisResult(
                         Severity.LIKELY_UNSAFE,
@@ -317,6 +322,19 @@ class MLAllowlist(Analysis):
                                 "MLAllowlist",
                                 trigger=shortened,
                             )
+            else:
+                # ast.Import: import x, y, z
+                for alias in node.names:
+                    if alias.name not in self.allowlist:
+                        yield AnalysisResult(
+                            Severity.LIKELY_UNSAFE,
+                            f"`{shortened}` imports a Python module outside of "
+                            "the standard library that is not whitelisted; "
+                            "this could execute arbitrary code and is "
+                            "inherently unsafe",
+                            "MLAllowlist",
+                            trigger=shortened,
+                        )
 
 
 class FicklingMLUnpickler(pickle.Unpickler):

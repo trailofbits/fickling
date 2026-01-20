@@ -48,7 +48,7 @@ class PickleFinder(importlib.abc.MetaPathFinder):
         fullname: str,
         path: Sequence[bytes | str] | None,
         target: ModuleType | None = None,
-    ):
+    ) -> importlib.machinery.ModuleSpec | None:
         if fullname == "pickle":
             if self.verbose:
                 print("Pickle module found: Running import hook")
