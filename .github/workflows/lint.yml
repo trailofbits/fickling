@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   lint-python:
-    name: Lint Python with Ruff and mypy
+    name: Lint Python with Ruff and ty
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,8 +42,8 @@ jobs:
       - name: Lint with ruff
         run: uv run ruff check fickling
 
-      - name: Type check with mypy
-        run: uv run mypy fickling
+      - name: Type check with ty
+        run: uv run ty check fickling
         continue-on-error: true  # TODO: Remove once type annotations are fixed
 
   all-lints-pass:
