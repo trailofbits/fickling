@@ -7,7 +7,20 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
-from fickling.fickle import Interpreter, Pickled, Proto
+from fickling.exception import ResourceExhaustionError
+from fickling.fickle import (
+    BinGet,
+    BinPut,
+    Dup,
+    Get,
+    Interpreter,
+    LongBinGet,
+    LongBinPut,
+    Memoize,
+    Pickled,
+    Proto,
+    Put,
+)
 
 
 class AnalyzerMeta(type):
@@ -28,7 +41,19 @@ class AnalysisContext:
         self.results_by_analysis: dict[type[Analysis], list[AnalysisResult]] = defaultdict(list)
 
     def analyze(self, analysis: Analysis) -> list[AnalysisResult]:
-        results = list(analysis.analyze(self))
+        try:
+            results = list(analysis.analyze(self))
+        except ResourceExhaustionError as e:
+            # Resource limits exceeded - this is a DoS attack indicator
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                    f"Resource exhaustion detected during analysis: {e}; "
+                    f"this is indicative of an expansion attack (Billion Laughs style)",
+                    "ResourceExhaustion",
+                    trigger=f"{e.resource_type}: {e.actual}",
+                )
+            ]
         if not results:
             self.results_by_analysis[type(analysis)].append(AnalysisResult(Severity.LIKELY_SAFE))
         else:
@@ -357,6 +382,83 @@ class UnusedVariables(Analysis):
                 "UnusedVariables",
                 trigger=f"{varname}: {shortened}",
             )
+
+
+class ExpansionAttackAnalysis(Analysis):
+    """Detects potential exponential expansion attacks (Billion Laughs style).
+
+    These attacks use:
+    - High GET/PUT ratio: Many GET operations retrieving memoized values
+    - Excessive DUP operations: Duplicating stack items repeatedly
+    """
+
+    # Thresholds for pattern detection
+    GET_PUT_RATIO_THRESHOLD = 10  # GETs per PUT that is suspicious
+    DUP_COUNT_THRESHOLD = 100  # Number of DUPs that is suspicious
+    HIGH_GET_PUT_RATIO_THRESHOLD = 50  # Extremely high ratio
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        get_count = 0
+        put_count = 0
+        dup_count = 0
+
+        for opcode in context.pickled:
+            if isinstance(opcode, BinGet | LongBinGet | Get):
+                get_count += 1
+            elif isinstance(opcode, BinPut | LongBinPut | Put | Memoize):
+                put_count += 1
+            elif isinstance(opcode, Dup):
+                dup_count += 1
+
+        findings: list[AnalysisResult] = []
+
+        # Check for high GET/PUT ratio
+        if put_count > 0:
+            ratio = get_count / put_count
+            if ratio > self.HIGH_GET_PUT_RATIO_THRESHOLD:
+                findings.append(
+                    AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"Extremely high GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this pattern is indicative of an exponential expansion attack "
+                        f"(Billion Laughs style) that could cause DoS",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+            elif ratio > self.GET_PUT_RATIO_THRESHOLD:
+                findings.append(
+                    AnalysisResult(
+                        Severity.SUSPICIOUS,
+                        f"High GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this may indicate an expansion attack pattern",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+
+        # Check for excessive DUP operations
+        if dup_count > self.DUP_COUNT_THRESHOLD:
+            findings.append(
+                AnalysisResult(
+                    Severity.SUSPICIOUS,
+                    f"Excessive DUP operations ({dup_count}) detected; "
+                    f"this may indicate a stack duplication attack",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"DUP count: {dup_count}",
+                )
+            )
+
+        # Combined indicators are more severe
+        if (findings and len(findings) > 1) or (
+            put_count > 0 and get_count / put_count > self.HIGH_GET_PUT_RATIO_THRESHOLD
+        ):
+            # Upgrade to LIKELY_UNSAFE if multiple indicators
+            for finding in findings:
+                if finding.severity < Severity.LIKELY_UNSAFE:
+                    finding.severity = Severity.LIKELY_UNSAFE
+
+        yield from findings
 
 
 class AnalysisResults:
