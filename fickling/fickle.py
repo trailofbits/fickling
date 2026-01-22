@@ -79,9 +79,6 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "bdb",
         "timeit",
         "doctest",
-        # Nested pickle attacks
-        "pickle",
-        "_pickle",
         # Package and environment manipulation
         "venv",
         "pip",

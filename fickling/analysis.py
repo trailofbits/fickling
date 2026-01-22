@@ -208,7 +208,6 @@ class NonStandardImports(Analysis):
 
 class UnsafeImportsML(Analysis):
     UNSAFE_MODULES = {
-        # Core builtins and system modules
         "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
         "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
         "builtins": "This module contains dangerous functions that can execute arbitrary code.",
@@ -218,48 +217,15 @@ class UnsafeImportsML(Analysis):
         "subprocess": "This module contains functions that can run arbitrary executables and perform system operations.",
         "sys": "This module can tamper with the python interpreter.",
         "socket": "This module gives access to low-level socket interfaces and can initiate dangerous network connections.",
-        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "code": "This module can compile and execute arbitrary code.",
-        "dill": "This module can load and execute arbitrary code.",
-        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
-        # File and shell operations
         "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "_io": "This module provides low-level file I/O that can read/write arbitrary files.",
-        "io": "This module provides file I/O that can read/write arbitrary files.",
-        "distutils": "This module can execute arbitrary commands during package operations.",
-        "commands": "This module can execute shell commands.",
-        # Operator module bypasses
-        "_operator": "This module provides attrgetter/itemgetter/methodcaller that can enable arbitrary code execution.",
-        "operator": "This module provides attrgetter/itemgetter/methodcaller that can enable arbitrary code execution.",
-        "functools": "This module provides partial() that can wrap dangerous callables.",
-        # Async subprocess execution
-        "asyncio": "This module can spawn subprocesses and execute arbitrary code asynchronously.",
-        # Code execution via profilers/debuggers
-        "profile": "This module can execute arbitrary code via run() and runctx().",
-        "trace": "This module can execute arbitrary code via run() and runctx().",
-        "pdb": "This module provides debugging capabilities that can execute arbitrary code.",
-        "bdb": "This module provides debugging capabilities that can execute arbitrary code.",
-        "timeit": "This module can execute arbitrary code strings for timing.",
-        "doctest": "This module can execute code embedded in docstrings.",
-        # Nested pickle attacks
-        "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        # Package and environment manipulation
-        "venv": "This module can create virtual environments and potentially execute code.",
-        "pip": "This module can install arbitrary packages that may execute code.",
-        "ensurepip": "This module can install pip and execute arbitrary code via _run_pip().",
-        # Network and web modules
-        "webbrowser": "This module can open URLs and potentially execute code through browser handlers.",
-        "aiohttp": "This module can make HTTP requests to leak data or download malicious content.",
-        "httplib": "This module can make HTTP requests to leak data or download malicious content.",
-        "http": "This module can make HTTP requests to leak data or download malicious content.",
-        "ssl": "This module can establish network connections to exfiltrate data.",
-        "requests": "This module can make HTTP requests to leak data or download malicious content.",
         "urllib": "This module can use HTTP to leak local data and download malicious files.",
         "urllib2": "This module can use HTTP to leak local data and download malicious files.",
-        # IDE and dev tools
-        "idlelib": "This module contains classes that can execute arbitrary code.",
-        "lib2to3": "This module can parse and potentially execute code through grammar loading.",
+        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
+        "dill": "This module can load and execute arbitrary code.",
+        "code": "This module can compile and execute arbitrary code.",
+        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
+        "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
     }
 
     UNSAFE_IMPORTS = {
