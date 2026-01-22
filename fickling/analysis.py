@@ -7,7 +7,13 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
-from fickling.fickle import Interpreter, Pickled, Proto
+from fickling.fickle import (
+    BUILTIN_MODULE_NAMES,
+    SAFE_BUILTINS,
+    Interpreter,
+    Pickled,
+    Proto,
+)
 
 
 class AnalyzerMeta(type):
@@ -247,74 +253,6 @@ class UnsafeImportsML(Analysis):
         },
     }
 
-    # Builtins that are safe to import - pure functions and type constructors
-    # that cannot be used for code execution or system access
-    SAFE_BUILTINS = frozenset(
-        [
-            # Type constructors (create data, cannot execute code)
-            "bool",
-            "int",
-            "float",
-            "complex",
-            "str",
-            "bytes",
-            "bytearray",
-            "list",
-            "tuple",
-            "set",
-            "frozenset",
-            "dict",
-            # Pure functions (no side effects, no code execution)
-            "len",
-            "abs",
-            "sum",
-            "min",
-            "max",
-            "round",
-            "pow",
-            "divmod",
-            "sorted",
-            "reversed",
-            "enumerate",
-            "zip",
-            "range",
-            "map",
-            "filter",
-            "slice",
-            "iter",
-            "next",
-            "all",
-            "any",
-            "hash",
-            "id",
-            "repr",
-            "ascii",
-            "bin",
-            "hex",
-            "oct",
-            "ord",
-            "chr",
-            "isinstance",
-            "issubclass",
-            "type",
-            "object",
-            "callable",
-            "format",
-        ]
-    )
-
-    # Builtins that are DANGEROUS and must remain blocked
-    # (for documentation - these are NOT in SAFE_BUILTINS)
-    # - eval, exec, compile: direct code execution
-    # - open: file system access
-    # - __import__, __loader__, __spec__: import machinery
-    # - getattr, setattr, delattr, hasattr: attribute access (can call any method)
-    # - globals, locals, vars: namespace access
-    # - input: user input (could be abused)
-    # - breakpoint: debugger access
-    # - memoryview: low-level memory access
-    # - staticmethod, classmethod, property: descriptor creation
-
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, _ = context.shorten_code(node)
@@ -324,9 +262,9 @@ class UnsafeImportsML(Analysis):
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     # Special handling for builtins - check specific function names
-                    if module_name in ("builtins", "__builtins__", "__builtin__"):
+                    if module_name in BUILTIN_MODULE_NAMES:
                         for n in node.names:
-                            if n.name not in self.SAFE_BUILTINS:
+                            if n.name not in SAFE_BUILTINS:
                                 risk_info = self.UNSAFE_MODULES[module_name]
                                 yield AnalysisResult(
                                     Severity.LIKELY_OVERTLY_MALICIOUS,
@@ -419,10 +357,10 @@ class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
             # Special handling for builtins - only flag unsafe names
-            if node.module in ("builtins", "__builtins__", "__builtin__"):
+            if node.module in BUILTIN_MODULE_NAMES:
                 has_unsafe = False
                 for n in node.names:
-                    if n.name not in UnsafeImportsML.SAFE_BUILTINS:
+                    if n.name not in SAFE_BUILTINS:
                         has_unsafe = True
                         break
                 if not has_unsafe:
