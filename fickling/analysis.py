@@ -356,15 +356,10 @@ class OvertlyBadEvals(Analysis):
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
-            # Special handling for builtins - only flag unsafe names
-            if node.module in BUILTIN_MODULE_NAMES:
-                has_unsafe = False
-                for n in node.names:
-                    if n.name not in SAFE_BUILTINS:
-                        has_unsafe = True
-                        break
-                if not has_unsafe:
-                    continue
+            if node.module in BUILTIN_MODULE_NAMES and all(
+                n.name in SAFE_BUILTINS for n in node.names
+            ):
+                continue
             shortened, _ = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
