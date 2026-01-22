@@ -423,12 +423,10 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
-        # Should be flagged by at least one of the unsafe import checkers
+        # Should be flagged by both unsafe import checkers
         detailed = res.detailed_results().get("AnalysisResult", {})
-        has_unsafe_import = (
-            detailed.get("UnsafeImports") is not None or detailed.get("UnsafeImportsML") is not None
-        )
-        self.assertTrue(has_unsafe_import)
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
 
     def test_unsafe_builtin_eval_still_flagged(self):
         """Dangerous builtin eval must still be flagged."""
@@ -443,3 +441,7 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Should be flagged by both unsafe import checkers
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
