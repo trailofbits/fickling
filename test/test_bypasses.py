@@ -376,3 +376,72 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from builtins import getattr",
         )
+
+    def test_safe_builtins_not_flagged(self):
+        """Safe builtins like len, dict should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins len"),
+                op.EmptyList(),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        # Should not have UnsafeImports or UnsafeImportsML result for safe builtins
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_safe_builtin_dict_not_flagged(self):
+        """Safe builtin dict() should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins dict"),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_unsafe_builtins_still_flagged(self):
+        """Dangerous builtins like getattr, __import__ must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins getattr"),
+                op.String("os"),
+                op.String("system"),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Should be flagged by both unsafe import checkers
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
+
+    def test_unsafe_builtin_eval_still_flagged(self):
+        """Dangerous builtin eval must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins eval"),
+                op.String("print('hello')"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Should be flagged by both unsafe import checkers
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))

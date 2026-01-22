@@ -7,7 +7,14 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
-from fickling.fickle import InterpretationError, Interpreter, Pickled, Proto
+from fickling.fickle import (
+    BUILTIN_MODULE_NAMES,
+    SAFE_BUILTINS,
+    InterpretationError,
+    Interpreter,
+    Pickled,
+    Proto,
+)
 
 
 class AnalyzerMeta(type):
@@ -267,13 +274,27 @@ class UnsafeImportsML(Analysis):
             ]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
-                    risk_info = self.UNSAFE_MODULES[module_name]
-                    yield AnalysisResult(
-                        Severity.LIKELY_OVERTLY_MALICIOUS,
-                        f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
-                        "UnsafeImportsML",
-                        trigger=shortened,
-                    )
+                    # Special handling for builtins - check specific function names
+                    if module_name in BUILTIN_MODULE_NAMES:
+                        for n in node.names:
+                            if n.name not in SAFE_BUILTINS:
+                                risk_info = self.UNSAFE_MODULES[module_name]
+                                yield AnalysisResult(
+                                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                                    f"`{shortened}` imports `{n.name}` from `{module_name}` "
+                                    f"which can execute arbitrary code. {risk_info}",
+                                    "UnsafeImportsML",
+                                    trigger=shortened,
+                                )
+                    else:
+                        # All other unsafe modules are fully blocked
+                        risk_info = self.UNSAFE_MODULES[module_name]
+                        yield AnalysisResult(
+                            Severity.LIKELY_OVERTLY_MALICIOUS,
+                            f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
+                            "UnsafeImportsML",
+                            trigger=shortened,
+                        )
             if node.module in self.UNSAFE_IMPORTS:
                 for n in node.names:
                     if n.name in self.UNSAFE_IMPORTS[node.module]:
@@ -348,6 +369,10 @@ class OvertlyBadEvals(Analysis):
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
+            if node.module in BUILTIN_MODULE_NAMES and all(
+                n.name in SAFE_BUILTINS for n in node.names
+            ):
+                continue
             shortened, _ = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,

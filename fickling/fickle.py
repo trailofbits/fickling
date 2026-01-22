@@ -62,6 +62,72 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
     ]
 )
 
+BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(["builtins", "__builtins__", "__builtin__"])
+
+# Builtins that are safe to import - pure functions and type constructors
+# that cannot be used for code execution or system access.
+# Dangerous builtins NOT in this list (and thus blocked):
+# - eval, exec, compile: direct code execution
+# - open: file system access
+# - __import__, __loader__, __spec__: import machinery
+# - getattr, setattr, delattr, hasattr: attribute access (can call any method)
+# - globals, locals, vars: namespace access
+# - input: user input (could be abused)
+# - breakpoint: debugger access
+# - memoryview: low-level memory access
+SAFE_BUILTINS: frozenset[str] = frozenset(
+    [
+        # Type constructors (create data, cannot execute code)
+        "bool",
+        "int",
+        "float",
+        "complex",
+        "str",
+        "bytes",
+        "bytearray",
+        "list",
+        "tuple",
+        "set",
+        "frozenset",
+        "dict",
+        # Pure functions (no side effects, no code execution)
+        "len",
+        "abs",
+        "sum",
+        "min",
+        "max",
+        "round",
+        "pow",
+        "divmod",
+        "sorted",
+        "reversed",
+        "enumerate",
+        "zip",
+        "range",
+        "map",
+        "filter",
+        "slice",
+        "iter",
+        "next",
+        "all",
+        "any",
+        "hash",
+        "id",
+        "repr",
+        "ascii",
+        "bin",
+        "hex",
+        "oct",
+        "ord",
+        "chr",
+        "isinstance",
+        "issubclass",
+        "object",
+        "callable",
+        "format",
+    ]
+)
+
 
 def is_std_module(module_name: str) -> bool:
     return module_name in BUILTIN_STDLIB_MODULE_NAMES
