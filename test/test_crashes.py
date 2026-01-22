@@ -8,6 +8,7 @@ from base64 import b64decode
 from functools import wraps
 from unittest import TestCase
 
+from fickling.analysis import Severity, check_safety
 from fickling.fickle import (
     BinGet,
     BinInt1,
@@ -147,3 +148,19 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         unparse(pickled.ast)
+
+    def test_missing_mark_before_tuple(self):
+        """Reproduces https://github.com/trailofbits/fickling/issues/188"""
+        # PROTO 4, TUPLE (0x74='t', requires preceding MARK), STOP
+        malformed_bytes = b"\x80\x04t."
+        loaded = Pickled.load(io.BytesIO(malformed_bytes))
+
+        # Should not crash when accessing AST
+        _ = loaded.ast
+
+        # Should flag as having interpretation error
+        self.assertTrue(loaded.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(loaded)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)
