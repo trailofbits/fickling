@@ -3,17 +3,25 @@ This test module checks against inputs that previously caused crashes
 """
 
 import io
+import pickle
 from ast import unparse
 from base64 import b64decode
 from functools import wraps
-from unittest import TestCase
+from unittest import TestCase, expectedFailure
 
+from fickling.analysis import Severity, check_safety
+from fickling.exception import ExpansionAttackError, ResourceExhaustionError
 from fickling.fickle import (
+    Append,
     BinGet,
     BinInt1,
     BinPut,
     BinUnicode,
+    Dup,
+    EmptyList,
     Global,
+    Interpreter,
+    InterpreterLimits,
     Mark,
     Memoize,
     Pickled,
@@ -147,3 +155,177 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         unparse(pickled.ast)
+
+    @expectedFailure  # Issue #196 - cyclic AST recursion not yet fixed
+    def test_cyclic_pickle_dos(self):
+        """Reproduces https://github.com/trailofbits/fickling/issues/196
+
+        Tests that cyclic AST structures from MEMOIZE + GET opcodes
+        don't cause infinite recursion during safety analysis.
+        """
+        # PROTO 2, EMPTY_LIST, MEMOIZE, GET 0, APPEND, STOP
+        # Creates: L = []; L.append(L)
+        payload = b"\x80\x02]\x94g0\na."
+
+        pickled = Pickled.load(payload)
+
+        # Should complete without RecursionError
+        result = check_safety(pickled)
+        self.assertIsNotNone(result)
+
+
+class TestExpansionAttacks(TestCase):
+    """Test DoS protection against expansion attacks (Billion Laughs style).
+
+    These tests verify that Fickling detects and handles:
+    - High GET/PUT ratio patterns (memo abuse)
+    - Excessive DUP operations (stack duplication abuse)
+    - Resource exhaustion during interpretation
+    """
+
+    def test_memo_expansion_detection(self):
+        """Test detection of high GET/PUT ratio patterns.
+
+        Creates a pickle with many GET operations relative to PUT operations,
+        which is characteristic of expansion attacks.
+        """
+        # Create a pickle with high GET/PUT ratio
+        # 1 PUT followed by many GETs
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),  # PUT to memo[0]
+        ]
+        # Add many GETs
+        for _ in range(60):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+        result = check_safety(pickled)
+
+        # Should detect the suspicious pattern
+        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
+
+    def test_dup_expansion_detection(self):
+        """Test detection of excessive DUP operations.
+
+        Creates a pickle with many DUP operations which could be used
+        to exponentially expand the stack.
+        """
+        # Create a pickle with many DUP operations
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+        ]
+        # Add many DUPs (over threshold)
+        opcodes.extend(Dup() for _ in range(150))
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+        result = check_safety(pickled)
+
+        # Should detect the suspicious pattern
+        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
+
+    def test_resource_limits_enforcement(self):
+        """Test that resource limits are enforced during interpretation."""
+        # Create a simple pickle
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),
+        ]
+        # Add operations that would exceed limits with strict settings
+        for _ in range(100):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+
+        # Use very strict limits to trigger the error
+        strict_limits = InterpreterLimits(
+            max_opcodes=50,  # Very low limit
+            max_stack_depth=10,
+            max_memo_size=10,
+            max_get_ratio=5,
+        )
+
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        # Should raise ResourceExhaustionError
+        with self.assertRaises(ResourceExhaustionError):
+            interpreter.run()
+
+    def test_get_ratio_enforcement(self):
+        """Test that GET/PUT ratio limits trigger ExpansionAttackError."""
+        # Create a pickle with high GET/PUT ratio
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),  # 1 PUT
+        ]
+        # Add many GETs to exceed ratio
+        for _ in range(60):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+
+        # Use limits with low GET ratio threshold
+        strict_limits = InterpreterLimits(max_get_ratio=5)
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        # Should raise ExpansionAttackError
+        with self.assertRaises(ExpansionAttackError):
+            interpreter.run()
+
+    def test_legitimate_data_not_flagged(self):
+        """Test that legitimate pickle data is not falsely flagged.
+
+        Large but legitimate data should pass without being flagged
+        as an expansion attack.
+        """
+        # Create a legitimate large list using standard pickle
+        large_list = list(range(100))
+        data = pickle.dumps(large_list)
+
+        pickled = Pickled.load(data)
+        result = check_safety(pickled)
+
+        # Should be safe - no expansion attack patterns
+        self.assertEqual(result.severity, Severity.LIKELY_SAFE)
+
+    def test_check_safety_catches_resource_exhaustion(self):
+        """Test that check_safety properly catches ResourceExhaustionError.
+
+        When resource limits are exceeded during analysis, check_safety
+        should return a result indicating malicious content rather than
+        propagating the exception.
+        """
+        # Create a pickle that will trigger resource exhaustion
+        # when analyzed with default limits
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),
+        ]
+        # Many GETs to trigger ratio check
+        for _ in range(200):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+
+        # check_safety should catch the error and return appropriate severity
+        # Note: This may or may not trigger depending on default limits
+        result = check_safety(pickled)
+
+        # The result should indicate suspicious or worse severity
+        self.assertIsNotNone(result)
+        # Either triggers resource exhaustion or static detection
+        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
