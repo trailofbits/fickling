@@ -376,3 +376,126 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from builtins import getattr",
         )
+
+    # PickleScan bypass tests from Issue #190
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-m273-6v24-x4m4
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-955r-x9j8-7rhh
+    def test_operator_attrgetter(self):
+        """Test detection of operator.attrgetter bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("operator"),
+                op.ShortBinUnicode("attrgetter"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("__class__.__bases__"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_operator_methodcaller(self):
+        """Test detection of operator.methodcaller bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("operator"),
+                op.ShortBinUnicode("methodcaller"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("__init__"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/
+    # CVE-2025-10155, CVE-2025-10156
+    def test_distutils_write_file(self):
+        """Test detection of distutils.file_util.write_file bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("distutils.file_util"),
+                op.ShortBinUnicode("write_file"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/tmp/malicious.txt"),
+                op.Mark(),
+                op.ShortBinUnicode("malicious content"),
+                op.List(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_functools_partial(self):
+        """Test detection of functools.partial bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("functools"),
+                op.ShortBinUnicode("partial"),
+                op.StackGlobal(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_io_fileio(self):
+        """Test detection of _io.FileIO bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("_io"),
+                op.ShortBinUnicode("FileIO"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/etc/passwd"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_numpy_f2py_getlincoef(self):
+        """Test detection of numpy.f2py.crackfortran.getlincoef bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("numpy.f2py.crackfortran"),
+                op.ShortBinUnicode("getlincoef"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("__import__('os').system('id')"),
+                op.EmptyDict(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # CVE-2025-10157
+    def test_asyncio_subprocess(self):
+        """Test detection of asyncio subprocess execution bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("asyncio.unix_events"),
+                op.ShortBinUnicode("_UnixSubprocessTransport"),
+                op.StackGlobal(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)

@@ -40,6 +40,7 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 UNSAFE_IMPORTS: frozenset[str] = frozenset(
     [
+        # Core builtins and system modules
         "__builtin__",
         "__builtins__",
         "builtins",
@@ -59,6 +60,44 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "importlib",
         "code",
         "multiprocessing",
+        # File and shell operations (CVE-2025-10155, CVE-2025-10156)
+        "shutil",
+        "_io",
+        "io",
+        "distutils",
+        "commands",
+        # Operator module bypasses (GHSA-m273-6v24-x4m4, GHSA-955r-x9j8-7rhh)
+        "_operator",
+        "operator",
+        "functools",
+        # Async subprocess execution (CVE-2025-10157)
+        "asyncio",
+        # Code execution via profilers/debuggers (GHSA-46h3-79wf-xr6c, GHSA-4675-36f9-wf6r)
+        "profile",
+        "trace",
+        "pdb",
+        "bdb",
+        "timeit",
+        "doctest",
+        # Nested pickle attacks (GHSA-84r2-jw7c-4r5q)
+        "pickle",
+        "_pickle",
+        # Package and environment manipulation (GHSA-vqmv-47xg-9wpr)
+        "venv",
+        "pip",
+        "ensurepip",
+        # Network and web modules (GHSA-hgrh-qx5j-jfwx)
+        "webbrowser",
+        "aiohttp",
+        "httplib",
+        "http",
+        "ssl",
+        "requests",
+        "urllib",
+        "urllib2",
+        # IDE and dev tools (GHSA-r8g5-cgf2-4m4m)
+        "idlelib",
+        "lib2to3",
     ]
 )
 
@@ -426,6 +465,19 @@ class ASTProperties(ast.NodeVisitor):
         self.calls: list[ast.Call] = []
         self.non_setstate_calls: list[ast.Call] = []
         self.likely_safe_imports: set[str] = set()
+        self._visited: set[int] = set()  # Track visited nodes by id to detect cycles
+
+    def visit(self, node: ast.AST) -> Any:
+        """Override visit to detect and skip cycles in the AST.
+
+        Pickle files can create cyclic AST structures via MEMOIZE + GET opcodes.
+        Without cycle detection, visiting such structures causes infinite recursion.
+        """
+        node_id = id(node)
+        if node_id in self._visited:
+            return None  # Skip already-visited nodes
+        self._visited.add(node_id)
+        return super().visit(node)
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
