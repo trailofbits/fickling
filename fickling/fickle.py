@@ -124,7 +124,6 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
         "chr",
         "isinstance",
         "issubclass",
-        "type",
         "object",
         "callable",
         "format",
