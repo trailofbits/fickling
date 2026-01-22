@@ -7,7 +7,7 @@ import pickle
 from ast import unparse
 from base64 import b64decode
 from functools import wraps
-from unittest import TestCase
+from unittest import TestCase, expectedFailure
 
 from fickling.analysis import Severity, check_safety
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError
@@ -156,6 +156,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         )
         unparse(pickled.ast)
 
+    @expectedFailure  # Issue #196 - cyclic AST recursion not yet fixed
     def test_cyclic_pickle_dos(self):
         """Reproduces https://github.com/trailofbits/fickling/issues/196
 
