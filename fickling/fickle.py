@@ -1216,7 +1216,9 @@ class StackGlobal(NoOp):
                 f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
             )
 
-        if not all(m.isidentifier() for m in module.split(".")) or not attr.isidentifier():
+        if not all(m.isidentifier() for m in module.split(".")) or not all(
+            a.isidentifier() for a in attr.split(".")
+        ):
             raise ValueError(
                 f"Extracted identifiers are not valid Python identifiers. "
                 f"Module: {module!r}, Attr: {attr!r}"
