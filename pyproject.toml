@@ -145,6 +145,7 @@ ignore = [
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
 "fickling/hook.py" = ["N816"]
+"fickling/fickle.py" = ["N802"]  # AST visitor methods must be named visit_*
 
 [tool.ruff.lint.isort]
 known-first-party = ["fickling"]

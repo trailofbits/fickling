@@ -10,6 +10,7 @@ from enum import Enum
 from fickling.fickle import (
     BUILTIN_MODULE_NAMES,
     SAFE_BUILTINS,
+    InterpretationError,
     Interpreter,
     Pickled,
     Proto,
@@ -197,6 +198,18 @@ class InvalidOpcode(Analysis):
             )
 
 
+class InterpretationErrorAnalysis(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        # Access ast to trigger interpretation and set has_interpretation_error if needed
+        _ = context.pickled.ast
+        if context.pickled.has_interpretation_error:
+            yield AnalysisResult(
+                Severity.LIKELY_UNSAFE,
+                "The pickle file has malformed opcode sequences. "
+                "It is either corrupted or attempting to bypass the pickle security analysis",
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
@@ -372,7 +385,12 @@ class UnsafeImports(Analysis):
 class UnusedVariables(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         interpreter = Interpreter(context.pickled)
-        for varname, asmt in interpreter.unused_assignments().items():
+        try:
+            unused = interpreter.unused_assignments()
+        except InterpretationError:
+            # Malformed pickle - InterpretationErrorAnalysis will report this
+            return
+        for varname, asmt in unused.items():
             shortened, _ = context.shorten_code(asmt.value)
             yield AnalysisResult(
                 Severity.SUSPICIOUS,

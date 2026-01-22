@@ -473,7 +473,9 @@ class StackSliceOpcode(Opcode):
             args = []
             while True:
                 if not interpreter.stack:
-                    raise ValueError("Exhausted the stack while searching for a MarkObject!")
+                    raise InterpretationError(
+                        "Exhausted the stack while searching for a MarkObject!"
+                    )
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
@@ -522,6 +524,12 @@ class EmptyPickleError(PickleDecodeError):
     pass
 
 
+class InterpretationError(PickleDecodeError):
+    """Raised when pickle interpretation fails due to malformed opcode sequences."""
+
+    pass
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode], has_invalid_opcode: bool = False):
         self._opcodes: list[Opcode] = list(opcodes)
@@ -530,6 +538,7 @@ class Pickled(OpcodeSequence):
         # Whether the pickled sequence was interrupted because of
         # an invalid opcode
         self._has_invalid_opcode: bool = has_invalid_opcode
+        self._has_interpretation_error: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -846,6 +855,10 @@ class Pickled(OpcodeSequence):
     def has_invalid_opcode(self) -> bool:
         return self._has_invalid_opcode
 
+    @property
+    def has_interpretation_error(self) -> bool:
+        return self._has_interpretation_error
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, bytes | bytearray | Buffer):
@@ -988,7 +1001,15 @@ on the Pickled object instead"""
     @property
     def ast(self) -> ast.Module:
         if self._ast is None:
-            self._ast = Interpreter.interpret(self)
+            try:
+                self._ast = Interpreter.interpret(self)
+            except InterpretationError as e:
+                self._has_interpretation_error = True
+                sys.stderr.write(
+                    f"Warning: malformed pickle file. {e!s}; "
+                    f"returning empty AST to continue analysis\n"
+                )
+                self._ast = ast.Module(body=[], type_ignores=[])
         return self._ast
 
     @property
@@ -1417,7 +1438,7 @@ class AddItems(Opcode):
                 break
             to_add.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         if not interpreter.stack:
             raise ValueError("Stack was empty; expected a pyset")
         pyset = interpreter.stack.pop()
@@ -1471,7 +1492,7 @@ class PopMark(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         return objs
 
 
@@ -1486,7 +1507,7 @@ class Obj(Opcode):
                 break
             args.insert(0, arg)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         kls = args.pop(0)
         # TODO Verify paths for correctness
         if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
@@ -1951,7 +1972,7 @@ class Dict(Opcode):
                 keys.append(obj)
             i = (i + 1) % 2
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         if len(keys) != len(values):
             raise ValueError(
@@ -2002,7 +2023,7 @@ class List(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.List(elts=objs[::-1], ctx=ast.Load()))
 
@@ -2018,7 +2039,7 @@ class FrozenSet(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.Constant(ast.Set(elts=objs[::-1])))
 
