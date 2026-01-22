@@ -222,33 +222,33 @@ class UnsafeImportsML(Analysis):
         "code": "This module can compile and execute arbitrary code.",
         "dill": "This module can load and execute arbitrary code.",
         "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
-        # File and shell operations (CVE-2025-10155, CVE-2025-10156)
+        # File and shell operations
         "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
         "_io": "This module provides low-level file I/O that can read/write arbitrary files.",
         "io": "This module provides file I/O that can read/write arbitrary files.",
         "distutils": "This module can execute arbitrary commands during package operations.",
         "commands": "This module can execute shell commands.",
-        # Operator module bypasses (GHSA-m273-6v24-x4m4, GHSA-955r-x9j8-7rhh)
+        # Operator module bypasses
         "_operator": "This module provides attrgetter/itemgetter/methodcaller that can enable arbitrary code execution.",
         "operator": "This module provides attrgetter/itemgetter/methodcaller that can enable arbitrary code execution.",
         "functools": "This module provides partial() that can wrap dangerous callables.",
-        # Async subprocess execution (CVE-2025-10157)
+        # Async subprocess execution
         "asyncio": "This module can spawn subprocesses and execute arbitrary code asynchronously.",
-        # Code execution via profilers/debuggers (GHSA-46h3-79wf-xr6c, GHSA-4675-36f9-wf6r)
+        # Code execution via profilers/debuggers
         "profile": "This module can execute arbitrary code via run() and runctx().",
         "trace": "This module can execute arbitrary code via run() and runctx().",
         "pdb": "This module provides debugging capabilities that can execute arbitrary code.",
         "bdb": "This module provides debugging capabilities that can execute arbitrary code.",
         "timeit": "This module can execute arbitrary code strings for timing.",
         "doctest": "This module can execute code embedded in docstrings.",
-        # Nested pickle attacks (GHSA-84r2-jw7c-4r5q)
+        # Nested pickle attacks
         "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
         "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        # Package and environment manipulation (GHSA-vqmv-47xg-9wpr)
+        # Package and environment manipulation
         "venv": "This module can create virtual environments and potentially execute code.",
         "pip": "This module can install arbitrary packages that may execute code.",
         "ensurepip": "This module can install pip and execute arbitrary code via _run_pip().",
-        # Network and web modules (GHSA-hgrh-qx5j-jfwx)
+        # Network and web modules
         "webbrowser": "This module can open URLs and potentially execute code through browser handlers.",
         "aiohttp": "This module can make HTTP requests to leak data or download malicious content.",
         "httplib": "This module can make HTTP requests to leak data or download malicious content.",
@@ -257,7 +257,7 @@ class UnsafeImportsML(Analysis):
         "requests": "This module can make HTTP requests to leak data or download malicious content.",
         "urllib": "This module can use HTTP to leak local data and download malicious files.",
         "urllib2": "This module can use HTTP to leak local data and download malicious files.",
-        # IDE and dev tools (GHSA-r8g5-cgf2-4m4m)
+        # IDE and dev tools
         "idlelib": "This module contains classes that can execute arbitrary code.",
         "lib2to3": "This module can parse and potentially execute code through grammar loading.",
     }
@@ -267,7 +267,7 @@ class UnsafeImportsML(Analysis):
             "load": "This function can load untrusted files and code from arbitrary web sources."
         },
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        # Operator module bypasses (GHSA-m273-6v24-x4m4, GHSA-955r-x9j8-7rhh)
+        # Operator module bypasses
         "operator": {
             "getitem": "This function can lead to arbitrary code execution.",
             "attrgetter": "This function can lead to arbitrary code execution.",
@@ -284,7 +284,7 @@ class UnsafeImportsML(Analysis):
         "functools": {
             "partial": "This function can wrap dangerous callables to bypass detection.",
         },
-        # File I/O bypasses (CVE-2025-10155, CVE-2025-10156)
+        # File I/O bypasses
         "_io": {
             "FileIO": "This class can read/write arbitrary files.",
         },
@@ -299,7 +299,7 @@ class UnsafeImportsML(Analysis):
             "getlincoef": "This function can execute arbitrary code.",
             "_eval_length": "This function can execute arbitrary code.",
         },
-        # Profiler/debugger code execution (GHSA-46h3-79wf-xr6c, GHSA-4675-36f9-wf6r)
+        # Profiler/debugger code execution
         "profile": {
             "run": "This function can execute arbitrary code strings.",
             "runctx": "This function can execute arbitrary code strings.",
@@ -320,11 +320,11 @@ class UnsafeImportsML(Analysis):
         "doctest": {
             "debug_script": "This function can execute arbitrary code embedded in scripts.",
         },
-        # ensurepip bypass (GHSA-vqmv-47xg-9wpr)
+        # ensurepip bypass
         "ensurepip": {
             "_run_pip": "This function can install arbitrary packages and execute code.",
         },
-        # IDE tools (GHSA-r8g5-cgf2-4m4m)
+        # IDE tools
         "idlelib.run": {
             "Executive": "This class can execute arbitrary code.",
         },
@@ -334,7 +334,7 @@ class UnsafeImportsML(Analysis):
         "lib2to3.pgen2.grammar": {
             "loads": "This function can execute code through grammar deserialization.",
         },
-        # Async subprocess (CVE-2025-10157)
+        # Async subprocess
         "asyncio.unix_events": {
             "_UnixSubprocessTransport": "This class can spawn subprocesses.",
         },

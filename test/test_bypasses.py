@@ -377,9 +377,6 @@ class TestBypasses(TestCase):
             "from builtins import getattr",
         )
 
-    # PickleScan bypass tests from Issue #190
-    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-m273-6v24-x4m4
-    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-955r-x9j8-7rhh
     def test_operator_attrgetter(self):
         """Test detection of operator.attrgetter bypass."""
         pickled = Pickled(
@@ -414,8 +411,6 @@ class TestBypasses(TestCase):
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
 
-    # https://jfrog.com/blog/unveiling-3-zero-day-vulnerabilities-in-picklescan/
-    # CVE-2025-10155, CVE-2025-10156
     def test_distutils_write_file(self):
         """Test detection of distutils.file_util.write_file bypass."""
         pickled = Pickled(
@@ -485,7 +480,6 @@ class TestBypasses(TestCase):
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
 
-    # CVE-2025-10157
     def test_asyncio_subprocess(self):
         """Test detection of asyncio subprocess execution bypass."""
         pickled = Pickled(
