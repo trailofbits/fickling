@@ -40,6 +40,7 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 UNSAFE_IMPORTS: frozenset[str] = frozenset(
     [
+        # Core builtins and system modules
         "__builtin__",
         "__builtins__",
         "builtins",
@@ -59,6 +60,39 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "importlib",
         "code",
         "multiprocessing",
+        # File and shell operations
+        "shutil",
+        "distutils",
+        "commands",
+        # Operator module bypasses
+        "_operator",
+        "operator",
+        "functools",
+        # Async subprocess execution
+        "asyncio",
+        # Code execution via profilers/debuggers
+        "profile",
+        "trace",
+        "pdb",
+        "bdb",
+        "timeit",
+        "doctest",
+        # Package and environment manipulation
+        "venv",
+        "pip",
+        "ensurepip",
+        # Network and web modules
+        "webbrowser",
+        "aiohttp",
+        "httplib",
+        "http",
+        "ssl",
+        "requests",
+        "urllib",
+        "urllib2",
+        # IDE and dev tools
+        "idlelib",
+        "lib2to3",
     ]
 )
 
@@ -1267,7 +1301,9 @@ class StackGlobal(NoOp):
                 f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
             )
 
-        if not all(m.isidentifier() for m in module.split(".")) or not attr.isidentifier():
+        if not all(m.isidentifier() for m in module.split(".")) or not all(
+            a.isidentifier() for a in attr.split(".")
+        ):
             raise ValueError(
                 f"Extracted identifiers are not valid Python identifiers. "
                 f"Module: {module!r}, Attr: {attr!r}"

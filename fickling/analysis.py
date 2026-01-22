@@ -243,18 +243,13 @@ class UnsafeImportsML(Analysis):
         "dill": "This module can load and execute arbitrary code.",
         "code": "This module can compile and execute arbitrary code.",
         "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
+        "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
     }
 
     UNSAFE_IMPORTS = {
         "torch": {
             "load": "This function can load untrusted files and code from arbitrary web sources."
-        },
-        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        "operator": {
-            "getitem": "This function can lead to arbitrary code execution",
-            "attrgetter": "This function can lead to arbitrary code execution",
-            "itemgetter": "This function can lead to arbitrary code execution",
-            "methodcaller": "This function can lead to arbitrary code execution",
         },
         "torch.storage": {
             "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
@@ -264,6 +259,13 @@ class UnsafeImportsML(Analysis):
             "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
             "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
         },
+        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
+        "numpy.f2py.crackfortran": {
+            "getlincoef": "This function can execute arbitrary code.",
+            "_eval_length": "This function can execute arbitrary code.",
+        },
+        "_io": {"FileIO": "This class can read/write arbitrary files."},
+        "io": {"FileIO": "This class can read/write arbitrary files."},
     }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
