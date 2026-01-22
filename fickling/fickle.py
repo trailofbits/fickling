@@ -464,6 +464,8 @@ class Pickled(OpcodeSequence):
         # Whether the pickled sequence was interrupted because of
         # an invalid opcode
         self._has_invalid_opcode: bool = has_invalid_opcode
+        # Whether the pickle contains cyclic references
+        self._has_cycles: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -922,8 +924,16 @@ on the Pickled object instead"""
     @property
     def ast(self) -> ast.Module:
         if self._ast is None:
-            self._ast = Interpreter.interpret(self)
+            interpreter = Interpreter(self)
+            self._ast = interpreter.to_ast()
+            self._has_cycles = interpreter._has_cycle
         return self._ast
+
+    @property
+    def has_cycles(self) -> bool:
+        """Check if the pickle contains cyclic references."""
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_cycles
 
     @property
     def nb_opcodes(self) -> int:
@@ -1009,6 +1019,7 @@ class Interpreter:
         self._module: ast.Module | None = None
         self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
+        self._has_cycle: bool = False
 
     @property
     def next_variable_id(self) -> int:
@@ -1359,6 +1370,11 @@ class AddItems(Opcode):
             raise ValueError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
+        # Check for cyclic references
+        for i, elem in enumerate(to_add):
+            if elem is pyset:
+                to_add[i] = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                interpreter._has_cycle = True
         pyset.elts.extend(reversed(to_add))
 
 
@@ -1637,11 +1653,18 @@ class Get(Opcode):
 class SetItems(StackSliceOpcode):
     name = "SETITEMS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         pydict = interpreter.stack.pop()
         update_dict_keys = []
         update_dict_values = []
         for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
+            # Check for cyclic references
+            if key is pydict:
+                key = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                interpreter._has_cycle = True
+            if value is pydict:
+                value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                interpreter._has_cycle = True
             update_dict_keys.append(key)
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
@@ -1669,6 +1692,13 @@ class SetItem(Opcode):
         value = interpreter.stack.pop()
         key = interpreter.stack.pop()
         pydict = interpreter.stack.pop()
+        # Check for cyclic references
+        if key is pydict:
+            key = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+            interpreter._has_cycle = True
+        if value is pydict:
+            value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+            interpreter._has_cycle = True
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
             interpreter.stack.append(ast.Dict(keys=[key], values=[value]))
@@ -1748,6 +1778,9 @@ class Append(Opcode):
         value = interpreter.stack.pop()
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            if value is list_obj:
+                value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
@@ -1756,9 +1789,13 @@ class Append(Opcode):
 class Appends(StackSliceOpcode):
     name = "APPENDS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            for i, elem in enumerate(stack_slice):
+                if elem is list_obj:
+                    stack_slice[i] = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                    interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")

@@ -8,6 +8,7 @@ from base64 import b64decode
 from functools import wraps
 from unittest import TestCase
 
+from fickling.analysis import check_safety
 from fickling.fickle import (
     BinGet,
     BinInt1,
@@ -147,3 +148,22 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         unparse(pickled.ast)
+
+
+class TestCrashReproduction(TestCase):
+    def test_cyclic_pickle_dos(self):
+        """Reproduces https://github.com/trailofbits/fickling/issues/196"""
+        payload = b"\x80\x02]\x94g0\na."  # Cyclic list: L.append(L)
+        pickled = Pickled.load(payload)
+
+        # Should complete without RecursionError
+        result = check_safety(pickled)
+        self.assertIsNotNone(result)
+
+    def test_cyclic_pickle_creates_placeholder(self):
+        """Verify cyclic references are replaced with placeholders."""
+        payload = b"\x80\x02]\x94g0\na."  # Cyclic list: L.append(L)
+        pickled = Pickled.load(payload)
+        self.assertTrue(pickled.has_cycles)
+        code = unparse(pickled.ast)
+        self.assertIn("<cyclic-ref>", code)
