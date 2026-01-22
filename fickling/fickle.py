@@ -62,8 +62,6 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "multiprocessing",
         # File and shell operations
         "shutil",
-        "_io",
-        "io",
         "distutils",
         "commands",
         # Operator module bypasses

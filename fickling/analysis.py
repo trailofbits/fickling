@@ -232,79 +232,6 @@ class UnsafeImportsML(Analysis):
         "torch": {
             "load": "This function can load untrusted files and code from arbitrary web sources."
         },
-        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        # Operator module bypasses
-        "operator": {
-            "getitem": "This function can lead to arbitrary code execution.",
-            "attrgetter": "This function can lead to arbitrary code execution.",
-            "itemgetter": "This function can lead to arbitrary code execution.",
-            "methodcaller": "This function can lead to arbitrary code execution.",
-        },
-        "_operator": {
-            "getitem": "This function can lead to arbitrary code execution.",
-            "attrgetter": "This function can lead to arbitrary code execution.",
-            "itemgetter": "This function can lead to arbitrary code execution.",
-            "methodcaller": "This function can lead to arbitrary code execution.",
-        },
-        # functools.partial bypass
-        "functools": {
-            "partial": "This function can wrap dangerous callables to bypass detection.",
-        },
-        # File I/O bypasses
-        "_io": {
-            "FileIO": "This class can read/write arbitrary files.",
-        },
-        "io": {
-            "FileIO": "This class can read/write arbitrary files.",
-        },
-        "distutils.file_util": {
-            "write_file": "This function can write arbitrary files.",
-        },
-        # Numpy f2py code execution
-        "numpy.f2py.crackfortran": {
-            "getlincoef": "This function can execute arbitrary code.",
-            "_eval_length": "This function can execute arbitrary code.",
-        },
-        # Profiler/debugger code execution
-        "profile": {
-            "run": "This function can execute arbitrary code strings.",
-            "runctx": "This function can execute arbitrary code strings.",
-        },
-        "trace": {
-            "run": "This function can execute arbitrary code.",
-            "runctx": "This function can execute arbitrary code.",
-        },
-        "cProfile": {
-            "run": "This function can execute arbitrary code strings.",
-            "runctx": "This function can execute arbitrary code strings.",
-        },
-        # Code module
-        "code": {
-            "InteractiveInterpreter": "This class can execute arbitrary code.",
-        },
-        # Doctest code execution
-        "doctest": {
-            "debug_script": "This function can execute arbitrary code embedded in scripts.",
-        },
-        # ensurepip bypass
-        "ensurepip": {
-            "_run_pip": "This function can install arbitrary packages and execute code.",
-        },
-        # IDE tools
-        "idlelib.run": {
-            "Executive": "This class can execute arbitrary code.",
-        },
-        "idlelib.pyshell": {
-            "ModifiedInterpreter": "This class can execute arbitrary code.",
-        },
-        "lib2to3.pgen2.grammar": {
-            "loads": "This function can execute code through grammar deserialization.",
-        },
-        # Async subprocess
-        "asyncio.unix_events": {
-            "_UnixSubprocessTransport": "This class can spawn subprocesses.",
-        },
-        # Torch storage
         "torch.storage": {
             "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
             "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
@@ -313,6 +240,13 @@ class UnsafeImportsML(Analysis):
             "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
             "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
         },
+        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
+        "numpy.f2py.crackfortran": {
+            "getlincoef": "This function can execute arbitrary code.",
+            "_eval_length": "This function can execute arbitrary code.",
+        },
+        "_io": {"FileIO": "This class can read/write arbitrary files."},
+        "io": {"FileIO": "This class can read/write arbitrary files."},
     }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
