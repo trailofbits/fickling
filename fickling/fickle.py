@@ -62,9 +62,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
     ]
 )
 
-BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(
-    ["builtins", "__builtins__", "__builtin__"]
-)
+BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(["builtins", "__builtins__", "__builtin__"])
 
 # Builtins that are safe to import - pure functions and type constructors
 # that cannot be used for code execution or system access.
