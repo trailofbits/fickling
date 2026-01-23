@@ -40,65 +40,98 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 UNSAFE_IMPORTS: frozenset[str] = frozenset(
     [
-        # Core builtins and system modules
+        # Builtins - can execute arbitrary code
         "__builtin__",
         "__builtins__",
         "builtins",
+        # System/process execution
         "os",
         "posix",
         "nt",
         "subprocess",
         "sys",
-        "socket",
         "pty",
+        "commands",  # Legacy Python 2 module
+        "multiprocessing",
+        # Code execution/compilation
+        "code",
+        "codeop",
+        "runpy",
         "marshal",
         "types",
-        "runpy",
-        "cProfile",
-        "ctypes",
-        "pydoc",
+        "compile",
+        "exec",
+        "eval",
+        # Import manipulation
         "importlib",
-        "code",
-        "multiprocessing",
-        # File and shell operations
-        "shutil",
-        "distutils",
-        "commands",
+        "pkgutil",
+        "zipimport",
         # Operator module bypasses
         "_operator",
         "operator",
         "functools",
-        # Async subprocess execution
-        "asyncio",
-        # Code execution via profilers/debuggers
+        # Profiling/debugging (can execute code)
+        "cProfile",
         "profile",
-        "trace",
         "pdb",
         "bdb",
         "timeit",
-        "doctest",
-        # Package and environment manipulation
-        "venv",
-        "pip",
-        "ensurepip",
-        # Network and web modules
-        "webbrowser",
-        "aiohttp",
+        "trace",
+        # Network - data exfiltration/download
+        "socket",
+        "ssl",
         "httplib",
         "http",
-        "ssl",
-        "requests",
         "urllib",
         "urllib2",
+        "urllib.request",
+        "requests",
+        "aiohttp",
+        "asyncio",  # Can run arbitrary coroutines
+        "webbrowser",  # Can open arbitrary URLs
         "smtplib",
         "imaplib",
         "ftplib",
         "poplib",
         "telnetlib",
         "nntplib",
-        # IDE and dev tools
+        # FFI/native code execution
+        "ctypes",
+        "_ctypes",
+        # Pickle recursion (nested pickle attacks)
+        "pickle",
+        "_pickle",
+        "dill",
+        "cloudpickle",
+        "joblib",
+        # File system operations
+        "shutil",
+        "tempfile",
+        "filecmp",
+        "distutils",
+        "distutils.file_util",
+        # Shell/terminal
+        "pydoc",  # Can run code via pydoc.pager
+        "pexpect",
+        # Virtual environments (can install packages)
+        "venv",
+        "ensurepip",
+        "pip",
+        # Documentation testing (can run code)
+        "doctest",
+        # NumPy dangerous modules
+        "numpy.f2py",
+        "numpy.distutils",
+        # IDLE modules (code execution)
         "idlelib",
+        # Parser generators (code execution)
         "lib2to3",
+        # Torch dangerous modules
+        "torch.hub",
+        "torch._dynamo",
+        "torch._inductor",
+        "torch.jit",
+        "torch.compile",
     ]
 )
 
