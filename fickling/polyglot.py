@@ -10,6 +10,17 @@ import numpy.lib.format as npformat
 
 from fickling.fickle import Pickled, StackedPickle
 
+# Optional 7z support
+try:
+    import py7zr
+    import py7zr.exceptions
+
+    HAS_7Z_SUPPORT = True
+    _7Z_ARCHIVE_ERROR: type[BaseException] = py7zr.exceptions.ArchiveError
+except ImportError:
+    HAS_7Z_SUPPORT = False
+    _7Z_ARCHIVE_ERROR = Exception  # Fallback, won't be used if HAS_7Z_SUPPORT is False
+
 """
 PyTorch file format identification:
 
@@ -61,6 +72,39 @@ def check_and_find_in_zip(
         return None if return_path else False
     except FileNotFoundError:
         print(f"File not found: {zip_path}")
+        return None if return_path else False
+
+
+def is_7z_file(file_path) -> bool:
+    """Check if a file is a 7z archive by reading its magic bytes."""
+    try:
+        with open(file_path, "rb") as f:
+            magic = f.read(6)
+            # 7z magic bytes: 37 7A BC AF 27 1C
+            return magic == b"7z\xbc\xaf'\x1c"
+    except OSError:
+        return False
+
+
+def check_and_find_in_7z(
+    archive_path, file_name_or_extension, return_path=False, check_extension=False
+):
+    """Check for a file in a 7z archive and return its path or boolean if found."""
+    if not HAS_7Z_SUPPORT:
+        return None if return_path else False
+
+    try:
+        with py7zr.SevenZipFile(archive_path, mode="r") as archive:
+            names = archive.getnames()
+            if not return_path:
+                if check_extension:
+                    return any(entry.endswith(file_name_or_extension) for entry in names)
+                return any(file_name_or_extension in entry for entry in names)
+            return next(
+                (entry for entry in names if entry.endswith(file_name_or_extension)),
+                None,
+            )
+    except (OSError, _7Z_ARCHIVE_ERROR):
         return None if return_path else False
 
 
@@ -162,6 +206,11 @@ def find_file_properties(file_path, print_properties=False):
                 for f in torch_zip_checks
             }
         properties.update(torch_zip_results)
+
+    # Check for 7z archive (requires file path, not file handle)
+    is_7z = is_7z_file(file_path) if HAS_7Z_SUPPORT else False
+    properties["is_7z"] = is_7z
+
     if print_properties:
         print("\nproperties:", properties, "\n")
     return properties
@@ -218,6 +267,29 @@ def find_file_properties_recursively(file_path, print_properties=False):
                         )
                     finally:
                         Path(_tempfile.name).unlink()
+
+    # check 7z
+    if HAS_7Z_SUPPORT and properties.get("is_7z"):
+        if "children" not in properties:
+            properties["children"] = {}
+        try:
+            with py7zr.SevenZipFile(file_path, mode="r") as archive:
+                for fname, bio in archive.read().items():
+                    if bio is None:
+                        properties["children"][fname] = None
+                        continue
+                    _tempfile = tempfile.NamedTemporaryFile(delete=False)
+                    try:
+                        _tempfile.write(bio.read())
+                        _tempfile.close()
+                        properties["children"][fname] = find_file_properties_recursively(
+                            _tempfile.name, print_properties
+                        )
+                    finally:
+                        Path(_tempfile.name).unlink()
+        except (OSError, _7Z_ARCHIVE_ERROR):
+            # Graceful degradation on 7z errors
+            pass
 
     return properties
 
