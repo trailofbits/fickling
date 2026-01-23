@@ -40,25 +40,88 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 UNSAFE_IMPORTS: frozenset[str] = frozenset(
     [
+        # Builtins - can execute arbitrary code
         "__builtin__",
         "__builtins__",
         "builtins",
+        # System/process execution
         "os",
         "posix",
         "nt",
         "subprocess",
         "sys",
-        "socket",
         "pty",
+        "commands",  # Legacy Python 2 module
+        "multiprocessing",
+        # Code execution/compilation
+        "code",
+        "codeop",
+        "runpy",
         "marshal",
         "types",
-        "runpy",
-        "cProfile",
-        "ctypes",
-        "pydoc",
+        "compile",
+        "exec",
+        "eval",
+        # Import manipulation
         "importlib",
-        "code",
-        "multiprocessing",
+        "pkgutil",
+        "zipimport",
+        # Profiling/debugging (can execute code)
+        "cProfile",
+        "profile",
+        "pdb",
+        "bdb",
+        "timeit",
+        "trace",
+        # Network - data exfiltration/download
+        "socket",
+        "ssl",
+        "httplib",
+        "http",
+        "urllib",
+        "urllib2",
+        "urllib.request",
+        "requests",
+        "aiohttp",
+        "asyncio",  # Can run arbitrary coroutines
+        "webbrowser",  # Can open arbitrary URLs
+        # FFI/native code execution
+        "ctypes",
+        "_ctypes",
+        # Pickle recursion (nested pickle attacks)
+        "pickle",
+        "_pickle",
+        "dill",
+        "cloudpickle",
+        "joblib",
+        # File system operations
+        "shutil",
+        "tempfile",
+        "filecmp",
+        "distutils",
+        "distutils.file_util",
+        # Shell/terminal
+        "pydoc",  # Can run code via pydoc.pager
+        "pexpect",
+        # Virtual environments (can install packages)
+        "venv",
+        "ensurepip",
+        "pip",
+        # Documentation testing (can run code)
+        "doctest",
+        # NumPy dangerous modules
+        "numpy.f2py",
+        "numpy.distutils",
+        # IDLE modules (code execution)
+        "idlelib",
+        # Parser generators (code execution)
+        "lib2to3",
+        # Torch dangerous modules
+        "torch.hub",
+        "torch._dynamo",
+        "torch._inductor",
+        "torch.jit",
+        "torch.compile",
     ]
 )
 
