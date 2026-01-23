@@ -376,3 +376,190 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from builtins import getattr",
         )
+
+    def test_safe_builtins_not_flagged(self):
+        """Safe builtins like len, dict should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins len"),
+                op.EmptyList(),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        # Should not have UnsafeImports or UnsafeImportsML result for safe builtins
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_safe_builtin_dict_not_flagged(self):
+        """Safe builtin dict() should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins dict"),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_unsafe_builtins_still_flagged(self):
+        """Dangerous builtins like getattr, __import__ must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins getattr"),
+                op.String("os"),
+                op.String("system"),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Should be flagged by both unsafe import checkers
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
+
+    def test_unsafe_builtin_eval_still_flagged(self):
+        """Dangerous builtin eval must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins eval"),
+                op.String("print('hello')"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Should be flagged by both unsafe import checkers
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-955r-x9j8-7rhh
+    def test_operator_methodcaller(self):
+        """Test detection of _operator.methodcaller bypass."""
+        pickled = Pickled(
+            [
+                op.Global.create("builtins", "__import__"),
+                op.Mark(),
+                op.Unicode("os"),
+                op.Tuple(),
+                op.Reduce(),
+                op.Put(0),
+                op.Pop(),
+                op.Global.create("_operator", "methodcaller"),
+                op.Mark(),
+                op.Unicode("system"),
+                op.Unicode('echo "pwned by _operator.methodcaller"'),
+                op.Tuple(),
+                op.Reduce(),
+                op.Mark(),
+                op.Get(0),
+                op.Tuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-m273-6v24-x4m4
+    def test_distutils_write_file(self):
+        """Test detection of distutils.file_util.write_file bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("distutils.file_util"),
+                op.ShortBinUnicode("write_file"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/tmp/malicious.txt"),
+                op.Mark(),
+                op.ShortBinUnicode("malicious content"),
+                op.List(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_io_fileio(self):
+        """Test detection of _io.FileIO bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("_io"),
+                op.ShortBinUnicode("FileIO"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/etc/passwd"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-r8g5-cgf2-4m4m
+    def test_numpy_f2py_getlincoef(self):
+        """Test detection of numpy.f2py.crackfortran.getlincoef bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("numpy.f2py.crackfortran"),
+                op.ShortBinUnicode("getlincoef"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("__import__('os').system('id')"),
+                op.EmptyDict(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-f7qq-56ww-84cr
+    def test_asyncio_subprocess(self):
+        """Test detection of asyncio subprocess execution bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.Frame(81),
+                op.ShortBinUnicode("asyncio.unix_events"),
+                op.Memoize(),
+                op.ShortBinUnicode("_UnixSubprocessTransport._start"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.Mark(),
+                op.EmptyDict(),
+                op.Memoize(),
+                op.ShortBinUnicode("whoami"),
+                op.Memoize(),
+                op.NewTrue(),
+                op.NoneOpcode(),
+                op.NoneOpcode(),
+                op.NoneOpcode(),
+                op.BinInt1(0),
+                op.Tuple(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
