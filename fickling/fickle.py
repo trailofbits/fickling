@@ -528,6 +528,19 @@ class ASTProperties(ast.NodeVisitor):
         self.calls: list[ast.Call] = []
         self.non_setstate_calls: list[ast.Call] = []
         self.likely_safe_imports: set[str] = set()
+        self._visited: set[int] = set()  # Track visited nodes by id to detect cycles
+
+    def visit(self, node: ast.AST) -> Any:
+        """Override visit to detect and skip cycles in the AST.
+
+        Pickle files can create cyclic AST structures via MEMOIZE + GET opcodes.
+        Without cycle detection, visiting such structures causes infinite recursion.
+        """
+        node_id = id(node)
+        if node_id in self._visited:
+            return None  # Skip already-visited nodes
+        self._visited.add(node_id)
+        return super().visit(node)
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
