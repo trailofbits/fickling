@@ -10,8 +10,13 @@ from .analysis import Severity, check_safety
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
 
-def _add_pickle_arguments(parser: ArgumentParser) -> None:
-    """Add the standard pickle-related arguments to a parser."""
+def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv
+
+    parser = ArgumentParser(
+        description="fickling is a static analyzer and interpreter for Python pickle data"
+    )
     parser.add_argument(
         "PICKLE_FILE",
         type=str,
@@ -90,10 +95,17 @@ def _add_pickle_arguments(parser: ArgumentParser) -> None:
         action="store_true",
         help="print a runtime trace while interpreting the input pickle file",
     )
+    parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
 
+    args = parser.parse_args(argv[1:])
 
-def _handle_pickle_command(args) -> int:
-    """Handle the standard pickle decompilation/injection/safety commands."""
+    if args.version:
+        if sys.stdout.isatty():
+            print(f"fickling version {__version__}")
+        else:
+            print(__version__)
+        return 0
+
     if args.create is None:
         if args.PICKLE_FILE == "-":
             if hasattr(sys.stdin, "buffer") and sys.stdin.buffer is not None:
@@ -199,166 +211,3 @@ def _handle_pickle_command(args) -> int:
             file.close()
 
     return 0
-
-
-SUBCOMMANDS = {"pytorch", "polyglot"}
-
-
-def _create_pickle_parser() -> ArgumentParser:
-    """Create parser for the original pickle commands (backward compatibility)."""
-    parser = ArgumentParser(
-        description="fickling is a static analyzer and interpreter for Python pickle data"
-    )
-    parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
-    _add_pickle_arguments(parser)
-    return parser
-
-
-def _create_subcommand_parser() -> ArgumentParser:
-    """Create parser with subcommands for PyTorch and polyglot operations."""
-    parser = ArgumentParser(
-        description="fickling is a static analyzer and interpreter for Python pickle data"
-    )
-    parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
-
-    subparsers = parser.add_subparsers(dest="command", help="available commands")
-
-    # PyTorch subcommand
-    pytorch_parser = subparsers.add_parser("pytorch", help="PyTorch model operations")
-    _setup_pytorch_subcommand(pytorch_parser)
-
-    # Polyglot subcommand
-    polyglot_parser = subparsers.add_parser("polyglot", help="polyglot detection and creation")
-    _setup_polyglot_subcommand(polyglot_parser)
-
-    return parser
-
-
-def _get_first_positional(argv: list[str]) -> str | None:
-    """Get the first non-flag argument (potential subcommand or file)."""
-    for arg in argv[1:]:
-        if not arg.startswith("-"):
-            return arg
-    return None
-
-
-def main(argv: list[str] | None = None) -> int:
-    if argv is None:
-        argv = sys.argv
-
-    # Check for version flag first
-    if "--version" in argv or "-v" in argv:
-        if sys.stdout.isatty():
-            print(f"fickling version {__version__}")
-        else:
-            print(__version__)
-        return 0
-
-    # Determine if we're using a subcommand or the original CLI
-    first_positional = _get_first_positional(argv)
-
-    if first_positional in SUBCOMMANDS:
-        # Use subcommand parser
-        parser = _create_subcommand_parser()
-        args = parser.parse_args(argv[1:])
-
-        if args.command == "pytorch":
-            from .cli_pytorch import handle_pytorch_command
-
-            return handle_pytorch_command(args)
-        if args.command == "polyglot":
-            from .cli_polyglot import handle_polyglot_command
-
-            return handle_polyglot_command(args)
-        # Should not reach here
-        return 1
-    # Use original pickle parser for backward compatibility
-    parser = _create_pickle_parser()
-    args = parser.parse_args(argv[1:])
-    return _handle_pickle_command(args)
-
-
-def _setup_pytorch_subcommand(parser: ArgumentParser) -> None:
-    """Set up the pytorch subcommand with its sub-subcommands."""
-    subparsers = parser.add_subparsers(dest="pytorch_command", help="pytorch operations")
-
-    # identify
-    identify_parser = subparsers.add_parser("identify", help="detect PyTorch file format(s)")
-    identify_parser.add_argument("file", type=str, help="path to the PyTorch model file")
-    identify_parser.add_argument("--json", action="store_true", help="output results as JSON")
-
-    # show
-    show_parser = subparsers.add_parser("show", help="decompile internal pickle from PyTorch model")
-    show_parser.add_argument("file", type=str, help="path to the PyTorch model file")
-    show_parser.add_argument(
-        "--force", "-f", action="store_true", help="force processing unsupported formats"
-    )
-    show_parser.add_argument("--trace", "-t", action="store_true", help="print a runtime trace")
-
-    # check-safety
-    safety_parser = subparsers.add_parser(
-        "check-safety", help="run safety analysis on internal pickle"
-    )
-    safety_parser.add_argument("file", type=str, help="path to the PyTorch model file")
-    safety_parser.add_argument(
-        "--force", "-f", action="store_true", help="force processing unsupported formats"
-    )
-    safety_parser.add_argument(
-        "--json-output",
-        type=str,
-        default=None,
-        help="path to output JSON file for analysis results",
-    )
-    safety_parser.add_argument(
-        "--print-results", "-p", action="store_true", help="print results to console"
-    )
-
-    # inject
-    inject_parser = subparsers.add_parser("inject", help="inject payload into PyTorch model")
-    inject_parser.add_argument("file", type=str, help="path to the PyTorch model file")
-    inject_parser.add_argument("-o", "--output", type=str, required=True, help="output file path")
-    inject_parser.add_argument(
-        "-c", "--code", type=str, required=True, help="Python code to inject"
-    )
-    inject_parser.add_argument(
-        "--method",
-        type=str,
-        choices=["insertion", "combination"],
-        default="insertion",
-        help="injection method (default: insertion)",
-    )
-    inject_parser.add_argument(
-        "--force", "-f", action="store_true", help="force processing unsupported formats"
-    )
-    inject_parser.add_argument(
-        "--overwrite", action="store_true", help="overwrite original file with output"
-    )
-
-
-def _setup_polyglot_subcommand(parser: ArgumentParser) -> None:
-    """Set up the polyglot subcommand with its sub-subcommands."""
-    subparsers = parser.add_subparsers(dest="polyglot_command", help="polyglot operations")
-
-    # identify
-    identify_parser = subparsers.add_parser(
-        "identify", help="identify all possible PyTorch file formats"
-    )
-    identify_parser.add_argument("file", type=str, help="path to the file to identify")
-    identify_parser.add_argument("--json", action="store_true", help="output results as JSON")
-
-    # properties
-    properties_parser = subparsers.add_parser("properties", help="analyze file properties")
-    properties_parser.add_argument("file", type=str, help="path to the file to analyze")
-    properties_parser.add_argument(
-        "-r", "--recursive", action="store_true", help="analyze recursively into archives"
-    )
-    properties_parser.add_argument("--json", action="store_true", help="output results as JSON")
-
-    # create
-    create_parser = subparsers.add_parser("create", help="create a polyglot file")
-    create_parser.add_argument("file1", type=str, help="first input file")
-    create_parser.add_argument("file2", type=str, help="second input file")
-    create_parser.add_argument("-o", "--output", type=str, default=None, help="output file path")
-    create_parser.add_argument(
-        "--quiet", "-q", action="store_true", help="suppress output messages"
-    )
