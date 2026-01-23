@@ -48,8 +48,11 @@ test = [
   "torch >= 2.1.0",
   "torchvision >= 0.24.1",
 ]
+huggingface = [
+    "huggingface_hub >= 0.20.0",
+]
 dev = [
-  "fickling[lint,test,torch]",
+  "fickling[lint,test,torch,huggingface]",
   # For git hooks: install prek (brew install prek / pipx install prek), then run: prek install
 ]
 examples = ["numpy", "pytorchfi"]
@@ -145,6 +148,7 @@ ignore = [
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
 "fickling/hook.py" = ["N816"]
+"fickling/cli.py" = ["BLE001"]  # Blind exceptions needed for HuggingFace Hub error handling
 
 [tool.ruff.lint.isort]
 known-first-party = ["fickling"]

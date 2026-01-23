@@ -9,6 +9,129 @@ from .analysis import Severity, check_safety
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
+# File patterns to scan in HuggingFace repos (pickle-based model files)
+HF_PICKLE_PATTERNS = [
+    "*.bin",
+    "*.pt",
+    "*.pth",
+    "*.pkl",
+    "*.pickle",
+    "pytorch_model.bin",
+    "model.safetensors",  # Skip safetensors (safe format)
+]
+
+# Extensions that are known to be safe (not pickle-based)
+HF_SAFE_EXTENSIONS = {".safetensors", ".json", ".txt", ".md", ".yaml", ".yml", ".toml"}
+
+
+def _scan_huggingface(
+    repo_id: str,
+    revision: str | None = None,
+    token: str | None = None,
+    json_output_path: str | None = None,
+    print_results: bool = False,
+) -> int:
+    """Scan a HuggingFace Hub repository for potentially malicious pickle files.
+
+    Args:
+        repo_id: HuggingFace repository ID (e.g., 'bert-base-uncased')
+        revision: Specific revision (branch, tag, or commit) to scan
+        token: HuggingFace API token for private repositories
+        json_output_path: Path to write JSON results
+        print_results: Whether to print results to console
+
+    Returns:
+        Exit code (0=clean, 1=unsafe, 2=error)
+    """
+    try:
+        from huggingface_hub import HfApi, hf_hub_download
+    except ImportError:
+        sys.stderr.write(
+            "Error: huggingface_hub is required for --huggingface scanning.\n"
+            "Install with: pip install fickling[huggingface]\n"
+        )
+        return 2  # EXIT_ERROR
+
+    api = HfApi(token=token)
+
+    # List files in the repository
+    try:
+        repo_info = api.repo_info(repo_id=repo_id, revision=revision, token=token)
+        files = [f.rfilename for f in repo_info.siblings] if repo_info.siblings else []
+    except Exception as e:
+        sys.stderr.write(f"Error accessing HuggingFace repository '{repo_id}': {e!s}\n")
+        return 2  # EXIT_ERROR
+
+    # Filter for potentially unsafe pickle files
+    pickle_files = []
+    for filename in files:
+        ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        if ext in HF_SAFE_EXTENSIONS:
+            continue
+        if ext in {".bin", ".pt", ".pth", ".pkl", ".pickle"} or filename.endswith(
+            "pytorch_model.bin"
+        ):
+            pickle_files.append(filename)
+
+    if not pickle_files:
+        if print_results:
+            print(f"No pickle files found in {repo_id}")
+        return 0  # EXIT_CLEAN
+
+    if print_results:
+        print(f"Scanning {len(pickle_files)} file(s) in {repo_id}...")
+
+    overall_safe = True
+    json_output = json_output_path or DEFAULT_JSON_OUTPUT_FILE
+
+    for filename in pickle_files:
+        if print_results:
+            print(f"\n  Scanning: {filename}")
+
+        try:
+            # Download the file
+            local_path = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                revision=revision,
+                token=token,
+            )
+
+            # Scan the file
+            with open(local_path, "rb") as f:
+                stacked_pickled = fickle.StackedPickle.load(f, fail_on_decode_error=False)
+
+            for pickled in stacked_pickled:
+                safety_results = check_safety(pickled, json_output_path=json_output)
+
+                if print_results:
+                    result_str = safety_results.to_string()
+                    if result_str:
+                        print(f"    {result_str}")
+
+                if safety_results.severity > Severity.LIKELY_SAFE:
+                    overall_safe = False
+                    if print_results:
+                        sys.stderr.write(f"    WARNING: {filename} may contain unsafe content!\n")
+
+        except fickle.PickleDecodeError as e:
+            if print_results:
+                sys.stderr.write(f"    Error parsing {filename}: {e!s}\n")
+            # Parsing errors are suspicious but not necessarily unsafe
+            continue
+        except Exception as e:
+            if print_results:
+                sys.stderr.write(f"    Error scanning {filename}: {e!s}\n")
+            continue
+
+    if print_results:
+        if overall_safe:
+            print(f"\n{repo_id}: No obvious safety issues detected")
+        else:
+            print(f"\n{repo_id}: Potentially unsafe content detected!")
+
+    return 0 if overall_safe else 1  # EXIT_CLEAN or EXIT_UNSAFE
+
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
@@ -96,6 +219,27 @@ def main(argv: list[str] | None = None) -> int:
         help="print a runtime trace while interpreting the input pickle file",
     )
     parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
+    parser.add_argument(
+        "--huggingface",
+        "--hf",
+        type=str,
+        default=None,
+        metavar="REPO_ID",
+        help="scan a model from HuggingFace Hub by repository ID (e.g., 'bert-base-uncased'). "
+        "Requires huggingface_hub: pip install fickling[huggingface]",
+    )
+    parser.add_argument(
+        "--hf-revision",
+        type=str,
+        default=None,
+        help="specific revision (branch, tag, or commit) to scan from HuggingFace Hub",
+    )
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        default=None,
+        help="HuggingFace API token for accessing private repositories",
+    )
 
     args = parser.parse_args(argv[1:])
 
@@ -105,6 +249,16 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(__version__)
         return 0
+
+    # HuggingFace scanning mode
+    if args.huggingface is not None:
+        return _scan_huggingface(
+            repo_id=args.huggingface,
+            revision=args.hf_revision,
+            token=args.hf_token,
+            json_output_path=args.json_output,
+            print_results=args.print_results,
+        )
 
     if args.create is None:
         if args.PICKLE_FILE == "-":
