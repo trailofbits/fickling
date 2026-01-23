@@ -208,42 +208,230 @@ class NonStandardImports(Analysis):
 
 class UnsafeImportsML(Analysis):
     UNSAFE_MODULES = {
+        # Builtins - direct code execution
         "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
         "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
         "builtins": "This module contains dangerous functions that can execute arbitrary code.",
+        # System/process execution
         "os": "This module contains functions that can perform system operations and execute arbitrary code.",
         "posix": "This module contains functions that can perform system operations and execute arbitrary code.",
         "nt": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "subprocess": "This module contains functions that can run arbitrary executables and perform system operations.",
+        "subprocess": (
+            "This module contains functions that can run arbitrary executables and "
+            "perform system operations."
+        ),
         "sys": "This module can tamper with the python interpreter.",
-        "socket": "This module gives access to low-level socket interfaces and can initiate dangerous network connections.",
-        "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "pty": "This module contains functions that can spawn pseudo-terminals and execute shell commands.",
+        "commands": "Legacy module that can execute shell commands.",
+        "multiprocessing": "This module can spawn processes and execute arbitrary code.",
+        # Code execution/compilation
+        "code": "This module can compile and execute arbitrary code.",
+        "codeop": "This module can compile Python code.",
+        "runpy": "This module can run Python modules as scripts.",
+        "marshal": "This module can deserialize arbitrary code objects.",
+        "types": "This module can construct function/code objects for arbitrary code execution.",
+        # Import manipulation
+        "importlib": "This module can dynamically import and execute arbitrary modules.",
+        "pkgutil": "This module can manipulate package imports.",
+        "zipimport": "This module can import code from ZIP archives.",
+        # Profiling/debugging (can execute code)
+        "cProfile": "This module can execute code via profiling functions.",
+        "profile": "This module can execute code via profiling functions.",
+        "pdb": "This module can execute arbitrary Python code via debugger.",
+        "bdb": "This module can execute arbitrary Python code via debugger.",
+        "timeit": "This module can execute arbitrary code for timing.",
+        "trace": "This module can execute code while tracing.",
+        # Network - data exfiltration/download
+        "socket": (
+            "This module gives access to low-level socket interfaces and can initiate "
+            "dangerous network connections."
+        ),
+        "ssl": "This module can establish encrypted network connections for data exfiltration.",
+        "httplib": (
+            "This module can make HTTP requests for data exfiltration or downloading "
+            "malicious content."
+        ),
+        "http": (
+            "This module can make HTTP requests for data exfiltration or downloading "
+            "malicious content."
+        ),
         "urllib": "This module can use HTTP to leak local data and download malicious files.",
         "urllib2": "This module can use HTTP to leak local data and download malicious files.",
-        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
-        "dill": "This module can load and execute arbitrary code.",
-        "code": "This module can compile and execute arbitrary code.",
-        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
+        "urllib.request": "This module can use HTTP to leak local data and download malicious files.",
+        "requests": (
+            "This module can make HTTP requests for data exfiltration or downloading "
+            "malicious content."
+        ),
+        "aiohttp": "This module can make async HTTP requests for data exfiltration.",
+        "asyncio": "This module can run arbitrary coroutines and async code.",
+        "webbrowser": "This module can open arbitrary URLs in system browser.",
+        # FFI/native code
+        "ctypes": (
+            "This module provides C-compatible foreign function interface for executing native code."
+        ),
+        "_ctypes": "This module provides low-level C foreign function interface.",
+        # Pickle recursion (nested pickle attacks)
+        "pickle": "This module can deserialize arbitrary pickle payloads.",
+        "_pickle": "This module can deserialize arbitrary pickle payloads.",
+        "dill": "This module can load and execute arbitrary code via pickle extension.",
+        "cloudpickle": "This module can serialize and deserialize arbitrary code.",
+        "joblib": "This module can deserialize arbitrary pickle payloads.",
+        # File system operations
+        "shutil": (
+            "This module contains functions that can perform system operations and "
+            "execute arbitrary code."
+        ),
+        "tempfile": "This module can create files that may persist after execution.",
+        "filecmp": "This module can access file system.",
+        "distutils": "This module can execute build/install commands.",
+        "distutils.file_util": "This module can copy/move files with arbitrary permissions.",
+        # Shell/terminal
+        "pydoc": "This module can run code via pydoc.pager.",
+        "pexpect": "This module can spawn and control child processes.",
+        # Virtual environments (can install packages)
+        "venv": "This module can create virtual environments.",
+        "ensurepip": "This module can install pip and run package installation.",
+        "pip": "This module can install arbitrary packages from the internet.",
+        # Documentation testing
+        "doctest": "This module can execute arbitrary code in docstrings.",
+        # NumPy dangerous modules
+        "numpy.f2py": "This module can compile and execute Fortran code.",
+        "numpy.distutils": "This module can execute build commands.",
+        "numpy.testing._private.utils": "This module contains runstring which can execute code.",
+        # IDLE modules
+        "idlelib": "This module contains code execution capabilities.",
+        # Parser generators
+        "lib2to3": "This module can parse and potentially execute Python code.",
+        # Torch dangerous modules
+        "torch.hub": (
+            "This module can load untrusted files from the web, exposing the system to "
+            "arbitrary code execution."
+        ),
+        "torch._dynamo": "This module can compile and execute arbitrary code via JIT.",
+        "torch._inductor": "This module can generate and execute compiled code.",
+        "torch.jit": "This module can compile and execute arbitrary code.",
+        "torch.compile": "This module can compile and execute arbitrary code.",
     }
 
     UNSAFE_IMPORTS = {
+        # Torch dangerous functions
         "torch": {
-            "load": "This function can load untrusted files and code from arbitrary web sources."
-        },
-        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        "operator": {
-            "getitem": "This function can lead to arbitrary code execution",
-            "attrgetter": "This function can lead to arbitrary code execution",
-            "itemgetter": "This function can lead to arbitrary code execution",
-            "methodcaller": "This function can lead to arbitrary code execution",
+            "load": "This function can load untrusted files and code from arbitrary web sources.",
+            "compile": "This function can compile and execute arbitrary code.",
         },
         "torch.storage": {
-            "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
-            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-            "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
-            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
-            "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
+            "_load_from_bytes": (
+                "This function calls `torch.load()` which is unsafe as using a string argument "
+                "would allow to load and execute arbitrary code hosted on the internet. However, "
+                "in this case, the argument is explicitly converted to `io.bytesIO` and hence "
+                "treated as a bytestream and not as a remote URL. However, a malicious file can "
+                "supply a pickle opcode bytestring as argument to this function to cause the "
+                "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary "
+                "code through nested pickle calls. So this import is safe only if restrictions on "
+                "pickle (such as Fickling's hooks) have been set properly"
+            ),
+        },
+        "torch._dynamo": {
+            "GuardBuilder": "This class can evaluate arbitrary guard expressions.",
+            "compile_file": "This function can compile arbitrary files.",
+        },
+        "torch._dynamo.eval_frame": {
+            "compile_file": "This function can compile arbitrary Python files.",
+        },
+        "torch._inductor.compile_fx": {
+            "compile_file": "This function can compile arbitrary files.",
+        },
+        "torch._inductor.runtime.runtime_utils": {
+            "create_cache_dir": "This function can create directories on the filesystem.",
+        },
+        "torch.jit": {
+            "compile": "This function can compile and execute arbitrary code.",
+            "_script": "This function can compile and execute arbitrary scripts.",
+        },
+        "torch.jit.unsupported_tensor_ops": {
+            "execWrapper": "This function wraps exec() for code execution.",
+        },
+        "torch.utils._config_module": {
+            "ConfigModule": "This class can load configuration which may execute code.",
+        },
+        "torch.distributed.elastic.rendezvous.api": {
+            "basichandlers": "This can execute network handlers.",
+        },
+        # Operator module - can be abused for attribute/item access chains
+        "operator": {
+            "getitem": "This function can lead to arbitrary code execution via attribute chains.",
+            "attrgetter": "This function can lead to arbitrary code execution via attribute access.",
+            "itemgetter": "This function can lead to arbitrary code execution via item access.",
+            "methodcaller": "This function can call arbitrary methods.",
+        },
+        "_operator": {
+            "getitem": "This function can lead to arbitrary code execution via attribute chains.",
+            "attrgetter": "This function can lead to arbitrary code execution via attribute access.",
+            "itemgetter": "This function can lead to arbitrary code execution via item access.",
+            "methodcaller": "This function can call arbitrary methods.",
+        },
+        # Functools
+        "functools": {
+            "partial": "This function can create partially applied functions for code execution.",
+            "reduce": "This function can apply functions iteratively.",
+        },
+        # NumPy dangerous functions
+        "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
+        "numpy.f2py.auxfuncs": {
+            "callback": "This function can execute callbacks.",
+        },
+        # Profiling/tracing - code execution
+        "cProfile": {
+            "run": "This function can execute arbitrary code while profiling.",
+            "runctx": "This function can execute arbitrary code with context.",
+        },
+        "profile": {
+            "run": "This function can execute arbitrary code while profiling.",
+            "runctx": "This function can execute arbitrary code with context.",
+        },
+        "trace": {
+            "run": "This method can execute arbitrary code while tracing.",
+            "runctx": "This method can execute arbitrary code with context.",
+        },
+        # Code module
+        "code": {
+            "InteractiveInterpreter": "This class can execute arbitrary Python code.",
+            "InteractiveConsole": "This class can execute arbitrary Python code.",
+            "compile_command": "This function can compile Python code.",
+        },
+        # Doctest
+        "doctest": {
+            "debug_script": "This function can execute scripts for debugging.",
+            "run_docstring_examples": "This function can execute code in docstrings.",
+        },
+        # ensurepip
+        "ensurepip": {
+            "_run_pip": "This function can run pip to install packages.",
+            "_main": "This function can install packages.",
+        },
+        # IDLE modules - code execution
+        "idlelib.AutoComplete": {
+            "AutoComplete": "This class can execute code for autocompletion.",
+        },
+        "idlelib.run": {
+            "Executive": "This class can run code.",
+            "ModifiedInterpreter": "This class can interpret and run code.",
+        },
+        # lib2to3
+        "lib2to3.pgen2.grammar": {
+            "Grammar": "This class can load grammar which may execute code.",
+        },
+        "lib2to3.pgen2.pgen": {
+            "ParserGenerator": "This class can generate parsers.",
+        },
+        # IO
+        "_io": {
+            "FileIO": "This class can read/write files.",
+            "open": "This function can open files.",
+        },
+        "io": {
+            "open": "This function can open files.",
+            "FileIO": "This class can read/write files.",
         },
     }
 
