@@ -174,7 +174,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
 
     def test_cyclic_pickle(self):
         """Reproduces https://github.com/trailofbits/fickling/issues/196"""
-        # L = []; L.append(L)
+        # List with itself as value: L = []; L.append(L)
         pickled = Pickled(
             [
                 Proto(2),
@@ -197,8 +197,6 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         code = unparse(pickled.ast)
         self.assertEqual("result = [[...]]", code)
 
-    def test_impossible_cyclic_pickle(self):
-        """Test cycle detection for structures impossible in Python but possible in malformed pickles."""
         # Dict with itself as value: d = {}; d["self"] = d
         dict_value_cycle = Pickled(
             [
@@ -214,7 +212,10 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         self.assertTrue(dict_value_cycle.has_cycles)
         self.assertEqual("result = {'self': {...}}", unparse(dict_value_cycle.ast))
 
+    def test_impossible_cyclic_pickle(self):
+        """Test that impossible cyclic structures raise InterpretationError."""
         # Dict with itself as key: d = {}; d[d] = "value"
+        # Python raises: TypeError: unhashable type: 'dict'
         dict_key_cycle = Pickled(
             [
                 Proto(2),
@@ -226,10 +227,15 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
                 Stop(),
             ]
         )
-        self.assertTrue(dict_key_cycle.has_cycles)
-        self.assertEqual("result = {{...}: 'value'}", unparse(dict_key_cycle.ast))
+        # Should flag as having interpretation error
+        self.assertTrue(dict_key_cycle.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(dict_key_cycle)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)
 
         # Set containing itself: s = set(); s.add(s)
+        # Python raises: TypeError: unhashable type: 'set'
         set_cycle = Pickled(
             [
                 Proto(4),
@@ -241,5 +247,9 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
                 Stop(),
             ]
         )
-        self.assertTrue(set_cycle.has_cycles)
-        self.assertEqual("result = {{...}}", unparse(set_cycle.ast))
+        # Should flag as having interpretation error
+        self.assertTrue(set_cycle.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(set_cycle)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)

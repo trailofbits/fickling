@@ -906,6 +906,7 @@ class Pickled(OpcodeSequence):
 
     @property
     def has_interpretation_error(self) -> bool:
+        _ = self.ast  # Ensure interpretation ran
         return self._has_interpretation_error
 
     @staticmethod
@@ -1506,11 +1507,10 @@ class AddItems(Opcode):
             raise ValueError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
-        # Check for cyclic references
-        for i, elem in enumerate(to_add):
+        # Check for cyclic references - sets cannot contain themselves (unhashable)
+        for elem in to_add:
             if elem is pyset:
-                to_add[i] = ast.Set(elts=[ast.Constant(value=...)])
-                interpreter._has_cycle = True
+                raise InterpretationError("Set cannot contain itself (unhashable type)")
         pyset.elts.extend(reversed(to_add))
 
 
@@ -1796,8 +1796,7 @@ class SetItems(StackSliceOpcode):
         for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
             # Check for cyclic references
             if key is pydict:
-                key = ast.Set(elts=[ast.Constant(value=...)])
-                interpreter._has_cycle = True
+                raise InterpretationError("Dict cannot use itself as key (unhashable type)")
             if value is pydict:
                 value = ast.Set(elts=[ast.Constant(value=...)])
                 interpreter._has_cycle = True
@@ -1830,8 +1829,7 @@ class SetItem(Opcode):
         pydict = interpreter.stack.pop()
         # Check for cyclic references
         if key is pydict:
-            key = ast.Set(elts=[ast.Constant(value=...)])
-            interpreter._has_cycle = True
+            raise InterpretationError("Dict cannot use itself as key (unhashable type)")
         if value is pydict:
             value = ast.Set(elts=[ast.Constant(value=...)])
             interpreter._has_cycle = True
