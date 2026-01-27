@@ -10,10 +10,13 @@ from unittest import TestCase
 
 from fickling.analysis import Severity, check_safety
 from fickling.fickle import (
+    Append,
     BinGet,
     BinInt1,
     BinPut,
     BinUnicode,
+    EmptyList,
+    Get,
     Global,
     Mark,
     Memoize,
@@ -165,21 +168,27 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         results = check_safety(loaded)
         self.assertGreater(results.severity, Severity.LIKELY_SAFE)
 
-
-class TestCrashReproduction(TestCase):
-    def test_cyclic_pickle_dos(self):
+    def test_cyclic_pickle(self):
         """Reproduces https://github.com/trailofbits/fickling/issues/196"""
-        payload = b"\x80\x02]\x94g0\na."  # Cyclic list: L.append(L)
-        pickled = Pickled.load(payload)
+        # L = []; L.append(L)
+        pickled = Pickled(
+            [
+                Proto(2),
+                EmptyList(),
+                Memoize(),
+                Get(0),
+                Append(),
+                Stop(),
+            ]
+        )
+
+        # Should detect cycles
+        self.assertTrue(pickled.has_cycles)
 
         # Should complete without RecursionError
         result = check_safety(pickled)
         self.assertIsNotNone(result)
 
-    def test_cyclic_pickle_creates_placeholder(self):
-        """Verify cyclic references are replaced with placeholders."""
-        payload = b"\x80\x02]\x94g0\na."  # Cyclic list: L.append(L)
-        pickled = Pickled.load(payload)
-        self.assertTrue(pickled.has_cycles)
+        # Cyclic reference should be replaced with placeholders
         code = unparse(pickled.ast)
-        self.assertIn("<cyclic-ref>", code)
+        self.assertEqual("result = [<cyclic-ref>]", code)
