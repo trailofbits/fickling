@@ -195,7 +195,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
 
         # Cyclic reference should be replaced with placeholders
         code = unparse(pickled.ast)
-        self.assertEqual("result = [<cyclic-ref>]", code)
+        self.assertEqual("result = [[...]]", code)
 
     def test_impossible_cyclic_pickle(self):
         """Test cycle detection for structures impossible in Python but possible in malformed pickles."""
@@ -212,7 +212,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         self.assertTrue(dict_value_cycle.has_cycles)
-        self.assertEqual("result = {'self': <cyclic-ref>}", unparse(dict_value_cycle.ast))
+        self.assertEqual("result = {'self': {...}}", unparse(dict_value_cycle.ast))
 
         # Dict with itself as key: d = {}; d[d] = "value"
         dict_key_cycle = Pickled(
@@ -227,7 +227,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         self.assertTrue(dict_key_cycle.has_cycles)
-        self.assertEqual("result = {<cyclic-ref>: 'value'}", unparse(dict_key_cycle.ast))
+        self.assertEqual("result = {{...}: 'value'}", unparse(dict_key_cycle.ast))
 
         # Set containing itself: s = set(); s.add(s)
         set_cycle = Pickled(
@@ -242,4 +242,4 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
             ]
         )
         self.assertTrue(set_cycle.has_cycles)
-        self.assertEqual("result = {<cyclic-ref>}", unparse(set_cycle.ast))
+        self.assertEqual("result = {{...}}", unparse(set_cycle.ast))

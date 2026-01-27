@@ -1509,7 +1509,7 @@ class AddItems(Opcode):
         # Check for cyclic references
         for i, elem in enumerate(to_add):
             if elem is pyset:
-                to_add[i] = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                to_add[i] = ast.Set(elts=[ast.Constant(value=...)])
                 interpreter._has_cycle = True
         pyset.elts.extend(reversed(to_add))
 
@@ -1796,10 +1796,10 @@ class SetItems(StackSliceOpcode):
         for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
             # Check for cyclic references
             if key is pydict:
-                key = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                key = ast.Set(elts=[ast.Constant(value=...)])
                 interpreter._has_cycle = True
             if value is pydict:
-                value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                value = ast.Set(elts=[ast.Constant(value=...)])
                 interpreter._has_cycle = True
             update_dict_keys.append(key)
             update_dict_values.append(value)
@@ -1830,10 +1830,10 @@ class SetItem(Opcode):
         pydict = interpreter.stack.pop()
         # Check for cyclic references
         if key is pydict:
-            key = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+            key = ast.Set(elts=[ast.Constant(value=...)])
             interpreter._has_cycle = True
         if value is pydict:
-            value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+            value = ast.Set(elts=[ast.Constant(value=...)])
             interpreter._has_cycle = True
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
@@ -1915,7 +1915,7 @@ class Append(Opcode):
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
             if value is list_obj:
-                value = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                value = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
                 interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
@@ -1930,7 +1930,7 @@ class Appends(StackSliceOpcode):
         if isinstance(list_obj, ast.List):
             for i, elem in enumerate(stack_slice):
                 if elem is list_obj:
-                    stack_slice[i] = ast.Name(id="<cyclic-ref>", ctx=ast.Load())
+                    stack_slice[i] = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
                     interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
