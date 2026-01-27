@@ -10,12 +10,15 @@ from unittest import TestCase
 
 from fickling.analysis import Severity, check_safety
 from fickling.fickle import (
+    AddItems,
     Append,
     BinGet,
     BinInt1,
     BinPut,
     BinUnicode,
+    EmptyDict,
     EmptyList,
+    EmptySet,
     Get,
     Global,
     Mark,
@@ -24,6 +27,7 @@ from fickling.fickle import (
     Pop,
     Proto,
     Reduce,
+    SetItem,
     ShortBinUnicode,
     StackGlobal,
     Stop,
@@ -192,3 +196,50 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         # Cyclic reference should be replaced with placeholders
         code = unparse(pickled.ast)
         self.assertEqual("result = [<cyclic-ref>]", code)
+
+    def test_impossible_cyclic_pickle(self):
+        """Test cycle detection for structures impossible in Python but possible in malformed pickles."""
+        # Dict with itself as value: d = {}; d["self"] = d
+        dict_value_cycle = Pickled(
+            [
+                Proto(2),
+                EmptyDict(),
+                Memoize(),
+                ShortBinUnicode("self"),
+                Get(0),
+                SetItem(),
+                Stop(),
+            ]
+        )
+        self.assertTrue(dict_value_cycle.has_cycles)
+        self.assertEqual("result = {'self': <cyclic-ref>}", unparse(dict_value_cycle.ast))
+
+        # Dict with itself as key: d = {}; d[d] = "value"
+        dict_key_cycle = Pickled(
+            [
+                Proto(2),
+                EmptyDict(),
+                Memoize(),
+                Get(0),
+                ShortBinUnicode("value"),
+                SetItem(),
+                Stop(),
+            ]
+        )
+        self.assertTrue(dict_key_cycle.has_cycles)
+        self.assertEqual("result = {<cyclic-ref>: 'value'}", unparse(dict_key_cycle.ast))
+
+        # Set containing itself: s = set(); s.add(s)
+        set_cycle = Pickled(
+            [
+                Proto(4),
+                EmptySet(),
+                Memoize(),
+                Mark(),
+                Get(0),
+                AddItems(),
+                Stop(),
+            ]
+        )
+        self.assertTrue(set_cycle.has_cycles)
+        self.assertEqual("result = {<cyclic-ref>}", unparse(set_cycle.ast))
