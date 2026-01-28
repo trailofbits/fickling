@@ -528,6 +528,19 @@ class ASTProperties(ast.NodeVisitor):
         self.calls: list[ast.Call] = []
         self.non_setstate_calls: list[ast.Call] = []
         self.likely_safe_imports: set[str] = set()
+        self._visited: set[int] = set()  # Track visited nodes by id to detect cycles
+
+    def visit(self, node: ast.AST) -> Any:
+        """Override visit to detect and skip cycles in the AST.
+
+        Pickle files can create cyclic AST structures via MEMOIZE + GET opcodes.
+        Without cycle detection, visiting such structures causes infinite recursion.
+        """
+        node_id = id(node)
+        if node_id in self._visited:
+            return None  # Skip already-visited nodes
+        self._visited.add(node_id)
+        return super().visit(node)
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
@@ -572,6 +585,8 @@ class Pickled(OpcodeSequence):
         # Whether the pickled sequence was interrupted because of
         # an invalid opcode
         self._has_invalid_opcode: bool = has_invalid_opcode
+        # Whether the pickle contains cyclic references
+        self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
 
     def __len__(self) -> int:
@@ -891,6 +906,7 @@ class Pickled(OpcodeSequence):
 
     @property
     def has_interpretation_error(self) -> bool:
+        _ = self.ast  # Ensure interpretation ran
         return self._has_interpretation_error
 
     @staticmethod
@@ -1036,7 +1052,9 @@ on the Pickled object instead"""
     def ast(self) -> ast.Module:
         if self._ast is None:
             try:
-                self._ast = Interpreter.interpret(self)
+                interpreter = Interpreter(self)
+                self._ast = interpreter.to_ast()
+                self._has_cycles = interpreter._has_cycle
             except InterpretationError as e:
                 self._has_interpretation_error = True
                 sys.stderr.write(
@@ -1045,6 +1063,12 @@ on the Pickled object instead"""
                 )
                 self._ast = ast.Module(body=[], type_ignores=[])
         return self._ast
+
+    @property
+    def has_cycles(self) -> bool:
+        """Check if the pickle contains cyclic references."""
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_cycles
 
     @property
     def nb_opcodes(self) -> int:
@@ -1130,6 +1154,7 @@ class Interpreter:
         self._module: ast.Module | None = None
         self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
+        self._has_cycle: bool = False
 
     @property
     def next_variable_id(self) -> int:
@@ -1477,11 +1502,15 @@ class AddItems(Opcode):
             raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         if not interpreter.stack:
             raise ValueError("Stack was empty; expected a pyset")
-        pyset = interpreter.stack.pop()
+        pyset = interpreter.stack[-1]
         if not isinstance(pyset, ast.Set):
             raise ValueError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
+        # Check for cyclic references - sets cannot contain themselves (unhashable)
+        for elem in to_add:
+            if elem is pyset:
+                raise InterpretationError("Set cannot contain itself (unhashable type)")
         pyset.elts.extend(reversed(to_add))
 
 
@@ -1760,11 +1789,17 @@ class Get(Opcode):
 class SetItems(StackSliceOpcode):
     name = "SETITEMS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         pydict = interpreter.stack.pop()
         update_dict_keys = []
         update_dict_values = []
         for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
+            # Check for cyclic references
+            if key is pydict:
+                raise InterpretationError("Dict cannot use itself as key (unhashable type)")
+            if value is pydict:
+                value = ast.Set(elts=[ast.Constant(value=...)])
+                interpreter._has_cycle = True
             update_dict_keys.append(key)
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
@@ -1792,6 +1827,12 @@ class SetItem(Opcode):
         value = interpreter.stack.pop()
         key = interpreter.stack.pop()
         pydict = interpreter.stack.pop()
+        # Check for cyclic references
+        if key is pydict:
+            raise InterpretationError("Dict cannot use itself as key (unhashable type)")
+        if value is pydict:
+            value = ast.Set(elts=[ast.Constant(value=...)])
+            interpreter._has_cycle = True
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
             interpreter.stack.append(ast.Dict(keys=[key], values=[value]))
@@ -1871,6 +1912,9 @@ class Append(Opcode):
         value = interpreter.stack.pop()
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            if value is list_obj:
+                value = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
+                interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
@@ -1879,9 +1923,13 @@ class Append(Opcode):
 class Appends(StackSliceOpcode):
     name = "APPENDS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            for i, elem in enumerate(stack_slice):
+                if elem is list_obj:
+                    stack_slice[i] = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
+                    interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
