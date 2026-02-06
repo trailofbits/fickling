@@ -153,6 +153,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": False,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_7z": False,
             "children": {
                 "pickle.npy": {
                     "is_torch_zip": False,
@@ -167,6 +168,7 @@ class TestPolyglotModule(unittest.TestCase):
                     "has_version": False,
                     "has_model_json": False,
                     "has_attributes_pkl": False,
+                    "is_7z": False,
                 }
             },
         }
@@ -187,6 +189,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": False,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_7z": False,
             "children": {
                 "pickle.npy": {
                     "is_torch_zip": False,
@@ -201,6 +204,7 @@ class TestPolyglotModule(unittest.TestCase):
                     "has_version": False,
                     "has_model_json": False,
                     "has_attributes_pkl": False,
+                    "is_7z": False,
                 }
             },
         }
@@ -221,6 +225,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": True,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -239,6 +244,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": True,
             "is_numpy_pickle": True,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -257,6 +263,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -275,6 +282,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -294,6 +302,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -314,6 +323,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
