@@ -531,6 +531,37 @@ class TestBypasses(TestCase):
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
 
+    def test_network_protocol_ssrf(self):
+        cases = [
+            ("smtplib", "SMTP", 25),
+            ("imaplib", "IMAP4", 143),
+            ("ftplib", "FTP", 21),
+            ("poplib", "POP3", 110),
+            ("telnetlib", "Telnet", 23),
+            ("nntplib", "NNTP", 119),
+        ]
+        for module, cls, port in cases:
+            with self.subTest(module=module):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.Global.create(module, cls),
+                        op.ShortBinUnicode("127.0.0.1"),
+                        op.BinInt2(port),
+                        op.TupleTwo(),
+                        op.Reduce(),
+                        op.EmptyDict(),
+                        op.Build(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertGreater(
+                    res.severity,
+                    Severity.LIKELY_SAFE,
+                    f"{module}.{cls} was not flagged as unsafe",
+                )
+
     # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-f7qq-56ww-84cr
     def test_asyncio_subprocess(self):
         """Test detection of asyncio subprocess execution bypass."""

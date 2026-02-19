@@ -90,6 +90,12 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "requests",
         "urllib",
         "urllib2",
+        "smtplib",
+        "imaplib",
+        "ftplib",
+        "poplib",
+        "telnetlib",
+        "nntplib",
         # IDE and dev tools
         "idlelib",
         "lib2to3",
