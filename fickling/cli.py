@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
                             "Do not unpickle this file if it is from an untrusted source!\n\n"
                         )
 
-            return [EXIT_UNSAFE, EXIT_CLEAN][was_safe]
+            return EXIT_CLEAN if was_safe else EXIT_UNSAFE
 
         else:
             var_id = 0
