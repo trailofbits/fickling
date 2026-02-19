@@ -84,7 +84,6 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "http",
         "urllib",
         "urllib2",
-        "urllib.request",
         "requests",
         "aiohttp",
         "asyncio",  # Can run arbitrary coroutines
@@ -109,7 +108,6 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "tempfile",
         "filecmp",
         "distutils",
-        "distutils.file_util",
         # Shell/terminal
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
