@@ -240,6 +240,12 @@ class UnsafeImportsML(Analysis):
         "urllib": "This module can use HTTP to leak local data and download malicious files.",
         "urllib2": "This module can use HTTP to leak local data and download malicious files.",
         "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
+        "torch._dynamo": "This module can compile and execute arbitrary code through dynamic compilation.",
+        "torch._inductor": "This module can compile and execute arbitrary native code.",
+        "torch.jit": "This module can compile and execute arbitrary code through JIT compilation.",
+        "torch.compile": "This module can compile and execute arbitrary code through dynamic compilation.",
+        "numpy.f2py": "This module can compile and execute arbitrary Fortran/C code.",
+        "numpy.distutils": "This module can execute arbitrary build commands.",
         "dill": "This module can load and execute arbitrary code.",
         "code": "This module can compile and execute arbitrary code.",
         "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
@@ -260,10 +266,6 @@ class UnsafeImportsML(Analysis):
             "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
         },
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        "numpy.f2py.crackfortran": {
-            "getlincoef": "This function can execute arbitrary code.",
-            "_eval_length": "This function can execute arbitrary code.",
-        },
         "_io": {"FileIO": "This class can read/write arbitrary files."},
         "io": {"FileIO": "This class can read/write arbitrary files."},
     }

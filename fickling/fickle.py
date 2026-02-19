@@ -117,19 +117,10 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "pip",
         # Documentation testing (can run code)
         "doctest",
-        # NumPy dangerous modules
-        "numpy.f2py",
-        "numpy.distutils",
         # IDLE modules (code execution)
         "idlelib",
         # Parser generators (code execution)
         "lib2to3",
-        # Torch dangerous modules
-        "torch.hub",
-        "torch._dynamo",
-        "torch._inductor",
-        "torch.jit",
-        "torch.compile",
     ]
 )
 
