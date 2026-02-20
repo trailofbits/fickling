@@ -14,41 +14,15 @@ Key patterns tested:
 from __future__ import annotations
 
 import io
-import pickle
 import tarfile
-import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from fickling.analysis import Severity, check_safety
 from fickling.fickle import Pickled
-
-
-def make_malicious_pickle(
-    module: str, func: str, args: tuple[Any, ...] = (), protocol: int = 4
-) -> bytes:
-    """Create a malicious pickle that calls module.func(*args)."""
-
-    class Payload:
-        def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
-            import importlib
-
-            mod = importlib.import_module(module)
-            fn = getattr(mod, func)
-            return (fn, args)
-
-    return pickle.dumps(Payload(), protocol=protocol)
-
-
-def make_benign_pickle(data: Any | None = None, protocol: int = 4) -> bytes:
-    """Create a benign pickle with safe data."""
-    if data is None:
-        data = [1, 2, 3]
-    return pickle.dumps(data, protocol=protocol)
-
+from test._helpers import make_benign_pickle, make_malicious_pickle
 
 # =============================================================================
 # ZIP Archive Tests
@@ -88,7 +62,7 @@ def test_malicious_pickle_in_nested_zip_path() -> None:
         pkl_data = zf.read("model/archive/data.pkl")
         pickled = Pickled.load(pkl_data)
         result = check_safety(pickled)
-        assert result.severity >= Severity.LIKELY_UNSAFE, (
+        assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS, (
             "Failed to detect malicious pickle in nested ZIP path"
         )
 
@@ -238,69 +212,45 @@ def test_legacy_pytorch_tar_with_malicious_pickle() -> None:
 # =============================================================================
 
 
-def test_zip_file_on_disk() -> None:
+def test_zip_file_on_disk(tmp_path: Path) -> None:
     """Malicious pickle in ZIP file on disk should be detected."""
     malicious = make_malicious_pickle("os", "popen", ("id",))
+    zip_path = tmp_path / "model.zip"
 
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
-        temp_path = Path(f.name)
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("model.pkl", malicious)
 
-    try:
-        with zipfile.ZipFile(temp_path, "w") as zf:
-            zf.writestr("model.pkl", malicious)
-
-        with zipfile.ZipFile(temp_path, "r") as zf:
-            pkl_data = zf.read("model.pkl")
-            pickled = Pickled.load(pkl_data)
-            result = check_safety(pickled)
-            assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS
-    finally:
-        temp_path.unlink()
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        pkl_data = zf.read("model.pkl")
+        pickled = Pickled.load(pkl_data)
+        result = check_safety(pickled)
+        assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS
 
 
-def test_tar_file_on_disk() -> None:
+def test_tar_file_on_disk(tmp_path: Path) -> None:
     """Malicious pickle in TAR file on disk should be detected."""
     malicious = make_malicious_pickle("runpy", "run_path", ("/tmp/evil.py",))
+    tar_path = tmp_path / "model.tar"
 
-    with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as f:
-        temp_path = Path(f.name)
+    with tarfile.open(tar_path, "w") as tf:
+        pkl_io = io.BytesIO(malicious)
+        info = tarfile.TarInfo(name="weights.pkl")
+        info.size = len(malicious)
+        tf.addfile(info, pkl_io)
 
-    try:
-        with tarfile.open(temp_path, "w") as tf:
-            pkl_io = io.BytesIO(malicious)
-            info = tarfile.TarInfo(name="weights.pkl")
-            info.size = len(malicious)
-            tf.addfile(info, pkl_io)
-
-        with tarfile.open(temp_path, "r") as tf:
-            member = tf.getmember("weights.pkl")
-            f_extracted = tf.extractfile(member)
-            assert f_extracted is not None
-            pkl_data = f_extracted.read()
-            pickled = Pickled.load(pkl_data)
-            result = check_safety(pickled)
-            assert result.severity > Severity.LIKELY_SAFE
-    finally:
-        temp_path.unlink()
+    with tarfile.open(tar_path, "r") as tf:
+        member = tf.getmember("weights.pkl")
+        f_extracted = tf.extractfile(member)
+        assert f_extracted is not None
+        pkl_data = f_extracted.read()
+        pickled = Pickled.load(pkl_data)
+        result = check_safety(pickled)
+        assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS
 
 
 # =============================================================================
 # Edge Cases
 # =============================================================================
-
-
-def test_empty_zip_with_no_pickles() -> None:
-    """Empty ZIP with no pickles should not raise errors."""
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w") as zf:
-        zf.writestr("readme.txt", "No pickles here")
-
-    buffer.seek(0)
-    with zipfile.ZipFile(buffer, "r") as zf:
-        # No pickle files to scan
-        names = zf.namelist()
-        assert "readme.txt" in names
-        assert not any(n.endswith(".pkl") for n in names)
 
 
 def test_zip_with_non_pickle_binary() -> None:
@@ -315,8 +265,7 @@ def test_zip_with_non_pickle_binary() -> None:
     buffer.seek(0)
     with zipfile.ZipFile(buffer, "r") as zf:
         bin_data = zf.read("model.bin")
-        # This should raise an error when loading as pickle (not valid pickle data)
-        with pytest.raises((ValueError, KeyError, EOFError, pickle.UnpicklingError)):
+        with pytest.raises(ValueError):
             Pickled.load(bin_data)
 
 
@@ -333,7 +282,7 @@ def test_deeply_nested_malicious_pickle() -> None:
         pkl_data = zf.read("level1/level2/level3/level4/deep_model.pkl")
         pickled = Pickled.load(pkl_data)
         result = check_safety(pickled)
-        assert result.severity > Severity.LIKELY_SAFE, (
+        assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS, (
             "Failed to detect deeply nested malicious pickle"
         )
 

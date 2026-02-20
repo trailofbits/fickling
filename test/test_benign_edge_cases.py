@@ -23,7 +23,6 @@ Key patterns tested:
 
 from __future__ import annotations
 
-import pickle
 from collections import Counter, OrderedDict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
@@ -38,41 +37,13 @@ import pytest
 
 from fickling.analysis import Severity, check_safety
 from fickling.fickle import Pickled
+from test._helpers import assert_likely_safe, assert_not_malicious, make_pickle
 
 # Higher protocols use more modern opcodes with fewer false positives
 # Note: Protocol 5 with NumPy can cause parsing issues in fickling
 HIGHER_PROTOCOLS = [2, 3, 4, 5]
 HIGHER_PROTOCOLS_NUMPY = [2, 3, 4]  # Exclude protocol 5 for NumPy due to out-of-band data
 ALL_PROTOCOLS = [0, 1, 2, 3, 4, 5]
-
-
-def make_pickle(obj: Any, protocol: int = 4) -> bytes:
-    """Create a pickle from a Python object."""
-    return pickle.dumps(obj, protocol=protocol)
-
-
-def assert_not_malicious(data: bytes) -> None:
-    """Assert that a pickle is not flagged as overtly malicious.
-
-    Standard library imports may be flagged as SUSPICIOUS (unused variable)
-    or LIKELY_UNSAFE (non-standard imports) but should NEVER be flagged as
-    OVERTLY_MALICIOUS unless they're actually dangerous.
-    """
-    pickled = Pickled.load(data)
-    result = check_safety(pickled)
-    assert result.severity < Severity.LIKELY_OVERTLY_MALICIOUS, (
-        f"Safe object incorrectly flagged as malicious. "
-        f"Severity: {result.severity.name}. Results: {result.to_string()}"
-    )
-
-
-def assert_likely_safe(data: bytes) -> None:
-    """Assert that a pickle is LIKELY_SAFE (pure data, no imports)."""
-    pickled = Pickled.load(data)
-    result = check_safety(pickled)
-    assert result.severity == Severity.LIKELY_SAFE, (
-        f"Expected LIKELY_SAFE, got {result.severity.name}. Results: {result.to_string()}"
-    )
 
 
 # =============================================================================
@@ -340,11 +311,7 @@ def test_custom_getstate_setstate_not_malicious(protocol: int) -> None:
 @pytest.mark.parametrize("protocol", HIGHER_PROTOCOLS_NUMPY)
 def test_numpy_array_not_malicious(protocol: int) -> None:
     """NumPy arrays should not be flagged as malicious."""
-    try:
-        import numpy as np
-    except ImportError:
-        pytest.skip("NumPy not installed")
-
+    np = pytest.importorskip("numpy")
     arr = np.array([1, 2, 3, 4, 5])
     data = make_pickle(arr, protocol)
     assert_not_malicious(data)
@@ -353,11 +320,7 @@ def test_numpy_array_not_malicious(protocol: int) -> None:
 @pytest.mark.parametrize("protocol", HIGHER_PROTOCOLS_NUMPY)
 def test_numpy_multidimensional_not_malicious(protocol: int) -> None:
     """Multi-dimensional NumPy arrays should not be flagged as malicious."""
-    try:
-        import numpy as np
-    except ImportError:
-        pytest.skip("NumPy not installed")
-
+    np = pytest.importorskip("numpy")
     arr = np.array([[1, 2, 3], [4, 5, 6]])
     data = make_pickle(arr, protocol)
     assert_not_malicious(data)
@@ -366,11 +329,7 @@ def test_numpy_multidimensional_not_malicious(protocol: int) -> None:
 @pytest.mark.parametrize("protocol", HIGHER_PROTOCOLS_NUMPY)
 def test_numpy_scalar_not_malicious(protocol: int) -> None:
     """NumPy scalars (int32, float64) should not be flagged as malicious."""
-    try:
-        import numpy as np
-    except ImportError:
-        pytest.skip("NumPy not installed")
-
+    np = pytest.importorskip("numpy")
     data = make_pickle(np.int32(42), protocol)
     assert_not_malicious(data)
     data = make_pickle(np.float64(3.14), protocol)
@@ -380,11 +339,7 @@ def test_numpy_scalar_not_malicious(protocol: int) -> None:
 @pytest.mark.parametrize("protocol", HIGHER_PROTOCOLS_NUMPY)
 def test_numpy_structured_array_not_malicious(protocol: int) -> None:
     """Structured NumPy arrays with named fields should not be flagged as malicious."""
-    try:
-        import numpy as np
-    except ImportError:
-        pytest.skip("NumPy not installed")
-
+    np = pytest.importorskip("numpy")
     dt = np.dtype([("name", "U10"), ("age", "i4"), ("weight", "f8")])
     arr = np.array([("Alice", 25, 55.0), ("Bob", 30, 75.5)], dtype=dt)
     data = make_pickle(arr, protocol)
@@ -462,13 +417,9 @@ def test_string_with_code_snippet_safe(protocol: int) -> None:
 
 def test_sklearn_model_not_malicious() -> None:
     """Scikit-learn model serialization should not be flagged as malicious."""
-    try:
-        import numpy as np
-        from sklearn.linear_model import LinearRegression
-    except ImportError:
-        pytest.skip("scikit-learn or numpy not installed")
-
-    model = LinearRegression()
+    np = pytest.importorskip("numpy")
+    sklearn_lm = pytest.importorskip("sklearn.linear_model")
+    model = sklearn_lm.LinearRegression()
     x_train = np.array([[1], [2], [3]])
     y_train = np.array([1, 2, 3])
     model.fit(x_train, y_train)
@@ -524,52 +475,46 @@ def test_stdlib_with_reduce_is_at_most_suspicious(protocol: int) -> None:
 
 
 @pytest.mark.parametrize("protocol", ALL_PROTOCOLS)
-def test_builtins_range_is_flagged_as_malicious(protocol: int) -> None:
-    """Document: range() uses builtins module which fickling flags as malicious.
+def test_builtins_range_is_flagged(protocol: int) -> None:
+    """Document: range() is flagged because it imports from builtins.
 
-    This is a known limitation. The builtins module contains dangerous functions
-    like eval() and exec(), so fickling conservatively flags all builtins imports.
+    Protocols 0-2 use GLOBAL opcode -> LIKELY_OVERTLY_MALICIOUS.
+    Protocols 3-5 use STACK_GLOBAL with safe builtins allowlist -> SUSPICIOUS.
     """
     data = make_pickle(range(10), protocol)
     pickled = Pickled.load(data)
     result = check_safety(pickled)
-    # Document that range is flagged due to builtins
-    assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS, (
-        "Expected range to be flagged due to builtins import (known limitation)"
-    )
+    if protocol <= 2:
+        assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS, (
+            f"Expected LIKELY_OVERTLY_MALICIOUS at protocol {protocol}"
+        )
+    else:
+        assert result.severity >= Severity.SUSPICIOUS, f"Expected SUSPICIOUS at protocol {protocol}"
 
 
 @pytest.mark.parametrize("protocol", ALL_PROTOCOLS)
-def test_builtins_slice_is_flagged_as_malicious(protocol: int) -> None:
-    """Document: slice() uses builtins module which fickling flags as malicious.
+def test_builtins_slice_is_flagged(protocol: int) -> None:
+    """Document: slice() is flagged because it imports from builtins.
 
-    This is a known limitation. The builtins module contains dangerous functions
-    like eval() and exec(), so fickling conservatively flags all builtins imports.
+    Protocols 0-2 use GLOBAL opcode -> LIKELY_UNSAFE.
+    Protocols 3-5 use STACK_GLOBAL with safe builtins allowlist -> SUSPICIOUS.
     """
     data = make_pickle(slice(1, 10), protocol)
     pickled = Pickled.load(data)
     result = check_safety(pickled)
-    # Document that slice is flagged due to builtins
-    assert result.severity >= Severity.LIKELY_OVERTLY_MALICIOUS, (
-        "Expected slice to be flagged due to builtins import (known limitation)"
-    )
+    if protocol <= 2:
+        assert result.severity >= Severity.LIKELY_UNSAFE, (
+            f"Expected LIKELY_UNSAFE at protocol {protocol}"
+        )
+    else:
+        assert result.severity >= Severity.SUSPICIOUS, f"Expected SUSPICIOUS at protocol {protocol}"
 
 
 @pytest.mark.parametrize("protocol", [4, 5])
-def test_set_at_high_protocols_has_parsing_issues(protocol: int) -> None:
-    """Document: fickling has parsing issues with sets at high protocols.
-
-    Protocols 4-5 serialize sets using EMPTY_SET and ADDITEMS opcodes.
-    The fickling interpreter has a bug handling these opcodes, causing
-    an empty stack error during analysis.
-
-    This is a known limitation in fickling's interpreter.
-    """
+def test_set_at_high_protocols_is_safe(protocol: int) -> None:
+    """Sets at protocols 4-5 use EMPTY_SET/ADDITEMS and are safe."""
     data = make_pickle({1, 2, 3}, protocol)
-    pickled = Pickled.load(data)
-    # Document that this raises an IndexError due to interpreter bug
-    with pytest.raises(IndexError, match="empty stack"):
-        check_safety(pickled)
+    assert_likely_safe(data)
 
 
 @pytest.mark.parametrize("protocol", [4, 5])
