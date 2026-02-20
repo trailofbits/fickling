@@ -79,31 +79,36 @@ class ScanResult:
     def __init__(
         self,
         filepath: str,
-        is_safe: bool,
         severity: Severity,
         results: list[AnalysisResults],
         errors: list[str],
     ):
         self.filepath = filepath
-        self.is_safe = is_safe
         self.severity = severity
         self.results = results
         self.errors = errors
 
-    def __bool__(self):
-        return self.is_safe
+    @property
+    def is_safe(self) -> bool:
+        return self.severity <= Severity.LIKELY_SAFE
+
+    def __bool__(self) -> bool:
+        return self.is_safe and not self.errors
+
+    def __repr__(self) -> str:
+        return (
+            f"ScanResult(filepath={self.filepath!r}, "
+            f"severity={self.severity.name}, "
+            f"results={len(self.results)}, errors={len(self.errors)})"
+        )
 
 
 def scan_file(
     filepath: str,
-    graceful: bool = True,
+    graceful: bool = False,
     json_output_path: str | None = None,
 ) -> ScanResult:
-    """Scan a file for malicious pickle content with graceful error handling.
-
-    This function provides graceful degradation like picklescan - it will
-    continue scanning even if some parts of the file fail to parse, and
-    reports all issues found along with any errors encountered.
+    """Scan a file for malicious pickle content.
 
     Args:
         filepath: Path to the file to scan
@@ -112,63 +117,29 @@ def scan_file(
         json_output_path: Optional path to write JSON analysis results
 
     Returns:
-        ScanResult with is_safe, severity, results list, and errors list
+        ScanResult with severity, results list, and errors list
     """
-    results: list[AnalysisResults] = []
-    errors: list[str] = []
-    overall_severity = Severity.LIKELY_SAFE
-
     try:
         with open(filepath, "rb") as f:
-            stacked = StackedPickle.load(f, fail_on_decode_error=not graceful)
-
-        for pickled in stacked:
-            try:
-                result = check_safety(pickled, json_output_path=json_output_path)
-                results.append(result)
-                if result.severity > overall_severity:
-                    overall_severity = result.severity
-            except Exception as e:
-                if graceful:
-                    errors.append(f"Analysis error: {e!s}")
-                else:
-                    raise
-
-    except PickleDecodeError as e:
-        if graceful:
-            errors.append(f"Parse error: {e!s}")
-            # Parsing errors are suspicious
-            overall_severity = max(overall_severity, Severity.SUSPICIOUS)
-        else:
-            raise
-    except zipfile.BadZipFile as e:
-        if graceful:
-            errors.append(f"Bad ZIP file: {e!s}")
-            overall_severity = max(overall_severity, Severity.SUSPICIOUS)
-        else:
-            raise
+            data = f.read()
     except Exception as e:
         if graceful:
-            errors.append(f"Unexpected error: {e!s}")
-        else:
-            raise
-
-    is_safe = overall_severity <= Severity.LIKELY_SAFE
-    return ScanResult(
-        filepath=filepath,
-        is_safe=is_safe,
-        severity=overall_severity,
-        results=results,
-        errors=errors,
-    )
+            return ScanResult(
+                filepath=filepath,
+                severity=Severity.SUSPICIOUS,
+                results=[],
+                errors=[f"File error: {e!s}"],
+            )
+        raise
+    return _scan_bytes(filepath, data, graceful, json_output_path)
 
 
 def scan_archive(
     filepath: str,
-    graceful: bool = True,
+    graceful: bool = False,
     json_output_path: str | None = None,
 ) -> dict[str, ScanResult]:
-    """Scan a ZIP or 7z archive for malicious pickle content.
+    """Scan a ZIP archive for malicious pickle content.
 
     Scans each file within the archive that has a pickle-related extension
     (.pkl, .pickle, .bin, .pt, .pth).
@@ -186,7 +157,6 @@ def scan_archive(
     results: dict[str, ScanResult] = {}
     pickle_extensions = {".pkl", ".pickle", ".bin", ".pt", ".pth"}
 
-    # Try as ZIP file with relaxed CRC validation
     try:
         with RelaxedZipFile(filepath, "r") as archive:
             for info in archive.infolist():
@@ -198,15 +168,6 @@ def scan_archive(
 
                 try:
                     data = archive.read(info)
-                    if data is None:
-                        results[info.filename] = ScanResult(
-                            filepath=info.filename,
-                            is_safe=False,
-                            severity=Severity.SUSPICIOUS,
-                            results=[],
-                            errors=["CRC error or corrupted file"],
-                        )
-                        continue
                     results[info.filename] = _scan_bytes(
                         info.filename, data, graceful, json_output_path
                     )
@@ -214,7 +175,6 @@ def scan_archive(
                     if graceful:
                         results[info.filename] = ScanResult(
                             filepath=info.filename,
-                            is_safe=False,
                             severity=Severity.SUSPICIOUS,
                             results=[],
                             errors=[f"Error reading {info.filename}: {e!s}"],
@@ -226,7 +186,6 @@ def scan_archive(
             raise
         results["<archive>"] = ScanResult(
             filepath=filepath,
-            is_safe=False,
             severity=Severity.SUSPICIOUS,
             results=[],
             errors=[f"Bad ZIP file: {e!s}"],
@@ -257,6 +216,7 @@ def _scan_bytes(
             except Exception as e:
                 if graceful:
                     errors.append(f"Analysis error: {e!s}")
+                    overall_severity = max(overall_severity, Severity.LIKELY_UNSAFE)
                 else:
                     raise
     except PickleDecodeError as e:
@@ -268,13 +228,12 @@ def _scan_bytes(
     except Exception as e:
         if graceful:
             errors.append(f"Unexpected error: {e!s}")
+            overall_severity = max(overall_severity, Severity.SUSPICIOUS)
         else:
             raise
 
-    is_safe = overall_severity <= Severity.LIKELY_SAFE
     return ScanResult(
         filepath=name,
-        is_safe=is_safe,
         severity=overall_severity,
         results=results,
         errors=errors,

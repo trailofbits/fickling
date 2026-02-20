@@ -14,50 +14,18 @@ from fickling.fickle import Pickled, StackedPickle
 class RelaxedZipFile(zipfile.ZipFile):
     """A ZipFile subclass that ignores CRC validation errors.
 
-    This matches PyTorch's lenient ZIP parsing behavior and allows scanning
-    of potentially corrupted or modified archives. Like picklescan, this
-    provides graceful degradation for malformed files.
+    Matches PyTorch's lenient ZIP parsing behavior. Uses CPython's
+    internal _expected_crc attribute on ZipExtFile — guarded by hasattr
+    so it degrades to standard CRC-checked behavior if the attribute
+    is renamed in a future Python version.
     """
 
     def open(self, name, mode="r", pwd=None, *, force_zip64=False):
         """Open a member with CRC validation disabled."""
-        # Get the ZipInfo for this file
-        if isinstance(name, zipfile.ZipInfo):
-            zinfo = name
-        else:
-            zinfo = self.getinfo(name)
-
-        # Clear CRC to disable validation
-        original_crc = zinfo.CRC
-        zinfo.CRC = 0
-
-        try:
-            return super().open(name, mode, pwd, force_zip64=force_zip64)
-        finally:
-            # Restore original CRC for other operations
-            zinfo.CRC = original_crc
-
-    def read(self, name, pwd=None):
-        """Read a member with CRC validation disabled."""
-        # Get the ZipInfo for this file
-        if isinstance(name, zipfile.ZipInfo):
-            zinfo = name
-        else:
-            zinfo = self.getinfo(name)
-
-        # Clear CRC to disable validation
-        original_crc = zinfo.CRC
-        zinfo.CRC = 0
-
-        try:
-            return super().read(name, pwd)
-        except zipfile.BadZipFile:
-            # Even with CRC disabled, some corruptions may cause issues
-            # Return None to signal failure without crashing
-            return None
-        finally:
-            # Restore original CRC for other operations
-            zinfo.CRC = original_crc
+        f = super().open(name, mode, pwd, force_zip64=force_zip64)
+        if hasattr(f, "_expected_crc"):
+            f._expected_crc = None
+        return f
 
 
 """
