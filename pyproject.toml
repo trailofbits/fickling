@@ -65,6 +65,10 @@ Source = "https://github.com/trailofbits/fickling"
 
 # Black configuration removed - using ruff format instead
 
+[tool.pytest.ini_options]
+testpaths = ["test"]
+addopts = ["--cov=fickling"]
+
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints
 omit = ["fickling/__main__.py", "fickling/cli.py"]
