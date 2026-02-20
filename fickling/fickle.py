@@ -30,7 +30,7 @@ else:
     from collections.abc import Buffer
 
 
-@dataclass
+@dataclass(frozen=True)
 class InterpreterLimits:
     """Resource limits to prevent DoS attacks during pickle interpretation."""
 
@@ -39,8 +39,14 @@ class InterpreterLimits:
     max_memo_size: int = 100_000
     max_get_ratio: int = 50  # Maximum GETs per PUT threshold
 
+    def __post_init__(self) -> None:
+        for field_name in ("max_opcodes", "max_stack_depth", "max_memo_size", "max_get_ratio"):
+            value = getattr(self, field_name)
+            if value < 1:
+                raise ValueError(f"{field_name} must be positive, got {value}")
 
-# Default limits instance
+
+# Default limits instance (frozen, so safe as a global singleton)
 DEFAULT_INTERPRETER_LIMITS = InterpreterLimits()
 
 
@@ -937,7 +943,14 @@ on the Pickled object instead"""
     @property
     def ast(self) -> ast.Module:
         if self._ast is None:
-            self._ast = Interpreter.interpret(self)
+            try:
+                self._ast = Interpreter.interpret(self)
+            except ResourceExhaustionError:
+                sys.stderr.write(
+                    "Warning: resource limits exceeded during interpretation; "
+                    "returning empty AST to continue analysis\n"
+                )
+                self._ast = ast.Module(body=[], type_ignores=[])
         return self._ast
 
     @property
@@ -1103,9 +1116,9 @@ class Interpreter:
             self._module = ast.Module(list(self.module_body), type_ignores=[])
             raise StopIteration()
         self._opcode_count += 1
-        self._check_limits()
         self.stack.opcode = opcode
         opcode.run(self)
+        self._check_limits()
         return opcode
 
     def _check_limits(self) -> None:
@@ -1122,7 +1135,7 @@ class Interpreter:
         if self._put_count > 0:
             ratio = self._get_count / self._put_count
             if ratio > self.limits.max_get_ratio:
-                raise ExpansionAttackError("get_ratio", self.limits.max_get_ratio, int(ratio))
+                raise ExpansionAttackError(self.limits.max_get_ratio, round(ratio))
 
     def track_get(self) -> None:
         """Track a GET operation for DoS protection."""

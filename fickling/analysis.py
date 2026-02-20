@@ -54,6 +54,16 @@ class AnalysisContext:
                     trigger=f"{e.resource_type}: {e.actual}",
                 )
             ]
+        except (ValueError, IndexError, RecursionError) as e:
+            # Malformed pickle caused an interpretation error
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"The pickle file has malformed opcode sequences ({type(e).__name__}: {e}); "
+                    f"it is either corrupted or attempting to bypass the pickle security analysis",
+                    "InterpretationError",
+                )
+            ]
         if not results:
             self.results_by_analysis[type(analysis)].append(AnalysisResult(Severity.LIKELY_SAFE))
         else:
@@ -436,6 +446,17 @@ class ExpansionAttackAnalysis(Analysis):
                         trigger=f"GET/PUT ratio: {ratio:.1f}:1",
                     )
                 )
+        elif get_count > self.GET_PUT_RATIO_THRESHOLD:
+            # GETs with no PUTs is inherently malformed/malicious
+            findings.append(
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"GET operations ({get_count}) with no PUT operations detected; "
+                    f"this is indicative of a malformed or malicious pickle",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"GET count: {get_count}, PUT count: 0",
+                )
+            )
 
         # Check for excessive DUP operations
         if dup_count > self.DUP_COUNT_THRESHOLD:
@@ -449,11 +470,8 @@ class ExpansionAttackAnalysis(Analysis):
                 )
             )
 
-        # Combined indicators are more severe
-        if (findings and len(findings) > 1) or (
-            put_count > 0 and get_count / put_count > self.HIGH_GET_PUT_RATIO_THRESHOLD
-        ):
-            # Upgrade to LIKELY_UNSAFE if multiple indicators
+        # Multiple indicators together are more severe
+        if len(findings) > 1:
             for finding in findings:
                 if finding.severity < Severity.LIKELY_UNSAFE:
                     finding.severity = Severity.LIKELY_UNSAFE

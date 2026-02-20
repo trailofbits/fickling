@@ -30,6 +30,7 @@ class ResourceExhaustionError(Exception):
 
 
 class ExpansionAttackError(ResourceExhaustionError):
-    """Raised when exponential expansion attack is detected."""
+    """Raised when exponential expansion attack (Billion Laughs style) is detected."""
 
-    pass
+    def __init__(self, limit: int, actual: int):
+        super().__init__("get_ratio", limit, actual)

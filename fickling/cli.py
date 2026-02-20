@@ -6,6 +6,7 @@ from ast import unparse
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
+from .exception import ResourceExhaustionError
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
@@ -182,11 +183,19 @@ def main(argv: list[str] | None = None) -> int:
                 interpreter = fickle.Interpreter(
                     pickled, first_variable_id=var_id, result_variable=f"result{i}"
                 )
-                if args.trace:
-                    trace = tracing.Trace(interpreter)
-                    print(unparse(trace.run()))
-                else:
-                    print(unparse(interpreter.to_ast()))
+                try:
+                    if args.trace:
+                        trace = tracing.Trace(interpreter)
+                        print(unparse(trace.run()))
+                    else:
+                        print(unparse(interpreter.to_ast()))
+                except ResourceExhaustionError as e:
+                    sys.stderr.write(
+                        f"Error: {e}\n"
+                        "This pickle file may contain an expansion attack. "
+                        "Use --check-safety to analyze it.\n"
+                    )
+                    return 1
                 var_id = interpreter.next_variable_id
     else:
         pickled = fickle.Pickled(
