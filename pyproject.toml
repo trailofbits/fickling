@@ -49,7 +49,7 @@ test = [
   "torchvision >= 0.24.1",
 ]
 archive = [
-    "py7zr >= 0.20.0",  # For 7z archive support
+    "py7zr >= 1.1.0, != 1.1.2",  # For 7z archive support (1.1.2 yanked)
 ]
 dev = [
   "fickling[lint,test,torch,archive]",
