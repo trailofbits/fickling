@@ -101,12 +101,11 @@ Build payloads using fickling's opcode API (`op.Proto`, `op.ShortBinUnicode`, `o
 
 Actions are SHA-pinned with version comments. uv is used for dependency caching.
 
-## Vulnerability reporting
+## Vulnerability fixes
 
-- Every report must include a test case for `test/test_bypasses.py` with a GHSA/CVE link in a comment above the method.
-- Use `echo`/`print` for PoCs — no shells, no sensitive file reads, no remote scripts.
-- Keep impact descriptions brief (e.g., "module X is not blocklisted and enables code execution").
+See `SECURITY.md` for reporting policy. When implementing fixes:
+
+- Every fix needs a regression test in `test/test_bypasses.py` with the GHSA/CVE linked in a comment above the method.
 - Update **both** blocklists: `UNSAFE_IMPORTS` in `fickle.py` and the relevant dict in `analysis.py`. Match specific names (e.g., `_io.FileIO` not all of `_io`) to avoid false positives.
 - Import matching checks all components of dotted paths (`foo.bar.os` matches `os`).
 - **Out of scope:** `UnusedVariables` bypasses — this is an intentionally weak supplementary heuristic.
-- No suggested code fixes without human review.
