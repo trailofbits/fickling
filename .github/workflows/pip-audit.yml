@@ -32,7 +32,9 @@ jobs:
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
 
       - name: Install project
-        run: uv sync --no-dev
+        run: |
+          uv venv --seed
+          uv sync --no-dev
 
       - name: Run pip-audit
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
