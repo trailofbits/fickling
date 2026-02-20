@@ -616,6 +616,7 @@ class TestBypasses(TestCase):
             Severity.LIKELY_SAFE,
         )
 
+
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""
 
