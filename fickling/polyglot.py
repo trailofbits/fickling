@@ -5,6 +5,7 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import TypedDict
 
 import numpy.lib.format as npformat
 
@@ -153,7 +154,23 @@ def check_pickle(file, min_length=0):
             return False
 
 
-def find_file_properties(file_path, print_properties=False):
+class FileProperties(TypedDict):
+    is_torch_zip: bool
+    is_tar: bool
+    is_valid_pickle: bool
+    is_numpy: bool
+    is_numpy_pickle: bool
+    is_standard_zip: bool
+    is_standard_not_torch: bool
+    has_constants_pkl: bool
+    has_data_pkl: bool
+    has_version: bool
+    has_model_json: bool
+    has_attributes_pkl: bool
+    is_7z: bool
+
+
+def find_file_properties(file_path, print_properties=False) -> FileProperties:
     """For a more granular analysis, we separate property discovery and format identification"""
     properties = {}
     with open(file_path, "rb") as file:
