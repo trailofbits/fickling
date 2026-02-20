@@ -121,6 +121,36 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "idlelib",
         # Parser generators (code execution)
         "lib2to3",
+        # Network services (constructors bind/listen)
+        "socketserver",
+        "xmlrpc",
+        # Process/thread control
+        "signal",
+        "_signal",
+        "threading",
+        "_thread",
+        # Database/file creation
+        "sqlite3",
+        "_sqlite3",
+        # File reading/enumeration
+        "fileinput",
+        "glob",
+        # Code compilation (writes .pyc files)
+        "compileall",
+        "py_compile",
+        # Memory mapping
+        "mmap",
+        # I/O multiplexing (enables network operations)
+        "select",
+        "selectors",
+        # Logging (can open files and network sockets via handlers)
+        "logging",
+        "syslog",
+        # Archive manipulation (can create/extract files)
+        "tarfile",
+        "zipfile",
+        # Shelve (opens database files)
+        "shelve",
     ]
 )
 
