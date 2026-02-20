@@ -28,17 +28,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.10"
+      - name: Install uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
 
       - name: Install project
         run: |
-          python -m venv --upgrade-deps /tmp/pip-audit-env
-          source /tmp/pip-audit-env/bin/activate
-
-          python -m pip install .
+          uv python install 3.10
+          uv venv --python 3.10 /tmp/pip-audit-env
+          VIRTUAL_ENV=/tmp/pip-audit-env uv pip install .
 
 
       - name: Run pip-audit
