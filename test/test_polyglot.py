@@ -8,6 +8,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+import py7zr
 import torch
 import torchvision.models as models
 
@@ -111,6 +112,10 @@ class TestPolyglotModule(unittest.TestCase):
         archive.write(self.numpy_pickle, "pickle.npy")
         archive.close()
 
+        self.sevenz_numpy_pickle = tmppath / "test7z.anything"
+        with py7zr.SevenZipFile(self.sevenz_numpy_pickle, "w") as archive:
+            archive.write(self.numpy_pickle, "pickle.npy")
+
     def tearDown(self):
         self.tmpdir.cleanup()
 
@@ -153,6 +158,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": False,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_7z": False,
             "children": {
                 "pickle.npy": {
                     "is_torch_zip": False,
@@ -167,6 +173,7 @@ class TestPolyglotModule(unittest.TestCase):
                     "has_version": False,
                     "has_model_json": False,
                     "has_attributes_pkl": False,
+                    "is_7z": False,
                 }
             },
         }
@@ -187,6 +194,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_version": False,
             "has_model_json": False,
             "has_attributes_pkl": False,
+            "is_7z": False,
             "children": {
                 "pickle.npy": {
                     "is_torch_zip": False,
@@ -201,10 +209,70 @@ class TestPolyglotModule(unittest.TestCase):
                     "has_version": False,
                     "has_model_json": False,
                     "has_attributes_pkl": False,
+                    "is_7z": False,
                 }
             },
         }
         self.assertEqual(properties, proper_result)
+
+    def test_recursive_7z(self):
+        properties = polyglot.find_file_properties_recursively(self.sevenz_numpy_pickle)
+        proper_result = {
+            "is_torch_zip": False,
+            "is_tar": False,
+            "is_valid_pickle": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
+            "is_standard_zip": False,
+            "is_standard_not_torch": False,
+            "has_constants_pkl": False,
+            "has_data_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "is_7z": True,
+            "children": {
+                "pickle.npy": {
+                    "is_torch_zip": False,
+                    "is_tar": False,
+                    "is_valid_pickle": False,
+                    "is_numpy": True,
+                    "is_numpy_pickle": True,
+                    "is_standard_zip": False,
+                    "is_standard_not_torch": False,
+                    "has_constants_pkl": False,
+                    "has_data_pkl": False,
+                    "has_version": False,
+                    "has_model_json": False,
+                    "has_attributes_pkl": False,
+                    "is_7z": False,
+                }
+            },
+        }
+        self.assertEqual(properties, proper_result)
+
+    def test_7z_properties(self):
+        properties = polyglot.find_file_properties(self.sevenz_numpy_pickle)
+        proper_result = {
+            "is_torch_zip": False,
+            "is_tar": False,
+            "is_valid_pickle": False,
+            "is_standard_zip": False,
+            "is_standard_not_torch": False,
+            "has_constants_pkl": False,
+            "has_data_pkl": False,
+            "has_version": False,
+            "has_model_json": False,
+            "has_attributes_pkl": False,
+            "is_numpy": False,
+            "is_numpy_pickle": False,
+            "is_7z": True,
+        }
+        self.assertEqual(properties, proper_result)
+
+    def test_is_7z_file(self):
+        self.assertTrue(polyglot.is_7z_file(self.sevenz_numpy_pickle))
+        self.assertFalse(polyglot.is_7z_file(self.numpy_pickle))
 
     def test_numpy_non_pickle(self):
         properties = polyglot.find_file_properties(self.numpy_not_pickle)
@@ -221,6 +289,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": True,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -239,6 +308,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": True,
             "is_numpy_pickle": True,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -257,6 +327,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -275,6 +346,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -294,6 +366,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 
@@ -314,6 +387,7 @@ class TestPolyglotModule(unittest.TestCase):
             "has_attributes_pkl": False,
             "is_numpy": False,
             "is_numpy_pickle": False,
+            "is_7z": False,
         }
         self.assertEqual(properties, proper_result)
 

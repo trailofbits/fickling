@@ -47,9 +47,13 @@ test = [
   "numpy",
   "torch >= 2.1.0",
   "torchvision >= 0.24.1",
+  "fickling[archive]",
+]
+archive = [
+    "py7zr >= 1.1.0, != 1.1.2",  # For 7z archive support (1.1.2 yanked)
 ]
 dev = [
-  "fickling[lint,test,torch]",
+  "fickling[lint,test,torch,archive]",
   # For git hooks: install prek (brew install prek / pipx install prek), then run: prek install
 ]
 examples = ["numpy", "pytorchfi"]
