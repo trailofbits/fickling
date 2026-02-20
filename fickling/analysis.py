@@ -226,97 +226,10 @@ class NonStandardImports(Analysis):
 
 
 class UnsafeImportsML(Analysis):
+    # ML-specific unsafe modules only; general-purpose modules (os, subprocess,
+    # socket, pickle, etc.) are already covered by fickle.py's UNSAFE_IMPORTS
+    # frozenset and caught by the UnsafeImports analysis.
     UNSAFE_MODULES = {
-        # Builtins - direct code execution
-        "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
-        "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
-        "builtins": "This module contains dangerous functions that can execute arbitrary code.",
-        # System/process execution
-        "os": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "posix": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "nt": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "subprocess": (
-            "This module contains functions that can run arbitrary executables and "
-            "perform system operations."
-        ),
-        "sys": "This module can tamper with the python interpreter.",
-        "pty": "This module can spawn pseudo-terminals and execute shell commands.",
-        "commands": "Legacy module that can execute shell commands.",
-        "multiprocessing": "This module can spawn processes and execute arbitrary code.",
-        # Code execution/compilation
-        "code": "This module can compile and execute arbitrary code.",
-        "codeop": "This module can compile Python code.",
-        "runpy": "This module can run Python modules as scripts.",
-        "marshal": "This module can deserialize arbitrary code objects.",
-        # Import manipulation
-        "importlib": "This module can dynamically import and execute arbitrary modules.",
-        "pkgutil": "This module can manipulate package imports.",
-        "zipimport": "This module can import code from ZIP archives.",
-        # Profiling/debugging (can execute code)
-        "cProfile": "This module can execute code via profiling functions.",
-        "profile": "This module can execute code via profiling functions.",
-        "pdb": "This module can execute arbitrary Python code via debugger.",
-        "bdb": "This module can execute arbitrary Python code via debugger.",
-        "timeit": "This module can execute arbitrary code for timing.",
-        "trace": "This module can execute code while tracing.",
-        # Network - data exfiltration/download
-        "socket": (
-            "This module gives access to low-level socket interfaces and can initiate "
-            "dangerous network connections."
-        ),
-        "ssl": "This module can establish encrypted network connections for data exfiltration.",
-        "httplib": (
-            "This module can make HTTP requests for data exfiltration or downloading "
-            "malicious content."
-        ),
-        "http": (
-            "This module can make HTTP requests for data exfiltration or downloading "
-            "malicious content."
-        ),
-        "urllib": "This module can use HTTP to leak local data and download malicious files.",
-        "urllib2": "This module can use HTTP to leak local data and download malicious files.",
-        "requests": (
-            "This module can make HTTP requests for data exfiltration or downloading "
-            "malicious content."
-        ),
-        "aiohttp": "This module can make async HTTP requests for data exfiltration.",
-        "webbrowser": "This module can open arbitrary URLs in system browser.",
-        "smtplib": "This module can send emails for data exfiltration.",
-        "imaplib": "This module can access email servers.",
-        "ftplib": "This module can transfer files over FTP.",
-        "poplib": "This module can access email servers.",
-        "telnetlib": "This module can open network connections.",
-        "nntplib": "This module can access news servers.",
-        # FFI/native code
-        "ctypes": (
-            "This module provides C-compatible foreign function interface "
-            "for executing native code."
-        ),
-        "_ctypes": "This module provides low-level C foreign function interface.",
-        # Pickle recursion (nested pickle attacks)
-        "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        "dill": "This module can load and execute arbitrary code via pickle extension.",
-        "cloudpickle": "This module can serialize and deserialize arbitrary code.",
-        "joblib": "This module can deserialize arbitrary pickle payloads.",
-        # File system operations
-        "shutil": (
-            "This module contains functions that can perform system operations and "
-            "execute arbitrary code."
-        ),
-        "distutils": "This module can execute build/install commands.",
-        # Shell/terminal
-        "pydoc": "This module can run code via pydoc.pager.",
-        "pexpect": "This module can spawn and control child processes.",
-        # Virtual environments (can install packages)
-        "ensurepip": "This module can install pip and run package installation.",
-        "pip": "This module can install arbitrary packages from the internet.",
-        # NumPy dangerous modules
-        "numpy.f2py": "This module can compile and execute arbitrary Fortran/C code.",
-        "numpy.distutils": "This module can execute arbitrary build commands.",
-        # IDLE modules
-        "idlelib": "This module contains code execution capabilities.",
-        # Torch dangerous modules
         "torch.hub": (
             "This module can load untrusted files from the web, exposing the system to "
             "arbitrary code execution."
@@ -325,10 +238,15 @@ class UnsafeImportsML(Analysis):
         "torch._inductor": "This module can generate and execute compiled code.",
         "torch.jit": "This module can compile and execute arbitrary code.",
         "torch.compile": "This module can compile and execute arbitrary code.",
+        "numpy.f2py": "This module can compile and execute arbitrary Fortran/C code.",
+        "numpy.distutils": "This module can execute arbitrary build commands.",
     }
 
+    # ML-specific unsafe imports (function-level granularity); general-purpose
+    # modules are blocked at the module level by fickle.py's UNSAFE_IMPORTS.
+    # _io/io are kept here because blocking the entire io module would flag
+    # io.BytesIO which is ubiquitous in ML model loading.
     UNSAFE_IMPORTS = {
-        # Torch dangerous functions
         "torch": {
             "load": "This function can load untrusted files and code from arbitrary web sources.",
             "compile": "This function can compile and execute arbitrary code.",
@@ -351,27 +269,7 @@ class UnsafeImportsML(Analysis):
         "torch.distributed.elastic.rendezvous.api": {
             "basichandlers": "This can execute network handlers.",
         },
-        # Operator module - can be abused for attribute/item access chains
-        "operator": {
-            "getitem": "This function can lead to arbitrary code execution via attribute chains.",
-            "attrgetter": "This function can lead to arbitrary code execution via attribute access.",
-            "itemgetter": "This function can lead to arbitrary code execution via item access.",
-            "methodcaller": "This function can call arbitrary methods.",
-        },
-        "_operator": {
-            "getitem": "This function can lead to arbitrary code execution via attribute chains.",
-            "attrgetter": "This function can lead to arbitrary code execution via attribute access.",
-            "itemgetter": "This function can lead to arbitrary code execution via item access.",
-            "methodcaller": "This function can call arbitrary methods.",
-        },
-        # Types module - only specific dangerous types, not the whole module
-        "types": {
-            "CodeType": "This type can construct arbitrary code objects for execution.",
-            "FunctionType": "This type can construct executable function objects.",
-        },
-        # NumPy dangerous functions
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        # IO
         "_io": {
             "FileIO": "This class can read/write arbitrary files.",
             "open": "This function can open arbitrary files.",
@@ -379,17 +277,6 @@ class UnsafeImportsML(Analysis):
         "io": {
             "FileIO": "This class can read/write arbitrary files.",
             "open": "This function can open arbitrary files.",
-        },
-        # Asyncio - only specific dangerous functions, not the whole module
-        "asyncio": {
-            "run": "This function can run arbitrary coroutines.",
-            "create_subprocess_shell": "This function can execute shell commands.",
-            "create_subprocess_exec": "This function can execute arbitrary processes.",
-        },
-        # Doctest
-        "doctest": {
-            "debug_script": "This function can execute scripts for debugging.",
-            "run_docstring_examples": "This function can execute code in docstrings.",
         },
     }
 

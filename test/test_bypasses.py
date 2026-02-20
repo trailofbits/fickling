@@ -423,10 +423,9 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
-        # Should be flagged by both unsafe import checkers
+        # Caught by UnsafeImports (builtins are in fickle.py's UNSAFE_IMPORTS)
         detailed = res.detailed_results().get("AnalysisResult", {})
         self.assertIsNotNone(detailed.get("UnsafeImports"))
-        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
 
     def test_unsafe_builtin_eval_still_flagged(self):
         """Dangerous builtin eval must still be flagged."""
@@ -441,10 +440,9 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
-        # Should be flagged by both unsafe import checkers
+        # Caught by UnsafeImports (builtins are in fickle.py's UNSAFE_IMPORTS)
         detailed = res.detailed_results().get("AnalysisResult", {})
         self.assertIsNotNone(detailed.get("UnsafeImports"))
-        self.assertIsNotNone(detailed.get("UnsafeImportsML"))
 
     # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-955r-x9j8-7rhh
     def test_operator_methodcaller(self):
