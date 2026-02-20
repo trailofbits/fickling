@@ -32,13 +32,9 @@ jobs:
         uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
 
       - name: Install project
-        run: |
-          uv python install 3.10
-          uv venv --python 3.10 /tmp/pip-audit-env
-          VIRTUAL_ENV=/tmp/pip-audit-env uv pip install .
-
+        run: uv sync --no-dev
 
       - name: Run pip-audit
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
-          virtual-environment: /tmp/pip-audit-env
+          virtual-environment: .venv

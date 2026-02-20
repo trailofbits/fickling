@@ -48,11 +48,11 @@ clean:
 
 .PHONY: install
 install:
-	uv pip install -e .
+	uv sync --no-dev
 
 .PHONY: install-dev
 install-dev:
-	uv pip install -e ".[dev]"
+	uv sync --all-extras
 
 .PHONY: pre-commit-install
 pre-commit-install:
