@@ -2,7 +2,7 @@ import marshal
 from unittest import TestCase
 
 import fickling.fickle as op
-from fickling.analysis import Severity, check_safety
+from fickling.analysis import Severity, UnsafeImportsML, check_safety
 from fickling.fickle import Pickled
 
 
@@ -594,3 +594,51 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+
+class TestUnsafeModuleCoverage(TestCase):
+    """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""
+
+    def test_all_unsafe_modules_detected(self):
+        """Each module in UNSAFE_MODULES should be flagged as unsafe."""
+        from fickling.fickle import BUILTIN_MODULE_NAMES
+
+        for module in UnsafeImportsML.UNSAFE_MODULES:
+            with self.subTest(module=module):
+                func = "eval" if module in BUILTIN_MODULE_NAMES else "dangerous"
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.Global.create(module, func),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertGreater(
+                    res.severity,
+                    Severity.LIKELY_SAFE,
+                    f"{module}.{func} was not flagged as unsafe",
+                )
+
+    def test_all_unsafe_imports_detected(self):
+        """Each function in UNSAFE_IMPORTS should be flagged as unsafe."""
+        for module, funcs in UnsafeImportsML.UNSAFE_IMPORTS.items():
+            for func in funcs:
+                with self.subTest(module=module, func=func):
+                    pickled = Pickled(
+                        [
+                            op.Proto.create(4),
+                            op.Global.create(module, func),
+                            op.EmptyTuple(),
+                            op.Reduce(),
+                            op.Stop(),
+                        ]
+                    )
+                    res = check_safety(pickled)
+                    self.assertGreater(
+                        res.severity,
+                        Severity.LIKELY_SAFE,
+                        f"{module}.{func} was not flagged as unsafe",
+                    )

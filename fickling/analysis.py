@@ -345,9 +345,6 @@ class UnsafeImportsML(Analysis):
                 "pickle (such as Fickling's hooks) have been set properly"
             ),
         },
-        "torch.jit.unsupported_tensor_ops": {
-            "execWrapper": "This function wraps exec() for code execution.",
-        },
         "torch.utils._config_module": {
             "ConfigModule": "This class can load configuration which may execute code.",
         },
