@@ -10,6 +10,7 @@ from pathlib import Path
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
+from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
@@ -45,13 +46,14 @@ def _create_legacy_parser() -> ArgumentParser:
         default="-",
         help="file to analyze (default: stdin)",
     )
-    parser.add_argument(
+    options = parser.add_mutually_exclusive_group()
+    options.add_argument(
         "--check-safety",
         "-s",
         action="store_true",
         help="(legacy) run safety analysis - prefer 'fickling check FILE'",
     )
-    parser.add_argument(
+    options.add_argument(
         "--inject",
         "-i",
         type=str,
@@ -64,7 +66,7 @@ def _create_legacy_parser() -> ArgumentParser:
         default=0,
         help="index of stacked pickle to inject into (default: 0)",
     )
-    parser.add_argument(
+    options.add_argument(
         "--create",
         "-c",
         type=str,
@@ -194,11 +196,38 @@ def _create_command_parser() -> ArgumentParser:
     return parser
 
 
+# Flags that consume the next argument as a value
+_FLAGS_WITH_VALUES = {
+    "--inject",
+    "-i",
+    "--inject-target",
+    "--create",
+    "-c",
+    "--json-output",
+    "--code",
+    "--output",
+    "-o",
+    "--method",
+}
+
+
 def _get_first_positional(argv: list[str]) -> str | None:
-    """Get the first non-flag argument (potential command or file)."""
+    """Get the first non-flag argument (potential command or file).
+
+    Skips values consumed by flags like --inject <value> to avoid
+    misrouting when a flag value matches a command name.
+    """
+    skip_next = False
     for arg in argv[1:]:
-        if not arg.startswith("-"):
-            return arg
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in _FLAGS_WITH_VALUES:
+            skip_next = True
+            continue
+        if arg.startswith("-"):
+            continue
+        return arg
     return None
 
 
@@ -214,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"fickling version {__version__}")
             else:
                 print(__version__)
-            return 0
+            return EXIT_CLEAN
 
     # Determine if we're using a new command or legacy CLI
     first_positional = _get_first_positional(argv)
@@ -232,7 +261,7 @@ def main(argv: list[str] | None = None) -> int:
             return _handle_info(args)
         if args.command == "create-polyglot":
             return _handle_create_polyglot(args)
-        return 1
+        return EXIT_ERROR
 
     # Use legacy parser for backward compatibility
     parser = _create_legacy_parser()
@@ -245,7 +274,7 @@ def _handle_check(args) -> int:
     file_path = Path(args.file)
     if not file_path.exists():
         sys.stderr.write(f"Error: file not found: {args.file}\n")
-        return 1
+        return EXIT_ERROR
 
     json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
     print_results = getattr(args, "print_results", False)
@@ -292,17 +321,24 @@ def _handle_check(args) -> int:
                     "Do not unpickle this file if it is from an untrusted source!\n"
                 )
 
-        return 0 if was_safe else 1
+        return EXIT_CLEAN if was_safe else EXIT_UNSAFE
 
+    except fickle.PickleDecodeError as e:
+        sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
+        sys.stderr.write(
+            "Parsing errors might be indicative of a maliciously crafted pickle file. "
+            "DO NOT TRUST this file without performing further analysis!\n"
+        )
+        return EXIT_ERROR
     except FileNotFoundError as e:
         sys.stderr.write(f"Error: {e}\n")
-        return 1
+        return EXIT_ERROR
     except ValueError as e:
         sys.stderr.write(f"Error loading file: {e}\n")
-        return 1
-    except Exception as e:  # noqa: BLE001
-        sys.stderr.write(f"Error: {e}\n")
-        return 1
+        return EXIT_ERROR
+    except OSError as e:
+        sys.stderr.write(f"Error reading file: {e}\n")
+        return EXIT_ERROR
 
 
 def _handle_inject(args) -> int:
@@ -310,13 +346,13 @@ def _handle_inject(args) -> int:
     file_path = Path(args.file)
     if not file_path.exists():
         sys.stderr.write(f"Error: file not found: {args.file}\n")
-        return 1
+        return EXIT_ERROR
 
     output_path = Path(args.output)
     if output_path.exists() and not getattr(args, "overwrite", False):
         sys.stderr.write(f"Error: output file already exists: {args.output}\n")
         sys.stderr.write("Use --overwrite to replace it.\n")
-        return 1
+        return EXIT_ERROR
 
     try:
         from .loader import auto_load
@@ -327,7 +363,7 @@ def _handle_inject(args) -> int:
         # For PyTorch ZIP formats, use PyTorchModelWrapper for proper injection
         if format_name in ("PyTorch v1.3", "TorchScript v1.4", "TorchScript v1.3"):
             if not _check_torch_available():
-                return 1
+                return EXIT_ERROR
 
             from .pytorch import PyTorchModelWrapper
 
@@ -337,9 +373,17 @@ def _handle_inject(args) -> int:
             wrapper = PyTorchModelWrapper(file_path, force=True)
             wrapper.inject_payload(args.code, output_path, injection=method, overwrite=overwrite)
             print(f"Payload injected successfully. Output: {output_path}")
-            return 0
+            return EXIT_CLEAN
 
         # For plain pickle, use direct injection
+        inject_target = getattr(args, "inject_target", 0)
+        if inject_target >= len(stacked_pickled):
+            sys.stderr.write(
+                f"Error: --inject-target {inject_target} is too high; there are only "
+                f"{len(stacked_pickled)} stacked pickle files in the input\n"
+            )
+            return EXIT_ERROR
+
         if args.output == "-":
             buffer = (
                 sys.stdout.buffer
@@ -352,10 +396,6 @@ def _handle_inject(args) -> int:
             should_close = True
 
         try:
-            inject_target = getattr(args, "inject_target", 0)
-            if inject_target >= len(stacked_pickled):
-                inject_target = 0
-
             for pickled in stacked_pickled[:inject_target]:
                 pickled.dump(buffer)
 
@@ -371,20 +411,23 @@ def _handle_inject(args) -> int:
                 pickled.dump(buffer)
 
             print(f"Payload injected successfully. Output: {output_path}")
-            return 0
+            return EXIT_CLEAN
         finally:
             if should_close:
                 buffer.close()
 
+    except fickle.PickleDecodeError as e:
+        sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
+        return EXIT_ERROR
     except FileNotFoundError as e:
         sys.stderr.write(f"Error: {e}\n")
-        return 1
+        return EXIT_ERROR
     except ValueError as e:
         sys.stderr.write(f"Error: {e}\n")
-        return 1
-    except Exception as e:  # noqa: BLE001
-        sys.stderr.write(f"Error injecting payload: {e}\n")
-        return 1
+        return EXIT_ERROR
+    except OSError as e:
+        sys.stderr.write(f"Error: {e}\n")
+        return EXIT_ERROR
 
 
 def _handle_info(args) -> int:
@@ -392,7 +435,7 @@ def _handle_info(args) -> int:
     file_path = Path(args.file)
     if not file_path.exists():
         sys.stderr.write(f"Error: file not found: {args.file}\n")
-        return 1
+        return EXIT_ERROR
 
     # Try to use polyglot module for detailed analysis (requires torch)
     try:
@@ -401,7 +444,10 @@ def _handle_info(args) -> int:
             find_file_properties_recursively,
             identify_pytorch_file_format,
         )
+    except ImportError:
+        return _handle_info_basic(args, file_path)
 
+    try:
         formats = identify_pytorch_file_format(args.file, print_results=False)
         recursive = getattr(args, "recursive", False)
 
@@ -431,37 +477,38 @@ def _handle_info(args) -> int:
             print("\nProperties:")
             _print_properties(properties, indent=2)
 
-        return 0
+        return EXIT_CLEAN
 
-    except ImportError:
-        # torch not installed - provide basic info
-        try:
-            with open(file_path, "rb") as f:
-                stacked = fickle.StackedPickle.load(f, fail_on_decode_error=False)
-
-            if getattr(args, "json", False):
-                result = {
-                    "file": str(file_path),
-                    "formats": ["pickle"],
-                    "primary_format": "pickle",
-                    "is_polyglot": False,
-                    "pickle_count": len(stacked),
-                }
-                print(json.dumps(result, indent=2))
-            else:
-                print("Format: pickle")
-                print(f"Stacked pickles: {len(stacked)}")
-                print("\nNote: Install PyTorch for detailed format detection:")
-                print("  pip install fickling[torch]")
-
-            return 0
-        except Exception as e:  # noqa: BLE001
-            sys.stderr.write(f"Error reading file: {e}\n")
-            return 1
-
-    except Exception as e:  # noqa: BLE001
+    except (fickle.PickleDecodeError, ValueError, OSError) as e:
         sys.stderr.write(f"Error: {e}\n")
-        return 1
+        return EXIT_ERROR
+
+
+def _handle_info_basic(args, file_path: Path) -> int:
+    """Handle 'fickling info' without PyTorch (basic pickle info only)."""
+    try:
+        with open(file_path, "rb") as f:
+            stacked = fickle.StackedPickle.load(f, fail_on_decode_error=False)
+
+        if getattr(args, "json", False):
+            result = {
+                "file": str(file_path),
+                "formats": ["pickle"],
+                "primary_format": "pickle",
+                "is_polyglot": False,
+                "pickle_count": len(stacked),
+            }
+            print(json.dumps(result, indent=2))
+        else:
+            print("Format: pickle")
+            print(f"Stacked pickles: {len(stacked)}")
+            print("\nNote: Install PyTorch for detailed format detection:")
+            print("  pip install fickling[torch]")
+
+        return EXIT_CLEAN
+    except (fickle.PickleDecodeError, ValueError, OSError) as e:
+        sys.stderr.write(f"Error reading file: {e}\n")
+        return EXIT_ERROR
 
 
 def _print_properties(properties: dict, indent: int = 0) -> None:
@@ -483,7 +530,7 @@ def _print_properties(properties: dict, indent: int = 0) -> None:
 def _handle_create_polyglot(args) -> int:
     """Handle 'fickling create-polyglot FILE1 FILE2 -o OUT'."""
     if not _check_torch_available():
-        return 1
+        return EXIT_ERROR
 
     from .polyglot import create_polyglot
 
@@ -492,10 +539,10 @@ def _handle_create_polyglot(args) -> int:
 
     if not file1_path.exists():
         sys.stderr.write(f"Error: file not found: {args.file1}\n")
-        return 1
+        return EXIT_ERROR
     if not file2_path.exists():
         sys.stderr.write(f"Error: file not found: {args.file2}\n")
-        return 1
+        return EXIT_ERROR
 
     output_path = getattr(args, "output", None)
     quiet = getattr(args, "quiet", False)
@@ -506,58 +553,88 @@ def _handle_create_polyglot(args) -> int:
         )
 
         if success:
-            return 0
+            return EXIT_CLEAN
         if not quiet:
             sys.stderr.write("Failed to create polyglot. The file formats may not be compatible.\n")
-        return 1
-    except Exception as e:  # noqa: BLE001
+        return EXIT_ERROR
+    except (ValueError, OSError) as e:
         sys.stderr.write(f"Error creating polyglot: {e}\n")
-        return 1
+        return EXIT_ERROR
+
+
+def _open_input(file_arg: str):
+    """Open input file or return stdin buffer."""
+    if file_arg == "-":
+        if hasattr(sys.stdin, "buffer") and sys.stdin.buffer is not None:
+            return sys.stdin.buffer
+        return sys.stdin
+    return open(file_arg, "rb")
 
 
 def _handle_legacy(args) -> int:
     """Handle legacy CLI behavior (backward compatibility)."""
-    # Handle --check-safety flag
+    # Handle --check-safety flag (supports stdin via '-' default)
     if args.check_safety:
-        if args.file and args.file != "-":
-            # Create a fake args object for _handle_check
-            class CheckArgs:
-                pass
+        file = _open_input(args.file)
+        try:
+            stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
+        except fickle.PickleDecodeError as e:
+            sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
+            sys.stderr.write(
+                "Parsing errors might be indicative of a maliciously crafted "
+                "pickle file. DO NOT TRUST this file without performing "
+                "further analysis!\n"
+            )
+            return EXIT_ERROR
+        finally:
+            if file not in (sys.stdin, getattr(sys.stdin, "buffer", None)):
+                file.close()
 
-            check_args = CheckArgs()
-            check_args.file = args.file
-            check_args.json = False
-            check_args.json_output = args.json_output
-            check_args.print_results = args.print_results
-            return _handle_check(check_args)
-        sys.stderr.write("Error: file path required with --check-safety\n")
-        return 1
+        was_safe = True
+        json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
+        for pickled in stacked_pickled:
+            safety_results = check_safety(pickled, json_output_path=json_output_path)
+
+            if args.print_results:
+                print(safety_results.to_string())
+
+            if safety_results.severity > Severity.LIKELY_SAFE:
+                was_safe = False
+                if args.print_results:
+                    sys.stderr.write(
+                        "Warning: Fickling detected that the pickle file "
+                        "may be unsafe.\n\n"
+                        "Do not unpickle this file if it is from an "
+                        "untrusted source!\n\n"
+                    )
+
+        return EXIT_CLEAN if was_safe else EXIT_UNSAFE
 
     # Handle --inject flag
     if args.inject:
-        # For legacy inject, output goes to stdout
-        if args.file == "-":
-            file = sys.stdin.buffer if hasattr(sys.stdin, "buffer") else sys.stdin
-        else:
-            file = open(args.file, "rb")
+        file = _open_input(args.file)
 
         try:
             stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
         except fickle.PickleDecodeError as e:
             sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
-            return 1
+            return EXIT_ERROR
         finally:
-            if file not in (sys.stdin, sys.stdin.buffer):
+            if file not in (sys.stdin, getattr(sys.stdin, "buffer", None)):
                 file.close()
 
         if args.inject_target >= len(stacked_pickled):
             sys.stderr.write(
-                f"Error: --inject-target {args.inject_target} is too high; there are only "
-                f"{len(stacked_pickled)} stacked pickle files in the input\n"
+                f"Error: --inject-target {args.inject_target} is too high; "
+                f"there are only {len(stacked_pickled)} stacked pickle "
+                f"files in the input\n"
             )
-            return 1
+            return EXIT_ERROR
 
-        buffer = sys.stdout.buffer if hasattr(sys.stdout, "buffer") else sys.stdout
+        if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+            buffer = sys.stdout.buffer
+        else:
+            buffer = sys.stdout
 
         for pickled in stacked_pickled[: args.inject_target]:
             pickled.dump(buffer)
@@ -565,8 +642,9 @@ def _handle_legacy(args) -> int:
         pickled = stacked_pickled[args.inject_target]
         if not isinstance(pickled[-1], fickle.Stop):
             sys.stderr.write(
-                "Warning: The last opcode of the input file was expected to be STOP, but was "
-                f"in fact {pickled[-1].info.name}"
+                "Warning: The last opcode of the input file was expected "
+                "to be STOP, but was in fact "
+                f"{pickled[-1].info.name}"
             )
 
         pickled.insert_python_eval(
@@ -579,7 +657,7 @@ def _handle_legacy(args) -> int:
         for pickled in stacked_pickled[args.inject_target + 1 :]:
             pickled.dump(buffer)
 
-        return 0
+        return EXIT_CLEAN
 
     # Handle --create flag
     if args.create:
@@ -594,37 +672,39 @@ def _handle_legacy(args) -> int:
             ]
         )
         if args.file == "-":
-            file = sys.stdout.buffer if hasattr(sys.stdout, "buffer") else sys.stdout
+            if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+                file = sys.stdout.buffer
+            else:
+                file = sys.stdout
         else:
             file = open(args.file, "wb")
 
         try:
             pickled.dump(file)
         finally:
-            if file not in (sys.stdout, sys.stdout.buffer):
+            if file not in (sys.stdout, getattr(sys.stdout, "buffer", None)):
                 file.close()
 
-        return 0
+        return EXIT_CLEAN
 
     # Default: decompile the file
-    if args.file == "-":
-        file = sys.stdin.buffer if hasattr(sys.stdin, "buffer") else sys.stdin
-    else:
-        file = open(args.file, "rb")
+    file = _open_input(args.file)
 
     try:
         stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
     except fickle.PickleDecodeError as e:
         sys.stderr.write(f"Fickling failed to parse this pickle file. Error: {e!s}\n")
-        return 1
+        return EXIT_ERROR
     finally:
-        if file not in (sys.stdin, sys.stdin.buffer):
+        if file not in (sys.stdin, getattr(sys.stdin, "buffer", None)):
             file.close()
 
     var_id = 0
     for i, pickled in enumerate(stacked_pickled):
         interpreter = fickle.Interpreter(
-            pickled, first_variable_id=var_id, result_variable=f"result{i}"
+            pickled,
+            first_variable_id=var_id,
+            result_variable=f"result{i}",
         )
         if args.trace:
             trace = tracing.Trace(interpreter)
@@ -633,4 +713,4 @@ def _handle_legacy(args) -> int:
             print(unparse(interpreter.to_ast()))
         var_id = interpreter.next_variable_id
 
-    return 0
+    return EXIT_CLEAN

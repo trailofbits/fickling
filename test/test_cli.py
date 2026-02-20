@@ -10,10 +10,10 @@ from pathlib import Path
 from pickle import dumps
 from unittest import TestCase
 
-import torch
-import torchvision.models as models
+import pytest
 
-from fickling.cli import main
+from fickling.cli import _get_first_positional, main
+from fickling.constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 
 
 class TestCLIBackwardCompatibility(TestCase):
@@ -23,7 +23,6 @@ class TestCLIBackwardCompatibility(TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmppath = Path(self.tmpdir.name)
 
-        # Create a simple pickle file
         self.pickle_file = self.tmppath / "test.pkl"
         with open(self.pickle_file, "wb") as f:
             f.write(dumps({"test": "data"}))
@@ -32,37 +31,106 @@ class TestCLIBackwardCompatibility(TestCase):
         self.tmpdir.cleanup()
 
     def test_version_flag(self):
-        """Test --version flag."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", "--version"])
-        self.assertEqual(result, 0)
-        output = stdout.getvalue()
-        # Should contain version number
-        self.assertTrue(output.strip())
+        self.assertEqual(result, EXIT_CLEAN)
+        # isatty() is False for StringIO, so output is just the version number
+        output = stdout.getvalue().strip()
+        self.assertTrue(output)
+        self.assertRegex(output, r"^\d+\.\d+\.\d+")
+
+    def test_version_flag_short(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "-v"])
+        self.assertEqual(result, EXIT_CLEAN)
+        output = stdout.getvalue().strip()
+        self.assertTrue(output)
 
     def test_decompile_pickle(self):
-        """Test basic pickle decompilation."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", str(self.pickle_file)])
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
         output = stdout.getvalue()
-        # Should contain decompiled code
         self.assertIn("result", output)
+        self.assertIn("test", output)
 
     def test_check_safety_legacy_flag(self):
-        """Test --check-safety on a safe pickle file (legacy syntax)."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", "--check-safety", str(self.pickle_file)])
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
+
+    def test_check_safety_legacy_stdin(self):
+        """Legacy --check-safety supports stdin via default '-' file arg."""
+        # Verify the parser accepts --check-safety without a file argument
+        # (file defaults to "-" for stdin)
+        from fickling.cli import _create_legacy_parser
+
+        parser = _create_legacy_parser()
+        args = parser.parse_args(["--check-safety"])
+        self.assertTrue(args.check_safety)
+        self.assertEqual(args.file, "-")
+
+    def test_legacy_mutually_exclusive_flags(self):
+        """--inject, --check-safety, --create are mutually exclusive."""
+        with self.assertRaises(SystemExit):
+            main(
+                [
+                    "fickling",
+                    "--check-safety",
+                    "--inject",
+                    "code",
+                    str(self.pickle_file),
+                ]
+            )
 
     def test_help_flag(self):
-        """Test --help flag."""
         with self.assertRaises(SystemExit) as cm:
             main(["fickling", "--help"])
         self.assertEqual(cm.exception.code, 0)
+
+
+class TestGetFirstPositional(TestCase):
+    """Test the _get_first_positional routing function."""
+
+    def test_simple_command(self):
+        self.assertEqual(
+            _get_first_positional(["fickling", "check", "file.pkl"]),
+            "check",
+        )
+
+    def test_flag_value_not_misrouted(self):
+        """Flag values matching command names must not be treated as commands."""
+        self.assertEqual(
+            _get_first_positional(["fickling", "--inject", "check", "file.pkl"]),
+            "file.pkl",
+        )
+
+    def test_short_flag_value_not_misrouted(self):
+        self.assertEqual(
+            _get_first_positional(["fickling", "-i", "check", "file.pkl"]),
+            "file.pkl",
+        )
+
+    def test_no_positional(self):
+        self.assertIsNone(
+            _get_first_positional(["fickling", "--version"]),
+        )
+
+    def test_file_path_as_first_positional(self):
+        self.assertEqual(
+            _get_first_positional(["fickling", "file.pkl"]),
+            "file.pkl",
+        )
+
+    def test_create_flag_value_skipped(self):
+        self.assertEqual(
+            _get_first_positional(["fickling", "--create", "expr", "out.pkl"]),
+            "out.pkl",
+        )
 
 
 class TestCheckCommand(TestCase):
@@ -72,12 +140,63 @@ class TestCheckCommand(TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmppath = Path(self.tmpdir.name)
 
-        # Create a simple pickle file
         self.pickle_file = self.tmppath / "test.pkl"
         with open(self.pickle_file, "wb") as f:
             f.write(dumps({"test": "data"}))
 
-        # Create a PyTorch model file
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_check_pickle(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "check", str(self.pickle_file)])
+        self.assertEqual(result, EXIT_CLEAN)
+        output = stdout.getvalue()
+        self.assertIn("Detected format", output)
+        self.assertIn("pickle", output)
+        self.assertIn("No unsafe operations detected", output)
+
+    def test_check_json_output(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "check", "--json", str(self.pickle_file)])
+        self.assertEqual(result, EXIT_CLEAN)
+        data = json.loads(stdout.getvalue())
+        self.assertEqual(data["format"], "pickle")
+        self.assertTrue(data["safe"])
+        self.assertIn("severity", data)
+        self.assertIn("results", data)
+
+    def test_check_file_not_found(self):
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            result = main(["fickling", "check", "/nonexistent/file.pkl"])
+        self.assertEqual(result, EXIT_ERROR)
+        self.assertIn("file not found", stderr.getvalue())
+
+    def test_check_print_results(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "check", "--print-results", str(self.pickle_file)])
+        self.assertEqual(result, EXIT_CLEAN)
+
+
+class TestCheckCommandPyTorch(TestCase):
+    """Test 'fickling check' on PyTorch models (requires torch)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pytest.importorskip("torch")
+        pytest.importorskip("torchvision")
+
+    def setUp(self):
+        import torch
+        import torchvision.models as models
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmppath = Path(self.tmpdir.name)
+
         model = models.mobilenet_v2(weights=None)
         self.model_file = self.tmppath / "model.pth"
         torch.save(model, self.model_file)
@@ -85,47 +204,14 @@ class TestCheckCommand(TestCase):
     def tearDown(self):
         self.tmpdir.cleanup()
 
-    def test_check_pickle(self):
-        """Test 'fickling check' on a pickle file."""
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            result = main(["fickling", "check", str(self.pickle_file)])
-        self.assertEqual(result, 0)
-        output = stdout.getvalue()
-        self.assertIn("Detected format", output)
-        self.assertIn("pickle", output)
-
     def test_check_pytorch_model(self):
-        """Test 'fickling check' on a PyTorch model (auto-detection)."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", "check", str(self.model_file)])
-        # Result can be 0 (safe) or 1 (potentially unsafe) - just verify it runs
-        self.assertIn(result, [0, 1])
+        self.assertIn(result, [EXIT_CLEAN, EXIT_UNSAFE])
         output = stdout.getvalue()
         self.assertIn("Detected format", output)
         self.assertIn("PyTorch", output)
-
-    def test_check_json_output(self):
-        """Test 'fickling check --json'."""
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            result = main(["fickling", "check", "--json", str(self.pickle_file)])
-        self.assertEqual(result, 0)
-        output = stdout.getvalue()
-        # Should be valid JSON
-        data = json.loads(output)
-        self.assertIn("format", data)
-        self.assertIn("safe", data)
-        self.assertIn("severity", data)
-
-    def test_check_file_not_found(self):
-        """Test 'fickling check' with non-existent file."""
-        stderr = io.StringIO()
-        with redirect_stderr(stderr):
-            result = main(["fickling", "check", "/nonexistent/file.pkl"])
-        self.assertEqual(result, 1)
-        self.assertIn("file not found", stderr.getvalue())
 
 
 class TestInjectCommand(TestCase):
@@ -135,21 +221,14 @@ class TestInjectCommand(TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmppath = Path(self.tmpdir.name)
 
-        # Create a simple pickle file
         self.pickle_file = self.tmppath / "test.pkl"
         with open(self.pickle_file, "wb") as f:
             f.write(dumps({"test": "data"}))
-
-        # Create a PyTorch model file
-        model = models.mobilenet_v2(weights=None)
-        self.model_file = self.tmppath / "model.pth"
-        torch.save(model, self.model_file)
 
     def tearDown(self):
         self.tmpdir.cleanup()
 
     def test_inject_pickle(self):
-        """Test 'fickling inject' on a pickle file."""
         output_file = self.tmppath / "injected.pkl"
         stdout = io.StringIO()
         with redirect_stdout(stdout):
@@ -164,11 +243,78 @@ class TestInjectCommand(TestCase):
                     str(output_file),
                 ]
             )
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
         self.assertTrue(output_file.exists())
+        self.assertGreater(output_file.stat().st_size, 0)
+
+    def test_inject_missing_output(self):
+        with self.assertRaises(SystemExit):
+            main(["fickling", "inject", str(self.pickle_file), "-c", "code"])
+
+    def test_inject_missing_code(self):
+        with self.assertRaises(SystemExit):
+            main(["fickling", "inject", str(self.pickle_file), "-o", "out.pkl"])
+
+    def test_inject_file_not_found(self):
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            result = main(
+                [
+                    "fickling",
+                    "inject",
+                    "/nonexistent/file.pkl",
+                    "-c",
+                    "code",
+                    "-o",
+                    "out.pkl",
+                ]
+            )
+        self.assertEqual(result, EXIT_ERROR)
+        self.assertIn("file not found", stderr.getvalue())
+
+    def test_inject_output_exists_no_overwrite(self):
+        output_file = self.tmppath / "existing.pkl"
+        output_file.write_bytes(b"existing")
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            result = main(
+                [
+                    "fickling",
+                    "inject",
+                    str(self.pickle_file),
+                    "-c",
+                    "print('test')",
+                    "-o",
+                    str(output_file),
+                ]
+            )
+        self.assertEqual(result, EXIT_ERROR)
+        self.assertIn("already exists", stderr.getvalue())
+
+
+class TestInjectCommandPyTorch(TestCase):
+    """Test 'fickling inject' on PyTorch models (requires torch)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pytest.importorskip("torch")
+        pytest.importorskip("torchvision")
+
+    def setUp(self):
+        import torch
+        import torchvision.models as models
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmppath = Path(self.tmpdir.name)
+
+        model = models.mobilenet_v2(weights=None)
+        self.model_file = self.tmppath / "model.pth"
+        torch.save(model, self.model_file)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
 
     def test_inject_pytorch_model(self):
-        """Test 'fickling inject' on a PyTorch model."""
         output_file = self.tmppath / "injected.pth"
         stdout = io.StringIO()
         with redirect_stdout(stdout):
@@ -183,11 +329,10 @@ class TestInjectCommand(TestCase):
                     str(output_file),
                 ]
             )
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
         self.assertTrue(output_file.exists())
 
     def test_inject_pytorch_combination_method(self):
-        """Test 'fickling inject --method combination' on a PyTorch model."""
         output_file = self.tmppath / "injected_combo.pth"
         result = main(
             [
@@ -202,51 +347,55 @@ class TestInjectCommand(TestCase):
                 "combination",
             ]
         )
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
         self.assertTrue(output_file.exists())
-
-    def test_inject_missing_output(self):
-        """Test inject without required --output flag."""
-        with self.assertRaises(SystemExit):
-            main(["fickling", "inject", str(self.pickle_file), "-c", "code"])
-
-    def test_inject_missing_code(self):
-        """Test inject without required --code flag."""
-        with self.assertRaises(SystemExit):
-            main(["fickling", "inject", str(self.pickle_file), "-o", "out.pkl"])
-
-    def test_inject_file_not_found(self):
-        """Test inject with non-existent file."""
-        stderr = io.StringIO()
-        with redirect_stderr(stderr):
-            result = main(
-                [
-                    "fickling",
-                    "inject",
-                    "/nonexistent/file.pkl",
-                    "-c",
-                    "code",
-                    "-o",
-                    "out.pkl",
-                ]
-            )
-        self.assertEqual(result, 1)
-        self.assertIn("file not found", stderr.getvalue())
 
 
 class TestInfoCommand(TestCase):
-    """Test the 'fickling info' command."""
+    """Test 'fickling info' on plain pickle (no torch required)."""
 
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmppath = Path(self.tmpdir.name)
 
-        # Create a simple pickle file
         self.pickle_file = self.tmppath / "test.pkl"
         with open(self.pickle_file, "wb") as f:
             f.write(dumps({"test": "data"}))
 
-        # Create a PyTorch model file
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_info_pickle(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "info", str(self.pickle_file)])
+        self.assertEqual(result, EXIT_CLEAN)
+        output = stdout.getvalue()
+        self.assertIn("Format:", output)
+
+    def test_info_file_not_found(self):
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            result = main(["fickling", "info", "/nonexistent/file.pth"])
+        self.assertEqual(result, EXIT_ERROR)
+        self.assertIn("file not found", stderr.getvalue())
+
+
+class TestInfoCommandPyTorch(TestCase):
+    """Test 'fickling info' on PyTorch models (requires torch)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pytest.importorskip("torch")
+        pytest.importorskip("torchvision")
+
+    def setUp(self):
+        import torch
+        import torchvision.models as models
+
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmppath = Path(self.tmpdir.name)
+
         model = models.mobilenet_v2(weights=None)
         self.model_file = self.tmppath / "model.pth"
         torch.save(model, self.model_file)
@@ -254,55 +403,41 @@ class TestInfoCommand(TestCase):
     def tearDown(self):
         self.tmpdir.cleanup()
 
-    def test_info_pickle(self):
-        """Test 'fickling info' on a pickle file."""
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            result = main(["fickling", "info", str(self.pickle_file)])
-        self.assertEqual(result, 0)
-        output = stdout.getvalue()
-        self.assertIn("Format:", output)
-
     def test_info_pytorch_model(self):
-        """Test 'fickling info' on a PyTorch model."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", "info", str(self.model_file)])
-        self.assertEqual(result, 0)
+        self.assertEqual(result, EXIT_CLEAN)
         output = stdout.getvalue()
         self.assertIn("Format:", output)
         self.assertIn("PyTorch", output)
 
     def test_info_json_output(self):
-        """Test 'fickling info --json'."""
         stdout = io.StringIO()
         with redirect_stdout(stdout):
             result = main(["fickling", "info", "--json", str(self.model_file)])
-        self.assertEqual(result, 0)
-        output = stdout.getvalue()
-        # Should be valid JSON
-        data = json.loads(output)
+        self.assertEqual(result, EXIT_CLEAN)
+        data = json.loads(stdout.getvalue())
         self.assertIn("formats", data)
         self.assertIn("primary_format", data)
         self.assertIn("properties", data)
 
-    def test_info_file_not_found(self):
-        """Test info with non-existent file."""
-        stderr = io.StringIO()
-        with redirect_stderr(stderr):
-            result = main(["fickling", "info", "/nonexistent/file.pth"])
-        self.assertEqual(result, 1)
-        self.assertIn("file not found", stderr.getvalue())
-
 
 class TestCreatePolyglotCommand(TestCase):
-    """Test the 'fickling create-polyglot' command."""
+    """Test the 'fickling create-polyglot' command (requires torch)."""
+
+    @classmethod
+    def setUpClass(cls):
+        pytest.importorskip("torch")
+        pytest.importorskip("torchvision")
 
     def setUp(self):
+        import torch
+        import torchvision.models as models
+
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmppath = Path(self.tmpdir.name)
 
-        # Create a PyTorch model file
         model = models.mobilenet_v2(weights=None)
         self.model_file = self.tmppath / "model.pth"
         torch.save(model, self.model_file)
@@ -311,7 +446,6 @@ class TestCreatePolyglotCommand(TestCase):
         self.tmpdir.cleanup()
 
     def test_create_polyglot_file_not_found(self):
-        """Test create-polyglot with non-existent file."""
         stderr = io.StringIO()
         with redirect_stderr(stderr):
             result = main(
@@ -322,15 +456,92 @@ class TestCreatePolyglotCommand(TestCase):
                     str(self.model_file),
                 ]
             )
-        self.assertEqual(result, 1)
+        self.assertEqual(result, EXIT_ERROR)
         self.assertIn("file not found", stderr.getvalue())
+
+
+class TestAutoLoad(TestCase):
+    """Test the auto_load() format detection function."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmppath = Path(self.tmpdir.name)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_auto_load_pickle(self):
+        from fickling.loader import auto_load
+
+        pickle_file = self.tmppath / "test.pkl"
+        with open(pickle_file, "wb") as f:
+            f.write(dumps({"key": "value"}))
+
+        format_name, stacked = auto_load(pickle_file)
+        self.assertEqual(format_name, "pickle")
+        self.assertGreater(len(stacked), 0)
+
+    def test_auto_load_file_not_found(self):
+        from fickling.loader import auto_load
+
+        with self.assertRaises(FileNotFoundError):
+            auto_load(Path("/nonexistent/file.pkl"))
+
+    def test_auto_load_invalid_file(self):
+        from fickling.loader import auto_load
+
+        bad_file = self.tmppath / "bad.pkl"
+        bad_file.write_bytes(b"not a pickle at all")
+        with self.assertRaises(ValueError):
+            auto_load(bad_file)
+
+    def test_auto_load_string_path(self):
+        from fickling.loader import auto_load
+
+        pickle_file = self.tmppath / "test.pkl"
+        with open(pickle_file, "wb") as f:
+            f.write(dumps([1, 2, 3]))
+
+        format_name, stacked = auto_load(str(pickle_file))
+        self.assertEqual(format_name, "pickle")
+
+
+class TestCLIExitCodes(TestCase):
+    """Test that exit codes follow ClamAV convention."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.tmppath = Path(self.tmpdir.name)
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def test_safe_pickle_returns_exit_clean(self):
+        pickle_file = self.tmppath / "safe.pkl"
+        with open(pickle_file, "wb") as f:
+            f.write(dumps({"safe": True}))
+
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "check", str(pickle_file)])
+        self.assertEqual(result, EXIT_CLEAN)
+
+    def test_file_not_found_returns_exit_error(self):
+        stderr = io.StringIO()
+        with redirect_stderr(stderr):
+            result = main(["fickling", "check", "/nonexistent/file.pkl"])
+        self.assertEqual(result, EXIT_ERROR)
+
+    def test_version_returns_exit_clean(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            result = main(["fickling", "--version"])
+        self.assertEqual(result, EXIT_CLEAN)
 
 
 class TestCLIErrorHandling(TestCase):
     """Test CLI error handling."""
 
     def test_nonexistent_pickle_file(self):
-        """Test decompiling non-existent file raises FileNotFoundError."""
-        # The original CLI raises FileNotFoundError for non-existent files
         with self.assertRaises(FileNotFoundError):
             main(["fickling", "/nonexistent/file.pkl"])

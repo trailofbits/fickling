@@ -102,7 +102,11 @@ def auto_load(path: Path | str) -> tuple[str, StackedPickle]:
     # Try PyTorch ZIP formats first (most common for ML models)
     try:
         from fickling.polyglot import identify_pytorch_file_format
+    except ImportError:
+        # torch not installed, fall through to plain pickle handling
+        identify_pytorch_file_format = None
 
+    if identify_pytorch_file_format is not None:
         formats = identify_pytorch_file_format(path, print_results=False)
 
         if formats:
@@ -113,7 +117,6 @@ def auto_load(path: Path | str) -> tuple[str, StackedPickle]:
                 from fickling.pytorch import PyTorchModelWrapper
 
                 wrapper = PyTorchModelWrapper(path, force=True)
-                # Return as StackedPickle for consistency
                 return primary_format, StackedPickle([wrapper.pickled])
 
             # Handle legacy formats as plain pickle
@@ -122,14 +125,10 @@ def auto_load(path: Path | str) -> tuple[str, StackedPickle]:
                     stacked = StackedPickle.load(f, fail_on_decode_error=False)
                 return primary_format, stacked
 
-    except ImportError:
-        # torch not installed, fall through to plain pickle handling
-        pass
-
     # Fall back to plain pickle
     try:
         with open(path, "rb") as f:
             stacked = StackedPickle.load(f, fail_on_decode_error=False)
         return "pickle", stacked
-    except Exception as e:
+    except (OSError, ValueError) as e:
         raise ValueError(f"Unable to load file as pickle: {e}") from e
