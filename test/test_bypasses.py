@@ -593,6 +593,28 @@ class TestBypasses(TestCase):
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-mxhj-88fx-4pcv
+    def test_obj_pop_call_invisibility(self):
+        """OBJ opcode calls discarded by POP must remain visible to safety analysis."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.Mark(),
+                op.ShortBinUnicode("smtplib"),
+                op.ShortBinUnicode("SMTP"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("127.0.0.1"),
+                op.Obj(),
+                op.Pop(),
+                op.NoneOpcode(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(
+            res.severity,
+            Severity.LIKELY_SAFE,
+        )
 
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""
