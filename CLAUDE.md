@@ -103,30 +103,10 @@ Actions are SHA-pinned with version comments. uv is used for dependency caching.
 
 ## Vulnerability reporting
 
-### Include a minimal reproducing test case
-
-Every report must include a test case for `test/test_bypasses.py` following the existing pattern. Link the GHSA/CVE in a comment above the test method.
-
-### Use non-offensive payloads
-
-Use `echo` or `print` to demonstrate code execution. Do not spawn shells, read sensitive files, or execute remote scripts.
-
-### Keep the impact section minimal
-
-Do not write elaborate exploitation scenarios. A brief explanation is sufficient — e.g., "module X is not in the unsafe imports list and can be used for code execution."
-
-### Update both blocklists
-
-When adding dangerous modules, update `UNSAFE_IMPORTS` in `fickle.py` **and** the relevant dict in `analysis.py` (`UNSAFE_MODULES` or `UNSAFE_IMPORTS`). Match only specific dangerous names (e.g., `_io.FileIO` not all of `_io`) to avoid false positives.
-
-### Match all components of dotted module paths
-
-Import matching checks all components of the module path: `any(component in UNSAFE_IMPORTS for component in module.split("."))`. This prevents bypasses via re-exports like `foo.bar.os`.
-
-### Out of scope: UnusedVariables heuristic
-
-We are **not** interested in bypasses of the `UnusedVariables` analysis. This is an intentionally weak, supplementary heuristic. Bypassing it alone is not a meaningful finding.
-
-### No suggested fixes without human review
-
-Do not include suggested code fixes unless they have been reviewed and approved by a human operator first.
+- Every report must include a test case for `test/test_bypasses.py` with a GHSA/CVE link in a comment above the method.
+- Use `echo`/`print` for PoCs — no shells, no sensitive file reads, no remote scripts.
+- Keep impact descriptions brief (e.g., "module X is not blocklisted and enables code execution").
+- Update **both** blocklists: `UNSAFE_IMPORTS` in `fickle.py` and the relevant dict in `analysis.py`. Match specific names (e.g., `_io.FileIO` not all of `_io`) to avoid false positives.
+- Import matching checks all components of dotted paths (`foo.bar.os` matches `os`).
+- **Out of scope:** `UnusedVariables` bypasses — this is an intentionally weak supplementary heuristic.
+- No suggested code fixes without human review.
