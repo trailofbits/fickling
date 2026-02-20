@@ -1602,11 +1602,16 @@ class Obj(Opcode):
         else:
             raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         kls = args.pop(0)
-        # TODO Verify paths for correctness
         if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
-            interpreter.stack.append(ast.Call(kls, args, []))
+            call = ast.Call(kls, args, [])
         else:
-            interpreter.stack.append(ast.Call(kls, kls, []))
+            # No args and kls is a plain type: CPython does kls.__new__(kls)
+            call = ast.Call(ast.Attribute(kls, "__new__", ast.Load()), [kls], [])
+        # OBJ calls can have global side effects, just like REDUCE.
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
@@ -1673,10 +1678,17 @@ class NewObj(Opcode):
     def run(self, interpreter: Interpreter):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
+        # CPython's NEWOBJ calls cls.__new__(cls, *args), not cls(*args).
+        # __new__ is allocation only (no __init__ side effects).
+        func = ast.Attribute(class_type, "__new__", ast.Load())
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, list(args.elts), []))
+            call = ast.Call(func, [class_type, *list(args.elts)], [])
         else:
-            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], []))
+            call = ast.Call(func, [class_type, ast.Starred(args)], [])
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class NewObjEx(Opcode):
@@ -1686,10 +1698,16 @@ class NewObjEx(Opcode):
         kwargs = interpreter.stack.pop()
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
+        # CPython's NEWOBJ_EX calls cls.__new__(cls, *args, **kwargs), not cls(*args, **kwargs).
+        func = ast.Attribute(class_type, "__new__", ast.Load())
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, list(args.elts), kwargs))
+            call = ast.Call(func, [class_type, *list(args.elts)], kwargs)
         else:
-            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], kwargs))
+            call = ast.Call(func, [class_type, ast.Starred(args)], kwargs)
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class BinPersId(Opcode):
