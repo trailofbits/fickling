@@ -10,24 +10,6 @@ import numpy.lib.format as npformat
 
 from fickling.fickle import Pickled, StackedPickle
 
-
-class RelaxedZipFile(zipfile.ZipFile):
-    """A ZipFile subclass that ignores CRC validation errors.
-
-    Matches PyTorch's lenient ZIP parsing behavior. Uses CPython's
-    internal _expected_crc attribute on ZipExtFile — guarded by hasattr
-    so it degrades to standard CRC-checked behavior if the attribute
-    is renamed in a future Python version.
-    """
-
-    def open(self, name, mode="r", pwd=None, *, force_zip64=False):
-        """Open a member with CRC validation disabled."""
-        f = super().open(name, mode, pwd, force_zip64=force_zip64)
-        if hasattr(f, "_expected_crc"):
-            f._expected_crc = None
-        return f
-
-
 """
 PyTorch file format identification:
 

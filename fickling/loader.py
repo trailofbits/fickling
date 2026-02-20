@@ -1,10 +1,36 @@
 import pickle
+import warnings
 import zipfile
 from io import BytesIO
 
 from fickling.analysis import AnalysisResults, Severity, check_safety
 from fickling.exception import UnsafeFileError
 from fickling.fickle import Pickled, PickleDecodeError, StackedPickle
+
+
+class RelaxedZipFile(zipfile.ZipFile):
+    """A ZipFile subclass that ignores CRC validation errors.
+
+    Matches PyTorch's lenient ZIP parsing behavior. Uses CPython's
+    internal _expected_crc attribute on ZipExtFile — guarded by hasattr
+    so it degrades to standard CRC-checked behavior if the attribute
+    is renamed in a future Python version.
+    """
+
+    def open(self, name, mode="r", pwd=None, *, force_zip64=False):
+        """Open a member with CRC validation disabled."""
+        f = super().open(name, mode, pwd, force_zip64=force_zip64)
+        if hasattr(f, "_expected_crc"):
+            f._expected_crc = None
+        else:
+            warnings.warn(
+                "RelaxedZipFile: _expected_crc not found on ZipExtFile. "
+                "CRC validation is still enabled. This may cause failures "
+                "scanning PyTorch model files with CRC mismatches.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        return f
 
 
 def load(
@@ -128,7 +154,7 @@ def scan_file(
                 filepath=filepath,
                 severity=Severity.SUSPICIOUS,
                 results=[],
-                errors=[f"File error: {e!s}"],
+                errors=[f"File error ({type(e).__name__}): {e!s}"],
             )
         raise
     return _scan_bytes(filepath, data, graceful, json_output_path)
@@ -152,8 +178,6 @@ def scan_archive(
     Returns:
         Dict mapping archive member names to their ScanResults
     """
-    from fickling.polyglot import RelaxedZipFile
-
     results: dict[str, ScanResult] = {}
     pickle_extensions = {".pkl", ".pickle", ".bin", ".pt", ".pth"}
 
@@ -168,27 +192,28 @@ def scan_archive(
 
                 try:
                     data = archive.read(info)
-                    results[info.filename] = _scan_bytes(
-                        info.filename, data, graceful, json_output_path
-                    )
-                except Exception as e:
+                except (zipfile.BadZipFile, OSError) as e:
                     if graceful:
                         results[info.filename] = ScanResult(
                             filepath=info.filename,
                             severity=Severity.SUSPICIOUS,
                             results=[],
-                            errors=[f"Error reading {info.filename}: {e!s}"],
+                            errors=[f"Read error ({type(e).__name__}): {e!s}"],
                         )
-                    else:
-                        raise
-    except zipfile.BadZipFile as e:
+                        continue
+                    raise
+
+                results[info.filename] = _scan_bytes(
+                    info.filename, data, graceful, json_output_path
+                )
+    except (zipfile.BadZipFile, OSError) as e:
         if not graceful:
             raise
         results["<archive>"] = ScanResult(
             filepath=filepath,
             severity=Severity.SUSPICIOUS,
             results=[],
-            errors=[f"Bad ZIP file: {e!s}"],
+            errors=[f"Archive error ({type(e).__name__}): {e!s}"],
         )
 
     return results
@@ -215,20 +240,20 @@ def _scan_bytes(
                     overall_severity = result.severity
             except Exception as e:
                 if graceful:
-                    errors.append(f"Analysis error: {e!s}")
+                    errors.append(f"Analysis error ({type(e).__name__}): {e!s}")
                     overall_severity = max(overall_severity, Severity.LIKELY_UNSAFE)
                 else:
                     raise
     except PickleDecodeError as e:
         if graceful:
-            errors.append(f"Parse error: {e!s}")
+            errors.append(f"Parse error ({type(e).__name__}): {e!s}")
             overall_severity = max(overall_severity, Severity.SUSPICIOUS)
         else:
             raise
     except Exception as e:
         if graceful:
-            errors.append(f"Unexpected error: {e!s}")
-            overall_severity = max(overall_severity, Severity.SUSPICIOUS)
+            errors.append(f"Unexpected error ({type(e).__name__}): {e!s}")
+            overall_severity = max(overall_severity, Severity.LIKELY_UNSAFE)
         else:
             raise
 
