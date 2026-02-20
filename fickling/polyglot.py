@@ -14,6 +14,7 @@ from fickling.fickle import Pickled, StackedPickle
 try:
     import py7zr
     import py7zr.exceptions
+    from py7zr.io import BytesIOFactory
 
     HAS_7Z_SUPPORT = True
     _7Z_ARCHIVE_ERROR: type[BaseException] = py7zr.exceptions.ArchiveError
@@ -95,7 +96,7 @@ def check_and_find_in_7z(
 
     try:
         with py7zr.SevenZipFile(archive_path, mode="r") as archive:
-            names = archive.getnames()
+            names = [f.filename for f in archive.list() if not f.is_symlink]
             if not return_path:
                 if check_extension:
                     return any(entry.endswith(file_name_or_extension) for entry in names)
@@ -208,7 +209,7 @@ def find_file_properties(file_path, print_properties=False):
         properties.update(torch_zip_results)
 
     # Check for 7z archive (requires file path, not file handle)
-    is_7z = is_7z_file(file_path) if HAS_7Z_SUPPORT else False
+    is_7z = is_7z_file(file_path)
     properties["is_7z"] = is_7z
 
     if print_properties:
@@ -274,19 +275,24 @@ def find_file_properties_recursively(file_path, print_properties=False):
             properties["children"] = {}
         try:
             with py7zr.SevenZipFile(file_path, mode="r") as archive:
-                for fname, bio in archive.read().items():
-                    if bio is None:
-                        properties["children"][fname] = None
-                        continue
-                    _tempfile = tempfile.NamedTemporaryFile(delete=False)
-                    try:
-                        _tempfile.write(bio.read())
-                        _tempfile.close()
-                        properties["children"][fname] = find_file_properties_recursively(
-                            _tempfile.name, print_properties
-                        )
-                    finally:
-                        Path(_tempfile.name).unlink()
+                entries = archive.list()
+                targets = [e.filename for e in entries if e.is_file and not e.is_symlink]
+                if targets:
+                    max_size = max(e.uncompressed for e in entries if e.filename in set(targets))
+                    factory = BytesIOFactory(limit=max_size)
+                    archive.extract(targets=targets, factory=factory)
+                    for fname in targets:
+                        bio = factory.get(fname)
+                        bio.seek(0)
+                        _tempfile = tempfile.NamedTemporaryFile(delete=False)
+                        try:
+                            _tempfile.write(bio.read())
+                            _tempfile.close()
+                            properties["children"][fname] = find_file_properties_recursively(
+                                _tempfile.name, print_properties
+                            )
+                        finally:
+                            Path(_tempfile.name).unlink()
         except (OSError, _7Z_ARCHIVE_ERROR):
             # Graceful degradation on 7z errors
             pass
@@ -325,6 +331,13 @@ def check_if_model_archive_format(file, properties):
             file, ".pt", check_extension=True
         ) or check_and_find_in_zip(file, ".pth", check_extension=True)
         has_code = check_and_find_in_zip(file, ".py", check_extension=True)
+        return has_json and has_serialized_model and has_code
+    if properties.get("is_7z"):
+        has_json = check_and_find_in_7z(file, ".json", check_extension=True)
+        has_serialized_model = check_and_find_in_7z(
+            file, ".pt", check_extension=True
+        ) or check_and_find_in_7z(file, ".pth", check_extension=True)
+        has_code = check_and_find_in_7z(file, ".py", check_extension=True)
         return has_json and has_serialized_model and has_code
 
 
@@ -376,7 +389,7 @@ def identify_pytorch_file_format(file, print_properties=False, print_results=Fal
             formats.append("PyTorch v0.1.1")
     if properties["is_valid_pickle"]:
         formats.append("PyTorch v0.1.10")
-    if properties["is_standard_zip"]:
+    if properties["is_standard_zip"] or properties.get("is_7z"):
         is_model_archive_format = check_if_model_archive_format(file, properties)
         if is_model_archive_format:
             formats.append("PyTorch model archive format")
