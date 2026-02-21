@@ -30,11 +30,18 @@ fickling/
   exception.py   # Custom exceptions: WrongMethodError, InterpretationError, PickleDecodeError
 ```
 
+When in doubt about the behavior of a pickle opcode, cross-check fickling's implementation against CPython's upstream sources:
+- https://github.com/python/cpython/blob/main/Lib/pickle.py (pure-Python implementation)
+- https://github.com/python/cpython/blob/main/Modules/_pickle.c (C-accelerated implementation, used by default)
+- https://github.com/python/cpython/blob/main/Lib/pickletools.py (opcode definitions and documentation)
+
+Flag to the operator any obvious bugs in the upstream CPython parser or behavioral differentials between the pure-Python and C-accelerated implementations.
+
 ### Key design rules
 
 - **`check_safety()` is the primary API.** It returns an `AnalysisResult` with a `severity` field. Library code returns data; CLI code prints it.
 - **No stdout/stderr in library code.** Print statements, result formatting, and JSON output belong in `cli.py` only. If someone uses fickling programmatically, they get structured results, not console noise.
-- **Two parallel blocklists exist.** `UNSAFE_IMPORTS` in `fickle.py` (general) and `UNSAFE_MODULES`/`UNSAFE_IMPORTS` in `analysis.py` (ML-specific with descriptions). Both must be updated when adding dangerous modules.
+- **Two parallel blocklists exist.** `UNSAFE_IMPORTS` in `fickle.py` (general) and `UNSAFE_MODULES`/`UNSAFE_IMPORTS` in `analysis.py` (ML-specific with descriptions). Update the one that matches the kind of module being added: ML-specific libraries go in `analysis.py`, generic dangerous modules go in `fickle.py`.
 - **`fickling.load()` re-serializes before loading.** It calls `pickle.loads(pickled_data.dumps())` rather than `pickle.load(file)` to prevent TOCTOU race conditions where the file changes between analysis and load.
 - **Graceful degradation for optional deps.** Features gated on optional dependencies (torch, py7zr) must work when the dependency is missing. Check availability at import time, not at call time.
 
@@ -83,7 +90,7 @@ Build payloads using fickling's opcode API (`op.Proto`, `op.ShortBinUnicode`, `o
 ## Code style
 
 - **Formatter/linter:** ruff (line-length 100, double quotes, target py310)
-- **Type checker:** ty (CI runs with `continue-on-error` — 55 remaining errors being addressed incrementally)
+- **Type checker:** ty (CI runs with `continue-on-error`)
 - **Imports:** `import fickling.fickle as op` is the convention for opcode access in tests
 - **AST visitor methods** in `fickle.py` use `visit_*` naming (suppresses N802)
 - **Error handling:** Malformed pickles raise `InterpretationError` (subclass of `PickleDecodeError`), not `ValueError`. The `has_interpretation_error` flag on `Pickled` signals downstream analysis to report `LIKELY_UNSAFE`.
@@ -106,6 +113,7 @@ Actions are SHA-pinned with version comments. uv is used for dependency caching.
 See `SECURITY.md` for reporting policy. When implementing fixes:
 
 - Every fix needs a regression test in `test/test_bypasses.py` with the GHSA/CVE linked in a comment above the method.
-- Update **both** blocklists: `UNSAFE_IMPORTS` in `fickle.py` and the relevant dict in `analysis.py`. Match specific names (e.g., `_io.FileIO` not all of `_io`) to avoid false positives.
+- Update the appropriate blocklist: `UNSAFE_IMPORTS` in `fickle.py` for generic dangerous modules, or the relevant dict in `analysis.py` for ML-specific libraries. Match specific names whenever possible (e.g., `_io.FileIO` not all of `_io`) to avoid false positives.
 - Import matching checks all components of dotted paths (`foo.bar.os` matches `os`).
+- Do not include suggested code fixes in reports unless they have been reviewed and approved by a human operator first. If a fix is accepted, it will include a regression test in `test/test_bypasses.py` linked to the advisory.
 - **Out of scope:** `UnusedVariables` bypasses — this is an intentionally weak supplementary heuristic.
