@@ -33,7 +33,7 @@ make clean          # Remove build artifacts
 - Ruff for linting and formatting
 - Line length: 100 characters
 - Double quotes
-- Python 3.9+ syntax
+- Python 3.10+ syntax
 
 ## Project Structure
 
@@ -53,4 +53,4 @@ fickling/
 3. Run `make test lint`
 4. Create pull request
 
-CI runs tests on Python 3.9-3.13.
+CI runs tests on Python 3.10-3.14.

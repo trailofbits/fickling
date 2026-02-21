@@ -30,7 +30,7 @@ Both the library and command line utility can be installed through pip or uv:
 python -m pip install fickling
 
 # Using uv
-uv pip install fickling
+uv add fickling
 ```
 
 PyTorch is an optional dependency of Fickling. Therefore, in order to use Fickling's `pytorch`
@@ -41,7 +41,7 @@ and `polyglot` modules, you should run:
 python -m pip install fickling[torch]
 
 # Using uv
-uv pip install fickling[torch]
+uv add fickling[torch]
 ```
 
 ## Securing AI/ML environments

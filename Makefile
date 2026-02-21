@@ -16,7 +16,7 @@ dev:
 lint:
 	uv run ruff format --check $(ALL_PY_SRCS)
 	uv run ruff check $(PY_MODULE)
-	uv run mypy $(PY_MODULE)
+	uv run ty check $(PY_MODULE)
 
 .PHONY: format
 format:
@@ -34,7 +34,7 @@ test-quick:
 
 .PHONY: typecheck
 typecheck:
-	uv run mypy $(PY_MODULE)
+	uv run ty check $(PY_MODULE)
 
 .PHONY: dist
 dist:
@@ -42,17 +42,17 @@ dist:
 
 .PHONY: clean
 clean:
-	rm -rf dist/ build/ *.egg-info .coverage .pytest_cache .mypy_cache .ruff_cache
+	rm -rf dist/ build/ *.egg-info .coverage .pytest_cache .ty_cache .ruff_cache
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete
 
 .PHONY: install
 install:
-	uv pip install -e .
+	uv sync --no-dev
 
 .PHONY: install-dev
 install-dev:
-	uv pip install -e ".[dev]"
+	uv sync --all-extras
 
 .PHONY: pre-commit-install
 pre-commit-install:

@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.10.4,<0.11.0"]
+build-backend = "uv_build"
 
 [project]
 name = "fickling"
-dynamic = ["version"]
+version = "0.1.7"
 description = "A static analyzer and interpreter for Python pickle data"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -65,6 +65,10 @@ Source = "https://github.com/trailofbits/fickling"
 
 # Black configuration removed - using ruff format instead
 
+[tool.pytest.ini_options]
+testpaths = ["test"]
+addopts = ["--cov=fickling"]
+
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints
 omit = ["fickling/__main__.py", "fickling/cli.py"]
@@ -74,11 +78,9 @@ omit = ["fickling/__main__.py", "fickling/cli.py"]
 # Most mypy options don't have direct equivalents yet
 # See: https://docs.astral.sh/ty/configuration/
 
-[tool.hatch.version]
-path = "fickling/__init__.py"
-
-[tool.hatch.build.targets.sdist]
-exclude = [
+[tool.uv.build-backend]
+module-root = ""
+source-exclude = [
   "/.github",
   "/test",
   "/example",
@@ -87,9 +89,6 @@ exclude = [
   "/Makefile",
   "/.pre-commit-config.yaml",
 ]
-
-[tool.hatch.build.targets.wheel]
-packages = ["fickling"]
 
 [tool.ruff]
 line-length = 100

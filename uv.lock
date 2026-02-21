@@ -427,6 +427,7 @@ wheels = [
 
 [[package]]
 name = "fickling"
+version = "0.1.7"
 source = { editable = "." }
 
 [package.optional-dependencies]
@@ -475,37 +476,23 @@ torch = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coverage", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'test'", specifier = ">=7.0.0" },
-    { name = "numpy", marker = "python_full_version == '3.10.*' and extra == 'dev'", specifier = ">=2.2.6,<2.3" },
-    { name = "numpy", marker = "python_full_version == '3.10.*' and extra == 'test'", specifier = ">=2.2.6,<2.3" },
+    { name = "fickling", extras = ["lint", "test", "torch", "archive"], marker = "extra == 'dev'" },
+    { name = "fickling", extras = ["torch", "archive"], marker = "extra == 'test'" },
     { name = "numpy", marker = "python_full_version == '3.10.*' and extra == 'torch'", specifier = ">=2.2.6,<2.3" },
-    { name = "numpy", marker = "python_full_version >= '3.11' and extra == 'dev'", specifier = ">=2.3.5" },
-    { name = "numpy", marker = "python_full_version >= '3.11' and extra == 'test'", specifier = ">=2.3.5" },
     { name = "numpy", marker = "python_full_version >= '3.11' and extra == 'torch'", specifier = ">=2.3.5" },
     { name = "numpy", marker = "extra == 'examples'" },
     { name = "py7zr", marker = "extra == 'archive'", specifier = ">=1.1.0,!=1.1.2" },
-    { name = "py7zr", marker = "extra == 'dev'", specifier = ">=1.1.0,!=1.1.2" },
-    { name = "py7zr", marker = "extra == 'test'", specifier = ">=1.1.0,!=1.1.2" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=5.0.0" },
     { name = "pytorchfi", marker = "extra == 'examples'" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
     { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.8.0" },
-    { name = "torch", marker = "extra == 'dev'", specifier = ">=2.1.0" },
-    { name = "torch", marker = "extra == 'test'", specifier = ">=2.1.0" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.1.0" },
-    { name = "torchvision", marker = "extra == 'dev'", specifier = ">=0.24.1" },
-    { name = "torchvision", marker = "extra == 'test'", specifier = ">=0.24.1" },
     { name = "torchvision", marker = "extra == 'torch'", specifier = ">=0.24.1" },
-    { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.12" },
     { name = "ty", marker = "extra == 'lint'", specifier = ">=0.0.12" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12' and extra == 'dev'" },
     { name = "typing-extensions", marker = "python_full_version < '3.12' and extra == 'lint'" },
 ]
-provides-extras = ["archive", "dev", "examples", "lint", "test", "torch"]
+provides-extras = ["torch", "lint", "test", "archive", "dev", "examples"]
 
 [[package]]
 name = "filelock"

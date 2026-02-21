@@ -8,4 +8,6 @@ from .constants import EXIT_CLEAN, EXIT_UNSAFE, EXIT_ERROR  # noqa - ClamAV-comp
 
 # The above lines enables `fickling.load()`, `fickling.loads()` and `with fickling.check_safety()`
 # The comments are necessary to comply with linters
-__version__ = "0.1.8"
+from importlib.metadata import version
+
+__version__ = version("fickling")
