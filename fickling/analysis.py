@@ -226,48 +226,58 @@ class NonStandardImports(Analysis):
 
 
 class UnsafeImportsML(Analysis):
+    # ML-specific unsafe modules only; general-purpose modules (os, subprocess,
+    # socket, pickle, etc.) are already covered by fickle.py's UNSAFE_IMPORTS
+    # frozenset and caught by the UnsafeImports analysis.
     UNSAFE_MODULES = {
-        "__builtin__": "This module contains dangerous functions that can execute arbitrary code.",
-        "__builtins__": "This module contains dangerous functions that can execute arbitrary code.",
-        "builtins": "This module contains dangerous functions that can execute arbitrary code.",
-        "os": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "posix": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "nt": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "subprocess": "This module contains functions that can run arbitrary executables and perform system operations.",
-        "sys": "This module can tamper with the python interpreter.",
-        "socket": "This module gives access to low-level socket interfaces and can initiate dangerous network connections.",
-        "shutil": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "urllib": "This module can use HTTP to leak local data and download malicious files.",
-        "urllib2": "This module can use HTTP to leak local data and download malicious files.",
-        "torch.hub": "This module can load untrusted files from the web, exposing the system to arbitrary code execution.",
-        "torch._dynamo": "This module can compile and execute arbitrary code through dynamic compilation.",
-        "torch._inductor": "This module can compile and execute arbitrary native code.",
-        "torch.jit": "This module can compile and execute arbitrary code through JIT compilation.",
-        "torch.compile": "This module can compile and execute arbitrary code through dynamic compilation.",
+        "torch.hub": (
+            "This module can load untrusted files from the web, exposing the system to "
+            "arbitrary code execution."
+        ),
+        "torch._dynamo": "This module can compile and execute arbitrary code via JIT.",
+        "torch._inductor": "This module can generate and execute compiled code.",
+        "torch.jit": "This module can compile and execute arbitrary code.",
+        "torch.compile": "This module can compile and execute arbitrary code.",
         "numpy.f2py": "This module can compile and execute arbitrary Fortran/C code.",
         "numpy.distutils": "This module can execute arbitrary build commands.",
-        "dill": "This module can load and execute arbitrary code.",
-        "code": "This module can compile and execute arbitrary code.",
-        "pty": "This module contains functions that can perform system operations and execute arbitrary code.",
-        "pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
-        "_pickle": "This module can deserialize and execute arbitrary code through nested unpickling.",
     }
 
+    # ML-specific unsafe imports (function-level granularity); general-purpose
+    # modules are blocked at the module level by fickle.py's UNSAFE_IMPORTS.
+    # _io/io are kept here because blocking the entire io module would flag
+    # io.BytesIO which is ubiquitous in ML model loading.
     UNSAFE_IMPORTS = {
         "torch": {
-            "load": "This function can load untrusted files and code from arbitrary web sources."
+            "load": "This function can load untrusted files and code from arbitrary web sources.",
+            "compile": "This function can compile and execute arbitrary code.",
         },
         "torch.storage": {
-            "_load_from_bytes": "This function calls `torch.load()` which is unsafe as using a string argument would "
-            "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-            "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-            "a remote URL. However, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
-            "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
-            "So this import is safe only if restrictions on pickle (such as Fickling's hooks) have been set properly",
+            "_load_from_bytes": (
+                "This function calls `torch.load()` which is unsafe as using a string argument "
+                "would allow to load and execute arbitrary code hosted on the internet. However, "
+                "in this case, the argument is explicitly converted to `io.bytesIO` and hence "
+                "treated as a bytestream and not as a remote URL. However, a malicious file can "
+                "supply a pickle opcode bytestring as argument to this function to cause the "
+                "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary "
+                "code through nested pickle calls. So this import is safe only if restrictions on "
+                "pickle (such as Fickling's hooks) have been set properly"
+            ),
+        },
+        "torch.utils._config_module": {
+            "ConfigModule": "This class can load configuration which may execute code.",
+        },
+        "torch.distributed.elastic.rendezvous.api": {
+            "basichandlers": "This can execute network handlers.",
         },
         "numpy.testing._private.utils": {"runstring": "This function can execute arbitrary code."},
-        "_io": {"FileIO": "This class can read/write arbitrary files."},
-        "io": {"FileIO": "This class can read/write arbitrary files."},
+        "_io": {
+            "FileIO": "This class can read/write arbitrary files.",
+            "open": "This function can open arbitrary files.",
+        },
+        "io": {
+            "FileIO": "This class can read/write arbitrary files.",
+            "open": "This function can open arbitrary files.",
+        },
     }
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
