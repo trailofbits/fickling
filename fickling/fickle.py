@@ -40,25 +40,183 @@ OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in 
 
 UNSAFE_IMPORTS: frozenset[str] = frozenset(
     [
+        # Builtins - can execute arbitrary code
         "__builtin__",
         "__builtins__",
         "builtins",
+        # System/process execution
         "os",
         "posix",
         "nt",
         "subprocess",
         "sys",
-        "socket",
         "pty",
+        "commands",  # Legacy Python 2 module
+        "multiprocessing",
+        # Code execution/compilation
+        "code",
+        "codeop",
+        "runpy",
         "marshal",
         "types",
-        "runpy",
-        "cProfile",
-        "ctypes",
-        "pydoc",
+        "compile",
+        "exec",
+        "eval",
+        # Import manipulation
         "importlib",
-        "code",
-        "multiprocessing",
+        "pkgutil",
+        "zipimport",
+        # Operator module bypasses
+        "_operator",
+        "operator",
+        "functools",
+        # Profiling/debugging (can execute code)
+        "cProfile",
+        "profile",
+        "pdb",
+        "bdb",
+        "timeit",
+        "trace",
+        # Network - data exfiltration/download
+        "socket",
+        "ssl",
+        "httplib",
+        "http",
+        "urllib",
+        "urllib2",
+        "requests",
+        "aiohttp",
+        "asyncio",  # Can run arbitrary coroutines
+        "webbrowser",  # Can open arbitrary URLs
+        "smtplib",
+        "imaplib",
+        "ftplib",
+        "poplib",
+        "telnetlib",
+        "nntplib",
+        # FFI/native code execution
+        "ctypes",
+        "_ctypes",
+        # Pickle recursion (nested pickle attacks)
+        "pickle",
+        "_pickle",
+        "dill",
+        "cloudpickle",
+        "joblib",
+        # File system operations
+        "shutil",
+        "tempfile",
+        "filecmp",
+        "distutils",
+        # Shell/terminal
+        "pydoc",  # Can run code via pydoc.pager
+        "pexpect",
+        # Virtual environments (can install packages)
+        "venv",
+        "ensurepip",
+        "pip",
+        # Documentation testing (can run code)
+        "doctest",
+        # IDLE modules (code execution)
+        "idlelib",
+        # Parser generators (code execution)
+        "lib2to3",
+        # Network services (constructors bind/listen)
+        "socketserver",
+        "xmlrpc",
+        # Process/thread control
+        "signal",
+        "_signal",
+        "threading",
+        "_thread",
+        # Database/file creation
+        "sqlite3",
+        "_sqlite3",
+        # File reading/enumeration
+        "fileinput",
+        "glob",
+        # Code compilation (writes .pyc files)
+        "compileall",
+        "py_compile",
+        # Memory mapping
+        "mmap",
+        # I/O multiplexing (enables network operations)
+        "select",
+        "selectors",
+        # Logging (can open files and network sockets via handlers)
+        "logging",
+        "syslog",
+        # Archive manipulation (can create/extract files)
+        "tarfile",
+        "zipfile",
+        # Shelve (opens database files)
+        "shelve",
+    ]
+)
+
+BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(["builtins", "__builtins__", "__builtin__"])
+
+# Builtins that are safe to import - pure functions and type constructors
+# that cannot be used for code execution or system access.
+# Dangerous builtins NOT in this list (and thus blocked):
+# - eval, exec, compile: direct code execution
+# - open: file system access
+# - __import__, __loader__, __spec__: import machinery
+# - getattr, setattr, delattr, hasattr: attribute access (can call any method)
+# - globals, locals, vars: namespace access
+# - input: user input (could be abused)
+# - breakpoint: debugger access
+# - memoryview: low-level memory access
+SAFE_BUILTINS: frozenset[str] = frozenset(
+    [
+        # Type constructors (create data, cannot execute code)
+        "bool",
+        "int",
+        "float",
+        "complex",
+        "str",
+        "bytes",
+        "bytearray",
+        "list",
+        "tuple",
+        "set",
+        "frozenset",
+        "dict",
+        # Pure functions (no side effects, no code execution)
+        "len",
+        "abs",
+        "sum",
+        "min",
+        "max",
+        "round",
+        "pow",
+        "divmod",
+        "sorted",
+        "reversed",
+        "enumerate",
+        "zip",
+        "range",
+        "map",
+        "filter",
+        "slice",
+        "iter",
+        "next",
+        "all",
+        "any",
+        "hash",
+        "id",
+        "repr",
+        "ascii",
+        "bin",
+        "hex",
+        "oct",
+        "ord",
+        "chr",
+        "isinstance",
+        "issubclass",
+        "object",
+        "callable",
+        "format",
     ]
 )
 
@@ -407,7 +565,9 @@ class StackSliceOpcode(Opcode):
             args = []
             while True:
                 if not interpreter.stack:
-                    raise ValueError("Exhausted the stack while searching for a MarkObject!")
+                    raise InterpretationError(
+                        "Exhausted the stack while searching for a MarkObject!"
+                    )
                 obj = interpreter.stack.pop()
                 if isinstance(obj, MarkObject):
                     break
@@ -426,6 +586,19 @@ class ASTProperties(ast.NodeVisitor):
         self.calls: list[ast.Call] = []
         self.non_setstate_calls: list[ast.Call] = []
         self.likely_safe_imports: set[str] = set()
+        self._visited: set[int] = set()  # Track visited nodes by id to detect cycles
+
+    def visit(self, node: ast.AST) -> Any:
+        """Override visit to detect and skip cycles in the AST.
+
+        Pickle files can create cyclic AST structures via MEMOIZE + GET opcodes.
+        Without cycle detection, visiting such structures causes infinite recursion.
+        """
+        node_id = id(node)
+        if node_id in self._visited:
+            return None  # Skip already-visited nodes
+        self._visited.add(node_id)
+        return super().visit(node)
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
@@ -456,6 +629,12 @@ class EmptyPickleError(PickleDecodeError):
     pass
 
 
+class InterpretationError(PickleDecodeError):
+    """Raised when pickle interpretation fails due to malformed opcode sequences."""
+
+    pass
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode], has_invalid_opcode: bool = False):
         self._opcodes: list[Opcode] = list(opcodes)
@@ -464,6 +643,9 @@ class Pickled(OpcodeSequence):
         # Whether the pickled sequence was interrupted because of
         # an invalid opcode
         self._has_invalid_opcode: bool = has_invalid_opcode
+        # Whether the pickle contains cyclic references
+        self._has_cycles: bool = False
+        self._has_interpretation_error: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -780,6 +962,11 @@ class Pickled(OpcodeSequence):
     def has_invalid_opcode(self) -> bool:
         return self._has_invalid_opcode
 
+    @property
+    def has_interpretation_error(self) -> bool:
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_interpretation_error
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, bytes | bytearray | Buffer):
@@ -922,8 +1109,24 @@ on the Pickled object instead"""
     @property
     def ast(self) -> ast.Module:
         if self._ast is None:
-            self._ast = Interpreter.interpret(self)
+            try:
+                interpreter = Interpreter(self)
+                self._ast = interpreter.to_ast()
+                self._has_cycles = interpreter._has_cycle
+            except InterpretationError as e:
+                self._has_interpretation_error = True
+                sys.stderr.write(
+                    f"Warning: malformed pickle file. {e!s}; "
+                    f"returning empty AST to continue analysis\n"
+                )
+                self._ast = ast.Module(body=[], type_ignores=[])
         return self._ast
+
+    @property
+    def has_cycles(self) -> bool:
+        """Check if the pickle contains cyclic references."""
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_cycles
 
     @property
     def nb_opcodes(self) -> int:
@@ -1009,6 +1212,7 @@ class Interpreter:
         self._module: ast.Module | None = None
         self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
+        self._has_cycle: bool = False
 
     @property
     def next_variable_id(self) -> int:
@@ -1180,7 +1384,9 @@ class StackGlobal(NoOp):
                 f"Module: {type(module).__name__}, Attr: {type(attr).__name__}"
             )
 
-        if not all(m.isidentifier() for m in module.split(".")) or not attr.isidentifier():
+        if not all(m.isidentifier() for m in module.split(".")) or not all(
+            a.isidentifier() for a in attr.split(".")
+        ):
             raise ValueError(
                 f"Extracted identifiers are not valid Python identifiers. "
                 f"Module: {module!r}, Attr: {attr!r}"
@@ -1351,14 +1557,18 @@ class AddItems(Opcode):
                 break
             to_add.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         if not interpreter.stack:
             raise ValueError("Stack was empty; expected a pyset")
-        pyset = interpreter.stack.pop()
+        pyset = interpreter.stack[-1]
         if not isinstance(pyset, ast.Set):
             raise ValueError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
+        # Check for cyclic references - sets cannot contain themselves (unhashable)
+        for elem in to_add:
+            if elem is pyset:
+                raise InterpretationError("Set cannot contain itself (unhashable type)")
         pyset.elts.extend(reversed(to_add))
 
 
@@ -1405,7 +1615,7 @@ class PopMark(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         return objs
 
 
@@ -1420,13 +1630,18 @@ class Obj(Opcode):
                 break
             args.insert(0, arg)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         kls = args.pop(0)
-        # TODO Verify paths for correctness
         if args or hasattr(kls, "__getinitargs__") or not isinstance(kls, type):
-            interpreter.stack.append(ast.Call(kls, args, []))
+            call = ast.Call(kls, args, [])
         else:
-            interpreter.stack.append(ast.Call(kls, kls, []))
+            # No args and kls is a plain type: CPython does kls.__new__(kls)
+            call = ast.Call(ast.Attribute(kls, "__new__", ast.Load()), [kls], [])
+        # OBJ calls can have global side effects, just like REDUCE.
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class ShortBinUnicode(DynamicLength, ConstantOpcode):
@@ -1493,10 +1708,17 @@ class NewObj(Opcode):
     def run(self, interpreter: Interpreter):
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
+        # CPython's NEWOBJ calls cls.__new__(cls, *args), not cls(*args).
+        # __new__ is allocation only (no __init__ side effects).
+        func = ast.Attribute(class_type, "__new__", ast.Load())
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, list(args.elts), []))
+            call = ast.Call(func, [class_type, *list(args.elts)], [])
         else:
-            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], []))
+            call = ast.Call(func, [class_type, ast.Starred(args)], [])
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class NewObjEx(Opcode):
@@ -1506,10 +1728,16 @@ class NewObjEx(Opcode):
         kwargs = interpreter.stack.pop()
         args = interpreter.stack.pop()
         class_type = interpreter.stack.pop()
+        # CPython's NEWOBJ_EX calls cls.__new__(cls, *args, **kwargs), not cls(*args, **kwargs).
+        func = ast.Attribute(class_type, "__new__", ast.Load())
         if isinstance(args, ast.Tuple):
-            interpreter.stack.append(ast.Call(class_type, list(args.elts), kwargs))
+            call = ast.Call(func, [class_type, *list(args.elts)], kwargs)
         else:
-            interpreter.stack.append(ast.Call(class_type, [ast.Starred(args)], kwargs))
+            call = ast.Call(func, [class_type, ast.Starred(args)], kwargs)
+        # Persist the call to the AST via new_variable() so it remains visible
+        # to safety analysis even if the stack value is discarded by POP.
+        var_name = interpreter.new_variable(call)
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class BinPersId(Opcode):
@@ -1637,11 +1865,17 @@ class Get(Opcode):
 class SetItems(StackSliceOpcode):
     name = "SETITEMS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         pydict = interpreter.stack.pop()
         update_dict_keys = []
         update_dict_values = []
         for key, value in zip(stack_slice[::2], stack_slice[1::2], strict=False):
+            # Check for cyclic references
+            if key is pydict:
+                raise InterpretationError("Dict cannot use itself as key (unhashable type)")
+            if value is pydict:
+                value = ast.Set(elts=[ast.Constant(value=...)])
+                interpreter._has_cycle = True
             update_dict_keys.append(key)
             update_dict_values.append(value)
         if isinstance(pydict, ast.Dict) and not pydict.keys:
@@ -1669,6 +1903,12 @@ class SetItem(Opcode):
         value = interpreter.stack.pop()
         key = interpreter.stack.pop()
         pydict = interpreter.stack.pop()
+        # Check for cyclic references
+        if key is pydict:
+            raise InterpretationError("Dict cannot use itself as key (unhashable type)")
+        if value is pydict:
+            value = ast.Set(elts=[ast.Constant(value=...)])
+            interpreter._has_cycle = True
         if isinstance(pydict, ast.Dict) and not pydict.keys:
             # the dict is empty, so add a new one
             interpreter.stack.append(ast.Dict(keys=[key], values=[value]))
@@ -1748,6 +1988,9 @@ class Append(Opcode):
         value = interpreter.stack.pop()
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            if value is list_obj:
+                value = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
+                interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
@@ -1756,9 +1999,13 @@ class Append(Opcode):
 class Appends(StackSliceOpcode):
     name = "APPENDS"
 
-    def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
+    def run(self, interpreter: Interpreter, stack_slice: list[ast.expr]):
         list_obj = interpreter.stack[-1]
         if isinstance(list_obj, ast.List):
+            for i, elem in enumerate(stack_slice):
+                if elem is list_obj:
+                    stack_slice[i] = ast.List(elts=[ast.Constant(value=...)], ctx=ast.Load())
+                    interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
             raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
@@ -1885,7 +2132,7 @@ class Dict(Opcode):
                 keys.append(obj)
             i = (i + 1) % 2
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         if len(keys) != len(values):
             raise ValueError(
@@ -1936,7 +2183,7 @@ class List(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.List(elts=objs[::-1], ctx=ast.Load()))
 
@@ -1952,7 +2199,7 @@ class FrozenSet(Opcode):
                 break
             objs.append(obj)
         else:
-            raise ValueError("Exhausted the stack while searching for a MarkObject!")
+            raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
 
         interpreter.stack.append(ast.Constant(ast.Set(elts=objs[::-1])))
 

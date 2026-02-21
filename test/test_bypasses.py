@@ -2,7 +2,7 @@ import marshal
 from unittest import TestCase
 
 import fickling.fickle as op
-from fickling.analysis import Severity, check_safety
+from fickling.analysis import Severity, UnsafeImportsML, check_safety
 from fickling.fickle import Pickled
 
 
@@ -376,3 +376,290 @@ class TestBypasses(TestCase):
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from builtins import getattr",
         )
+
+    def test_safe_builtins_not_flagged(self):
+        """Safe builtins like len, dict should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins len"),
+                op.EmptyList(),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        # Should not have UnsafeImports or UnsafeImportsML result for safe builtins
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_safe_builtin_dict_not_flagged(self):
+        """Safe builtin dict() should not be flagged as malicious."""
+        pickled = Pickled(
+            [
+                op.Global("builtins dict"),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNone(detailed.get("UnsafeImports"))
+        self.assertIsNone(detailed.get("UnsafeImportsML"))
+
+    def test_unsafe_builtins_still_flagged(self):
+        """Dangerous builtins like getattr, __import__ must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins getattr"),
+                op.String("os"),
+                op.String("system"),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Caught by UnsafeImports (builtins are in fickle.py's UNSAFE_IMPORTS)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+
+    def test_unsafe_builtin_eval_still_flagged(self):
+        """Dangerous builtin eval must still be flagged."""
+        pickled = Pickled(
+            [
+                op.Global("builtins eval"),
+                op.String("print('hello')"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        # Caught by UnsafeImports (builtins are in fickle.py's UNSAFE_IMPORTS)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(detailed.get("UnsafeImports"))
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-955r-x9j8-7rhh
+    def test_operator_methodcaller(self):
+        """Test detection of _operator.methodcaller bypass."""
+        pickled = Pickled(
+            [
+                op.Global.create("builtins", "__import__"),
+                op.Mark(),
+                op.Unicode("os"),
+                op.Tuple(),
+                op.Reduce(),
+                op.Put(0),
+                op.Pop(),
+                op.Global.create("_operator", "methodcaller"),
+                op.Mark(),
+                op.Unicode("system"),
+                op.Unicode('echo "pwned by _operator.methodcaller"'),
+                op.Tuple(),
+                op.Reduce(),
+                op.Mark(),
+                op.Get(0),
+                op.Tuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-m273-6v24-x4m4
+    def test_distutils_write_file(self):
+        """Test detection of distutils.file_util.write_file bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("distutils.file_util"),
+                op.ShortBinUnicode("write_file"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/tmp/malicious.txt"),
+                op.Mark(),
+                op.ShortBinUnicode("malicious content"),
+                op.List(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_io_fileio(self):
+        """Test detection of _io.FileIO bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("_io"),
+                op.ShortBinUnicode("FileIO"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("/etc/passwd"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-r8g5-cgf2-4m4m
+    def test_numpy_f2py_getlincoef(self):
+        """Test detection of numpy.f2py.crackfortran.getlincoef bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("numpy.f2py.crackfortran"),
+                op.ShortBinUnicode("getlincoef"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("__import__('os').system('id')"),
+                op.EmptyDict(),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    def test_network_protocol_ssrf(self):
+        cases = [
+            ("smtplib", "SMTP", 25),
+            ("imaplib", "IMAP4", 143),
+            ("ftplib", "FTP", 21),
+            ("poplib", "POP3", 110),
+            ("telnetlib", "Telnet", 23),
+            ("nntplib", "NNTP", 119),
+        ]
+        for module, cls, port in cases:
+            with self.subTest(module=module):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.Global.create(module, cls),
+                        op.ShortBinUnicode("127.0.0.1"),
+                        op.BinInt2(port),
+                        op.TupleTwo(),
+                        op.Reduce(),
+                        op.EmptyDict(),
+                        op.Build(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertGreater(
+                    res.severity,
+                    Severity.LIKELY_SAFE,
+                    f"{module}.{cls} was not flagged as unsafe",
+                )
+
+    # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-f7qq-56ww-84cr
+    def test_asyncio_subprocess(self):
+        """Test detection of asyncio subprocess execution bypass."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.Frame(81),
+                op.ShortBinUnicode("asyncio.unix_events"),
+                op.Memoize(),
+                op.ShortBinUnicode("_UnixSubprocessTransport._start"),
+                op.Memoize(),
+                op.StackGlobal(),
+                op.Memoize(),
+                op.Mark(),
+                op.EmptyDict(),
+                op.Memoize(),
+                op.ShortBinUnicode("whoami"),
+                op.Memoize(),
+                op.NewTrue(),
+                op.NoneOpcode(),
+                op.NoneOpcode(),
+                op.NoneOpcode(),
+                op.BinInt1(0),
+                op.Tuple(),
+                op.Memoize(),
+                op.Reduce(),
+                op.Memoize(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-mxhj-88fx-4pcv
+    def test_obj_pop_call_invisibility(self):
+        """OBJ opcode calls discarded by POP must remain visible to safety analysis."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.Mark(),
+                op.ShortBinUnicode("smtplib"),
+                op.ShortBinUnicode("SMTP"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("127.0.0.1"),
+                op.Obj(),
+                op.Pop(),
+                op.NoneOpcode(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(
+            res.severity,
+            Severity.LIKELY_SAFE,
+        )
+
+
+class TestUnsafeModuleCoverage(TestCase):
+    """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""
+
+    def test_all_unsafe_modules_detected(self):
+        """Each module in UNSAFE_MODULES should be flagged as unsafe."""
+        from fickling.fickle import BUILTIN_MODULE_NAMES
+
+        for module in UnsafeImportsML.UNSAFE_MODULES:
+            with self.subTest(module=module):
+                func = "eval" if module in BUILTIN_MODULE_NAMES else "dangerous"
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.Global.create(module, func),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertGreater(
+                    res.severity,
+                    Severity.LIKELY_SAFE,
+                    f"{module}.{func} was not flagged as unsafe",
+                )
+
+    def test_all_unsafe_imports_detected(self):
+        """Each function in UNSAFE_IMPORTS should be flagged as unsafe."""
+        for module, funcs in UnsafeImportsML.UNSAFE_IMPORTS.items():
+            for func in funcs:
+                with self.subTest(module=module, func=func):
+                    pickled = Pickled(
+                        [
+                            op.Proto.create(4),
+                            op.Global.create(module, func),
+                            op.EmptyTuple(),
+                            op.Reduce(),
+                            op.Stop(),
+                        ]
+                    )
+                    res = check_safety(pickled)
+                    self.assertGreater(
+                        res.severity,
+                        Severity.LIKELY_SAFE,
+                        f"{module}.{func} was not flagged as unsafe",
+                    )
