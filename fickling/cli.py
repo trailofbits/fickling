@@ -3,12 +3,126 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser
 from ast import unparse
+from pathlib import PurePosixPath
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
 from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
+
+HF_PICKLE_EXTENSIONS = frozenset({".bin", ".pt", ".pth", ".pkl", ".pickle"})
+
+
+def _scan_huggingface(
+    repo_id: str,
+    revision: str | None = None,
+    token: str | None = None,
+    json_output_path: str | None = None,
+    print_results: bool = False,
+) -> int:
+    """Scan a HuggingFace Hub repository for potentially malicious pickle files.
+
+    Args:
+        repo_id: HuggingFace repository ID (e.g., 'bert-base-uncased')
+        revision: Specific revision (branch, tag, or commit) to scan
+        token: HuggingFace API token for private repositories
+        json_output_path: Path to write JSON results
+        print_results: Whether to print results to console
+
+    Returns:
+        EXIT_CLEAN (0), EXIT_UNSAFE (1), or EXIT_ERROR (2)
+    """
+    try:
+        from huggingface_hub import HfApi, hf_hub_download
+    except ImportError:
+        sys.stderr.write(
+            "Error: huggingface_hub is required for --huggingface scanning.\n"
+            "Install with: pip install fickling[huggingface]\n"
+        )
+        return EXIT_ERROR
+
+    api = HfApi(token=token)
+
+    try:
+        repo_info = api.repo_info(repo_id=repo_id, revision=revision, token=token)
+    except Exception as e:  # noqa: BLE001 -- HF Hub may raise unpredictable HTTP errors
+        sys.stderr.write(f"Error accessing HuggingFace repository '{repo_id}': {e!s}\n")
+        return EXIT_ERROR
+
+    if repo_info is None or not repo_info.siblings:
+        if print_results:
+            print(f"No files found in {repo_id}")
+        return EXIT_CLEAN
+
+    pickle_files = [
+        f.rfilename
+        for f in repo_info.siblings
+        if PurePosixPath(f.rfilename).suffix.lower() in HF_PICKLE_EXTENSIONS
+    ]
+
+    if not pickle_files:
+        if print_results:
+            print(f"No pickle files found in {repo_id}")
+        return EXIT_CLEAN
+
+    if print_results:
+        print(f"Scanning {len(pickle_files)} file(s) in {repo_id}...")
+
+    overall_safe = True
+    failed = 0
+    json_output = json_output_path or DEFAULT_JSON_OUTPUT_FILE
+
+    for filename in pickle_files:
+        if print_results:
+            print(f"\n  Scanning: {filename}")
+
+        try:
+            local_path = hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                revision=revision,
+                token=token,
+            )
+
+            with open(local_path, "rb") as f:
+                stacked_pickled = fickle.StackedPickle.load(f, fail_on_decode_error=False)
+
+            for pickled in stacked_pickled:
+                safety_results = check_safety(pickled, json_output_path=json_output)
+
+                if print_results:
+                    result_str = safety_results.to_string()
+                    if result_str:
+                        print(f"    {result_str}")
+
+                if safety_results.severity > Severity.LIKELY_SAFE:
+                    overall_safe = False
+                    if print_results:
+                        sys.stderr.write(f"    WARNING: {filename} may contain unsafe content!\n")
+
+        except fickle.PickleDecodeError as e:
+            sys.stderr.write(f"Error parsing {filename}: {e!s}\n")
+            sys.stderr.write(
+                "Parsing errors may indicate a maliciously crafted pickle file. "
+                "DO NOT TRUST this file without further analysis!\n"
+            )
+            overall_safe = False
+            failed += 1
+        except Exception as e:  # noqa: BLE001 -- HF Hub may raise unpredictable errors
+            sys.stderr.write(f"Error scanning {filename}: {e!s}\n")
+            overall_safe = False
+            failed += 1
+
+    if print_results:
+        if failed > 0:
+            sys.stderr.write(f"\nWARNING: {failed}/{len(pickle_files)} file(s) failed to scan\n")
+        if overall_safe:
+            print(f"\n{repo_id}: No obvious safety issues detected")
+        else:
+            print(f"\n{repo_id}: Potentially unsafe content detected!")
+
+    return EXIT_CLEAN if overall_safe else EXIT_UNSAFE
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -97,6 +211,29 @@ def main(argv: list[str] | None = None) -> int:
         help="print a runtime trace while interpreting the input pickle file",
     )
     parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
+    options.add_argument(
+        "--huggingface",
+        "--hf",
+        type=str,
+        default=None,
+        metavar="REPO_ID",
+        help="scan a model from HuggingFace Hub by repository ID (e.g., 'bert-base-uncased'). "
+        "Requires huggingface_hub: pip install fickling[huggingface]",
+    )
+    parser.add_argument(
+        "--hf-revision",
+        type=str,
+        default=None,
+        help="specific revision (branch, tag, or commit) to scan from HuggingFace Hub",
+    )
+    parser.add_argument(
+        "--hf-token",
+        type=str,
+        default=None,
+        help="HuggingFace API token for private repositories. "
+        "Prefer setting the HF_TOKEN environment variable to avoid token exposure in "
+        "process listings",
+    )
 
     args = parser.parse_args(argv[1:])
 
@@ -106,6 +243,16 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(__version__)
         return EXIT_CLEAN
+
+    # HuggingFace scanning mode
+    if args.huggingface is not None:
+        return _scan_huggingface(
+            repo_id=args.huggingface,
+            revision=args.hf_revision,
+            token=args.hf_token,
+            json_output_path=args.json_output,
+            print_results=args.print_results,
+        )
 
     if args.create is None:
         if args.PICKLE_FILE == "-":
