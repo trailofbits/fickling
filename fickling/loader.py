@@ -1,14 +1,14 @@
 import pickle
 from io import BytesIO
 
+from fickling.analysis import Severity, check_safety
+from fickling.exception import UnsafeFileError
+from fickling.fickle import Pickled
+
 # Save the original pickle.loads before any hooks can replace it.
 # loader.load() must use the real pickle.loads for final deserialization,
 # otherwise hooking pickle.loads causes infinite recursion.
 _original_pickle_loads = pickle.loads
-
-from fickling.analysis import Severity, check_safety
-from fickling.exception import UnsafeFileError
-from fickling.fickle import Pickled
 
 
 def load(
