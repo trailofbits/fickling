@@ -1,3 +1,4 @@
+import _pickle
 import io
 import pickle
 import unittest
@@ -25,6 +26,9 @@ class TestHook(unittest.TestCase):
         # Set up global fickling hook
         hook.run_hook()
 
+    def tearDown(self):
+        hook.remove_hook()
+
     def test_safe_pickle(self):
         # Fickling can check a pickle file for safety prior to running it
         test_list = [1, 2, 3]
@@ -44,3 +48,19 @@ class TestHook(unittest.TestCase):
                 pass
             else:
                 self.fail(e)
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-wccx-j62j-r448
+    def test_run_hook_covers_all_entry_points(self):
+        data = pickle.dumps(Payload())
+        cases = {
+            "pickle.load": lambda: pickle.load(io.BytesIO(data)),
+            "pickle.loads": lambda: pickle.loads(data),
+            "pickle.Unpickler": lambda: pickle.Unpickler(io.BytesIO(data)).load(),
+            "_pickle.load": lambda: _pickle.load(io.BytesIO(data)),
+            "_pickle.loads": lambda: _pickle.loads(data),
+            "_pickle.Unpickler": lambda: _pickle.Unpickler(io.BytesIO(data)).load(),
+        }
+        for name, call in cases.items():
+            with self.subTest(entry_point=name):
+                with self.assertRaises(UnsafeFileError, msg=f"{name} was not intercepted"):
+                    call()
