@@ -151,6 +151,10 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "zipfile",
         # Shelve (opens database files)
         "shelve",
+        # Stdlib modules with hidden subprocess/os.system calls
+        "uuid",
+        "_osx_support",
+        "_aix_support",
     ]
 )
 
