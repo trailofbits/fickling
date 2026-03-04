@@ -3,6 +3,7 @@ import io
 import pickle
 
 import fickling.loader as loader
+from fickling.analysis import Severity
 from fickling.ml import FicklingMLUnpickler
 
 _original_pickle_load = pickle.load
@@ -29,17 +30,49 @@ class FicklingSafetyUnpickler:
         return loader.load(self._file, *self._args, **self._kwargs)
 
 
-def run_hook():
-    """Replace pickle.load() and pickle.Unpickler by fickling's safe versions"""
-    # Hook functions
-    pickle.load = loader.load
-    _pickle.load = loader.load
-    pickle.loads = loader.loads
-    _pickle.loads = loader.loads
+def run_hook(max_acceptable_severity=Severity.LIKELY_SAFE):
+    """Replace pickle.load() and pickle.Unpickler by fickling's safe versions
 
-    # Hook the Unpickler class
-    pickle.Unpickler = FicklingSafetyUnpickler
-    _pickle.Unpickler = FicklingSafetyUnpickler
+    Args:
+        max_acceptable_severity: Maximum severity level to allow through.
+            When non-default, wraps loader functions to pass the threshold.
+    """
+    if max_acceptable_severity != Severity.LIKELY_SAFE:
+
+        def hooked_load(file, *args, **kwargs):
+            return loader.load(
+                file, *args, max_acceptable_severity=max_acceptable_severity, **kwargs
+            )
+
+        def hooked_loads(data, *args, **kwargs):
+            return loader.loads(
+                data, *args, max_acceptable_severity=max_acceptable_severity, **kwargs
+            )
+
+        pickle.load = hooked_load
+        _pickle.load = hooked_load
+        pickle.loads = hooked_loads
+        _pickle.loads = hooked_loads
+
+        # Create Unpickler subclass that passes severity through
+        class SafetyUnpicklerWithSeverity(FicklingSafetyUnpickler):
+            def load(self):
+                return loader.load(
+                    self._file,
+                    *self._args,
+                    max_acceptable_severity=max_acceptable_severity,
+                    **self._kwargs,
+                )
+
+        pickle.Unpickler = SafetyUnpicklerWithSeverity
+        _pickle.Unpickler = SafetyUnpicklerWithSeverity
+    else:
+        pickle.load = loader.load
+        _pickle.load = loader.load
+        pickle.loads = loader.loads
+        _pickle.loads = loader.loads
+        pickle.Unpickler = FicklingSafetyUnpickler
+        _pickle.Unpickler = FicklingSafetyUnpickler
 
 
 def always_check_safety():
