@@ -11,6 +11,13 @@ from fickling.exception import UnsafeFileError
 
 SAFE_DATA = pickle.dumps([1, 2, 3])
 
+_MODULES = {"pickle": pickle, "_pickle": _pickle}
+
+
+def _get_entry_point(name):
+    mod_name, attr = name.split(".", 1)
+    return getattr(_MODULES[mod_name], attr)
+
 
 class UnsafePayload:
     def __reduce__(self):
@@ -62,7 +69,7 @@ class TestContextManagerHookLifecycle(unittest.TestCase):
 
         for name, original in originals.items():
             with self.subTest(entry_point=name):
-                current = eval(name)
+                current = _get_entry_point(name)
                 self.assertIs(current, original, f"{name} not restored after __exit__")
 
     def test_safe_pickle_passes_through(self):
@@ -97,7 +104,7 @@ class TestContextManagerExceptionSafety(unittest.TestCase):
 
         for name, original in originals.items():
             with self.subTest(entry_point=name):
-                current = eval(name)
+                current = _get_entry_point(name)
                 self.assertIs(current, original, f"{name} not restored after exception")
 
     def test_hooks_restored_on_unsafe_file_error(self):
@@ -114,7 +121,7 @@ class TestContextManagerExceptionSafety(unittest.TestCase):
 
         for name, original in originals.items():
             with self.subTest(entry_point=name):
-                current = eval(name)
+                current = _get_entry_point(name)
                 self.assertIs(current, original, f"{name} not restored after UnsafeFileError")
 
 
@@ -153,7 +160,7 @@ class TestMaxAcceptableSeverity(unittest.TestCase):
 
         for name, original in originals.items():
             with self.subTest(entry_point=name):
-                current = eval(name)
+                current = _get_entry_point(name)
                 self.assertIs(current, original, f"{name} not restored after custom severity")
 
 

@@ -40,11 +40,13 @@ def run_hook(max_acceptable_severity=Severity.LIKELY_SAFE):
     if max_acceptable_severity != Severity.LIKELY_SAFE:
 
         def hooked_load(file, *args, **kwargs):
+            kwargs.pop("max_acceptable_severity", None)
             return loader.load(
                 file, *args, max_acceptable_severity=max_acceptable_severity, **kwargs
             )
 
         def hooked_loads(data, *args, **kwargs):
+            kwargs.pop("max_acceptable_severity", None)
             return loader.loads(
                 data, *args, max_acceptable_severity=max_acceptable_severity, **kwargs
             )
@@ -56,6 +58,10 @@ def run_hook(max_acceptable_severity=Severity.LIKELY_SAFE):
 
         # Create Unpickler subclass that passes severity through
         class SafetyUnpicklerWithSeverity(FicklingSafetyUnpickler):
+            def __init__(self, file, *args, **kwargs):
+                kwargs.pop("max_acceptable_severity", None)
+                super().__init__(file, *args, **kwargs)
+
             def load(self):
                 return loader.load(
                     self._file,
@@ -106,6 +112,28 @@ def activate_safe_ml_environment(also_allow=None):
 
     pickle.Unpickler = SafeMLUnpickler
     _pickle.Unpickler = SafeMLUnpickler
+
+
+def snapshot_hooks():
+    """Capture the current state of all hooked pickle entry points."""
+    return (
+        pickle.load,
+        _pickle.load,
+        pickle.loads,
+        _pickle.loads,
+        pickle.Unpickler,
+        _pickle.Unpickler,
+    )
+
+
+def restore_hooks(snapshot):
+    """Restore pickle entry points from a previous snapshot."""
+    pickle.load = snapshot[0]
+    _pickle.load = snapshot[1]
+    pickle.loads = snapshot[2]
+    _pickle.loads = snapshot[3]
+    pickle.Unpickler = snapshot[4]
+    _pickle.Unpickler = snapshot[5]
 
 
 def remove_hook():
