@@ -64,6 +64,9 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "eval",
         # Import manipulation
         "importlib",
+        "_frozen_importlib",
+        "_frozen_importlib_external",
+        "_imp",
         "pkgutil",
         "zipimport",
         # Operator module bypasses
