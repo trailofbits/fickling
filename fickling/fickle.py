@@ -69,6 +69,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "_imp",
         "pkgutil",
         "zipimport",
+        # Attribute access (getattr equivalent bypasses)
+        "inspect",
         # Operator module bypasses
         "_operator",
         "operator",
