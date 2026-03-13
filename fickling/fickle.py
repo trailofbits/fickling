@@ -140,6 +140,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # File reading/enumeration
         "fileinput",
         "glob",
+        "platform",
         # Code compilation (writes .pyc files)
         "compileall",
         "py_compile",
