@@ -1243,14 +1243,17 @@ class Interpreter:
         defined: set[str] = set()
         assignments: dict[str, ast.Assign] = {}
         for statement in self.module_body:
-            # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
                 if (
                     len(statement.targets) == 1
                     and isinstance(statement.targets[0], ast.Name)
                     and statement.targets[0].id == "result"
                 ):
-                    # this is the return value of the program
+                    # this is the return value; don't define it, but still
+                    # walk its value to record variables it references
+                    for node in ast.walk(statement.value):
+                        if isinstance(node, ast.Name):
+                            used.add(node.id)
                     break
                 for target in statement.targets:
                     if isinstance(target, ast.Name):

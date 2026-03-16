@@ -194,6 +194,36 @@ class TestInterpreter(TestCase):
         test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
 
+    def test_unused_variables_no_false_positive_for_result_refs(self):
+        """Variables referenced only in the result expression should not be flagged as unused.
+
+        Regression test for https://github.com/trailofbits/fickling/issues/226
+        A REDUCE-created variable that is later referenced in the final result
+        tuple (via BINGET) was incorrectly reported as unused because the
+        result assignment's value was not walked for variable references.
+        """
+        # Craft a pickle: list([1,2,3]) via REDUCE (creates a variable),
+        # then reference it twice via memo to form the result tuple.
+        raw = (
+            b"\x80\x02"  # PROTO 2
+            b"c__builtin__\nlist\n"  # GLOBAL list
+            b"q\x00"  # BINPUT 0
+            b"]"  # EMPTY_LIST
+            b"(K\x01K\x02K\x03e"  # MARK 1 2 3 APPENDS
+            b"\x85"  # TUPLE1
+            b"R"  # REDUCE -> _var0 = list([1,2,3])
+            b"q\x01"  # BINPUT 1
+            b"h\x01"  # BINGET 1 (reference _var0)
+            b"\x86"  # TUPLE2 -> result = (_var0, _var0)
+            b"."  # STOP
+        )
+        loaded = Pickled.load(raw)
+        interpreter = Interpreter(loaded)
+        unused = interpreter.unused_variables()
+        # _var0 is used in the result tuple, so it must NOT be flagged
+        self.assertNotIn("_var0", unused, "Variable used in result expression was falsely flagged as unused")
+        self.assertEqual(len(unused), 0)
+
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
         pass
