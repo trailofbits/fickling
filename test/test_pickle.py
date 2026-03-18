@@ -194,6 +194,29 @@ class TestInterpreter(TestCase):
         test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
 
+    def test_unused_variables_no_false_positive_for_dict_keys(self):
+        """Variables used as dict keys in subscript assignments should not be
+        reported as unused. Regression test for GH-226."""
+        # This pickle creates an object via NEWOBJ, then uses REDUCE to create
+        # a value (long(42)) which becomes _var2, followed by SETITEM that uses
+        # _var2 as a dict key, then BUILD (__setstate__). The variable assigned
+        # by REDUCE is genuinely used as a dict key and should not be flagged.
+        pickle_bytes = (
+            b"\x80\x02c__main__\nOuter\nq\x00)\x81q\x01}q\x02"
+            b"c__builtin__\nlong\nq\x03K*\x85q\x04Rq\x05"
+            b"X\x05\x00\x00\x00valueq\x06sb."
+        )
+        loaded = Pickled.load(pickle_bytes)
+        interpreter = Interpreter(loaded)
+        unused = interpreter.unused_variables()
+        # _var2 (the long(42) result) is used as a dict key via SETITEM;
+        # it must NOT appear in the unused set.
+        for varname in unused:
+            self.fail(
+                f"Variable {varname} incorrectly reported as unused; "
+                f"expected no false positives for dict-key usage (GH-226)"
+            )
+
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
         pass
