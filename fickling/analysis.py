@@ -455,9 +455,20 @@ class ExpansionAttackAnalysis(Analysis):
     """
 
     # Thresholds for pattern detection
-    GET_PUT_RATIO_THRESHOLD = 10  # GETs per PUT that is suspicious
-    DUP_COUNT_THRESHOLD = 100  # Number of DUPs that is suspicious
-    HIGH_GET_PUT_RATIO_THRESHOLD = 50  # Extremely high ratio
+    DEFAULT_GET_PUT_RATIO_THRESHOLD = 10  # GETs per PUT that is suspicious
+    DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD = 50  # Extremely high ratio
+    DEFAULT_DUP_COUNT_THRESHOLD = 100  # Number of DUPs that is suspicious
+
+    def __init__(
+        self,
+        *,
+        get_put_ratio_threshold: int = DEFAULT_GET_PUT_RATIO_THRESHOLD,
+        high_get_put_ratio_threshold: int = DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD,
+        dup_count_threshold: int = DEFAULT_DUP_COUNT_THRESHOLD,
+    ):
+        self._get_put_ratio_threshold = get_put_ratio_threshold
+        self._high_get_put_ratio_threshold = high_get_put_ratio_threshold
+        self._dup_count_threshold = dup_count_threshold
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         get_count = 0
@@ -477,7 +488,7 @@ class ExpansionAttackAnalysis(Analysis):
         # Check for high GET/PUT ratio
         if put_count > 0:
             ratio = get_count / put_count
-            if ratio > self.HIGH_GET_PUT_RATIO_THRESHOLD:
+            if ratio > self._high_get_put_ratio_threshold:
                 findings.append(
                     AnalysisResult(
                         Severity.LIKELY_UNSAFE,
@@ -488,7 +499,7 @@ class ExpansionAttackAnalysis(Analysis):
                         trigger=f"GET/PUT ratio: {ratio:.1f}:1",
                     )
                 )
-            elif ratio > self.GET_PUT_RATIO_THRESHOLD:
+            elif ratio > self._get_put_ratio_threshold:
                 findings.append(
                     AnalysisResult(
                         Severity.SUSPICIOUS,
@@ -498,7 +509,7 @@ class ExpansionAttackAnalysis(Analysis):
                         trigger=f"GET/PUT ratio: {ratio:.1f}:1",
                     )
                 )
-        elif get_count > self.GET_PUT_RATIO_THRESHOLD:
+        elif get_count > self._get_put_ratio_threshold:
             # GETs with no PUTs is inherently malformed/malicious
             findings.append(
                 AnalysisResult(
@@ -511,7 +522,7 @@ class ExpansionAttackAnalysis(Analysis):
             )
 
         # Check for excessive DUP operations
-        if dup_count > self.DUP_COUNT_THRESHOLD:
+        if dup_count > self._dup_count_threshold:
             findings.append(
                 AnalysisResult(
                     Severity.SUSPICIOUS,
