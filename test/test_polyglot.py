@@ -1,6 +1,5 @@
 import random
 import string
-import sys
 import tarfile
 import tempfile
 import unittest
@@ -15,7 +14,7 @@ import torchvision.models as models
 import fickling.polyglot as polyglot
 from fickling.polyglot import FileProperties
 
-_lacks_torch_jit_support = sys.version_info >= (3, 14)
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def _make_properties(**overrides):
@@ -79,17 +78,9 @@ class TestPolyglotModule(unittest.TestCase):
         self.filename_legacy_pickle = tmppath / "model_legacy_pickle.pth"
         torch.save(model, self.filename_legacy_pickle, _use_new_zipfile_serialization=False)
 
-        if not _lacks_torch_jit_support:
-            # TorchScript v1.4
-            m = torch.jit.script(model)
-            self.filename_torchscript = tmppath / "model_torchscript.pt"
-            torch.jit.save(m, self.filename_torchscript)
-
-            # TorchScript v1.4 Dup
-            self.filename_torchscript_dup = tmppath / "model_torchscript_dup.pt"
-            torch.jit.save(m, self.filename_torchscript_dup)
-
-            self.standard_torchscript_polyglot_name = tmppath / "test_polyglot.pt"
+        # TorchScript v1.4 (pre-generated fixtures to avoid torch.jit deprecation warnings)
+        self.filename_torchscript = FIXTURES_DIR / "squeezenet1_0_torchscript_v1_4.pt"
+        self.standard_torchscript_polyglot_name = tmppath / "test_polyglot.pt"
 
         # PyTorch v0.1.1
         self.filename_legacy_tar = tmppath / "model_legacy_tar.pth"
@@ -132,7 +123,6 @@ class TestPolyglotModule(unittest.TestCase):
         formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
         self.assertEqual(formats, ["PyTorch v0.1.10"])
 
-    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript(self):
         formats = polyglot.identify_pytorch_file_format(self.filename_torchscript)
         self.assertEqual(formats, ["TorchScript v1.4", "TorchScript v1.3", "PyTorch v1.3"])
@@ -200,7 +190,6 @@ class TestPolyglotModule(unittest.TestCase):
         proper_result = _make_properties(is_valid_pickle=True)
         self.assertEqual(properties, proper_result)
 
-    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_properties(self):
         properties = polyglot.find_file_properties(self.filename_torchscript)
         proper_result = _make_properties(
@@ -219,11 +208,10 @@ class TestPolyglotModule(unittest.TestCase):
         proper_result = _make_properties(is_standard_zip=True, is_standard_not_torch=True)
         self.assertEqual(properties, proper_result)
 
-    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_create_standard_torchscript_polyglot(self):
         polyglot.create_polyglot(
             self.filename_v1_3_dup,
-            self.filename_torchscript_dup,
+            self.filename_torchscript,
             self.standard_torchscript_polyglot_name,
             print_results=False,
         )
