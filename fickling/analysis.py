@@ -7,7 +7,6 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
-
 from fickling.exception import ResourceExhaustionError
 from fickling.fickle import (
     BUILTIN_MODULE_NAMES,

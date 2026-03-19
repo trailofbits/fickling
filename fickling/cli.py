@@ -6,8 +6,8 @@ from ast import unparse
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
-from .exception import ResourceExhaustionError
 from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
+from .exception import ResourceExhaustionError
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
