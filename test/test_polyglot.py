@@ -196,10 +196,8 @@ class TestPolyglotModule(unittest.TestCase):
         self.assertEqual(properties, proper_result)
 
     def test_legacy_pickle_properties(self):
-        properties = polyglot.find_file_properties(self.filename_v1_3)
-        proper_result = _make_properties(
-            is_torch_zip=True, is_standard_zip=True, has_data_pkl=True, has_version=True
-        )
+        properties = polyglot.find_file_properties(self.filename_legacy_pickle)
+        proper_result = _make_properties(is_valid_pickle=True)
         self.assertEqual(properties, proper_result)
 
     @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
