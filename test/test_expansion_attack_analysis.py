@@ -168,7 +168,7 @@ class TestExpansionAttackAnalysis(TestCase):
         context = AnalysisContext(pickled)
         results = context.analyze(analysis)
 
-        self.assertTrue(len(results) > 0)
+        self.assertGreater(len(results), 0)
         self.assertTrue(any("GET/PUT ratio" in r.trigger for r in results if r.trigger))
         self.assertGreater(results[0].severity, Severity.LIKELY_SAFE)
 
