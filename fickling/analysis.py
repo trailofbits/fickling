@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from ast import unparse
+from ast import Import, ImportFrom, unparse
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
@@ -413,6 +413,42 @@ class UnusedVariables(Analysis):
                 "UnusedVariables",
                 trigger=f"{varname}: {shortened}",
             )
+
+
+class ScannerDeactivation(Analysis):
+    """Detects pickles that attempt to import pickle security scanning libraries."""
+
+    SCANNER_MODULES: frozenset[str] = frozenset(
+        {
+            "fickling",
+            "picklescan",
+            "modelscan",
+            "model_unpickler",
+            "saferpickle",
+            "modelaudit",
+        }
+    )
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.imports:
+            module_name = self._get_top_level_module(node)
+            if module_name and module_name in self.SCANNER_MODULES:
+                shortened, _ = context.shorten_code(node)
+                yield AnalysisResult(
+                    Severity.OVERTLY_MALICIOUS,
+                    f"`{shortened}` imports a pickle security scanning library; "
+                    "this is an attempt to deactivate or interfere with security analysis",
+                    "ScannerDeactivation",
+                    trigger=shortened,
+                )
+
+    @staticmethod
+    def _get_top_level_module(node: Import | ImportFrom) -> str | None:
+        if isinstance(node, ImportFrom) and node.module:
+            return node.module.split(".")[0]
+        if isinstance(node, Import) and node.names:
+            return node.names[0].name.split(".")[0]
+        return None
 
 
 class AnalysisResults:
