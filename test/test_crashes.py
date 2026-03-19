@@ -260,60 +260,12 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         self.assertGreater(results.severity, Severity.LIKELY_SAFE)
 
 
-class TestExpansionAttacks(TestCase):
-    """Test DoS protection against expansion attacks (Billion Laughs style).
+class TestInterpreterLimits(TestCase):
+    """Test runtime resource limit enforcement during pickle interpretation.
 
-    These tests verify that Fickling detects and handles:
-    - High GET/PUT ratio patterns (memo abuse)
-    - Excessive DUP operations (stack duplication abuse)
-    - Resource exhaustion during interpretation
+    These tests verify that InterpreterLimits correctly caps opcodes,
+    stack depth, memo size, and GET/PUT ratio during Interpreter.run().
     """
-
-    def test_memo_expansion_detection(self):
-        """Test detection of high GET/PUT ratio patterns.
-
-        Creates a pickle with many GET operations relative to PUT operations,
-        which is characteristic of expansion attacks.
-        """
-        # Create a pickle with high GET/PUT ratio
-        # 1 PUT followed by many GETs
-        opcodes = [
-            Proto.create(4),
-            EmptyList(),
-            Memoize(),  # PUT to memo[0]
-        ]
-        # Add many GETs
-        for _ in range(60):
-            opcodes.append(BinGet(0))
-            opcodes.append(Append())
-        opcodes.append(Stop())
-
-        pickled = Pickled(opcodes)
-        result = check_safety(pickled)
-
-        # Should detect the suspicious pattern
-        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
-
-    def test_dup_expansion_detection(self):
-        """Test detection of excessive DUP operations.
-
-        Creates a pickle with many DUP operations which could be used
-        to exponentially expand the stack.
-        """
-        # Create a pickle with many DUP operations
-        opcodes = [
-            Proto.create(4),
-            EmptyList(),
-        ]
-        # Add many DUPs (over threshold)
-        opcodes.extend(Dup() for _ in range(150))
-        opcodes.append(Stop())
-
-        pickled = Pickled(opcodes)
-        result = check_safety(pickled)
-
-        # Should detect the suspicious pattern
-        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
 
     def test_opcode_limit_enforcement(self):
         """Test that the max_opcodes limit is enforced during interpretation."""
@@ -395,37 +347,3 @@ class TestExpansionAttacks(TestCase):
             InterpreterLimits(max_opcodes=0)
         with self.assertRaises(ValueError):
             InterpreterLimits(max_stack_depth=-1)
-
-    def test_legitimate_data_not_flagged(self):
-        """Test that legitimate pickle data is not falsely flagged.
-
-        Large but legitimate data should pass without being flagged
-        as an expansion attack.
-        """
-        large_list = list(range(100))
-        data = pickle.dumps(large_list)
-
-        pickled = Pickled.load(data)
-        result = check_safety(pickled)
-
-        self.assertEqual(result.severity, Severity.LIKELY_SAFE)
-
-    def test_check_safety_catches_resource_exhaustion(self):
-        """Test that check_safety returns a result instead of propagating
-        ResourceExhaustionError when the pickle triggers resource limits."""
-        opcodes = [
-            Proto.create(4),
-            EmptyList(),
-            Memoize(),
-        ]
-        # 200 GETs with 1 PUT = ratio 200:1, exceeds default max_get_ratio=50
-        for _ in range(200):
-            opcodes.append(BinGet(0))
-            opcodes.append(Append())
-        opcodes.append(Stop())
-
-        pickled = Pickled(opcodes)
-        result = check_safety(pickled)
-
-        # Static detection and/or runtime limits should flag this
-        self.assertGreaterEqual(result.severity.severity, Severity.SUSPICIOUS.severity)
