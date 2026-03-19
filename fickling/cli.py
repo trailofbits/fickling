@@ -7,6 +7,7 @@ from ast import unparse
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
 from .exception import ResourceExhaustionError
+from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"fickling version {__version__}")
         else:
             print(__version__)
-        return 0
+        return EXIT_CLEAN
 
     if args.create is None:
         if args.PICKLE_FILE == "-":
@@ -126,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
                 sys.stderr.write(
                     "\n(If this is a valid pickle file, please report the error at https://github.com/trailofbits/fickling)\n"
                 )
-            return 1
+            return EXIT_ERROR
         finally:
             file.close()
 
@@ -136,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"Error: --inject-target {args.inject_target} is too high; there are only "
                     f"{len(stacked_pickled)} stacked pickle files in the input\n"
                 )
-                return 1
+                return EXIT_ERROR
             if hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
                 buffer = sys.stdout.buffer
             else:
@@ -175,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
                             "Do not unpickle this file if it is from an untrusted source!\n\n"
                         )
 
-            return [1, 0][was_safe]
+            return EXIT_CLEAN if was_safe else EXIT_UNSAFE
 
         else:
             var_id = 0
@@ -219,4 +220,4 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             file.close()
 
-    return 0
+    return EXIT_CLEAN

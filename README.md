@@ -87,7 +87,7 @@ raises an `UnsafeFileError` exception if malicious content is detected in the fi
 #### Option 1 (recommended): check safety of all pickle files loaded
 
 ```python
-# This enforces safety checks every time pickle.load() is used
+# This enforces safety checks every time pickle is used to deserialize
 fickling.always_check_safety()
 
 # Attempt to load an unsafe file now raises an exception

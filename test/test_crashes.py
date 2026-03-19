@@ -12,13 +12,17 @@ from unittest import TestCase
 from fickling.analysis import Severity, check_safety
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError
 from fickling.fickle import (
+    AddItems,
     Append,
     BinGet,
     BinInt1,
     BinPut,
     BinUnicode,
     Dup,
+    EmptyDict,
     EmptyList,
+    EmptySet,
+    Get,
     Global,
     Interpreter,
     InterpreterLimits,
@@ -28,6 +32,7 @@ from fickling.fickle import (
     Pop,
     Proto,
     Reduce,
+    SetItem,
     ShortBinUnicode,
     StackGlobal,
     Stop,
@@ -156,21 +161,103 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         )
         unparse(pickled.ast)
 
-    def test_cyclic_pickle_dos(self):
-        """Reproduces https://github.com/trailofbits/fickling/issues/196
+    def test_missing_mark_before_tuple(self):
+        """Reproduces https://github.com/trailofbits/fickling/issues/188"""
+        # PROTO 4, TUPLE (0x74='t', requires preceding MARK), STOP
+        malformed_bytes = b"\x80\x04t."
+        loaded = Pickled.load(io.BytesIO(malformed_bytes))
 
-        Tests that cyclic AST structures from MEMOIZE + GET opcodes
-        don't cause infinite recursion during safety analysis.
-        """
-        # PROTO 2, EMPTY_LIST, MEMOIZE, GET 0, APPEND, STOP
-        # Creates: L = []; L.append(L)
-        payload = b"\x80\x02]\x94g0\na."
+        # Should not crash when accessing AST
+        _ = loaded.ast
 
-        pickled = Pickled.load(payload)
+        # Should flag as having interpretation error
+        self.assertTrue(loaded.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(loaded)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)
+
+    def test_cyclic_pickle(self):
+        """Reproduces https://github.com/trailofbits/fickling/issues/196"""
+        # List with itself as value: L = []; L.append(L)
+        pickled = Pickled(
+            [
+                Proto(2),
+                EmptyList(),
+                Memoize(),
+                Get(0),
+                Append(),
+                Stop(),
+            ]
+        )
+
+        # Should detect cycles
+        self.assertTrue(pickled.has_cycles)
 
         # Should complete without RecursionError
         result = check_safety(pickled)
         self.assertIsNotNone(result)
+        
+        # Cyclic reference should be replaced with placeholders
+        code = unparse(pickled.ast)
+        self.assertEqual("result = [[...]]", code)
+
+        # Dict with itself as value: d = {}; d["self"] = d
+        dict_value_cycle = Pickled(
+            [
+                Proto(2),
+                EmptyDict(),
+                Memoize(),
+                ShortBinUnicode("self"),
+                Get(0),
+                SetItem(),
+                Stop(),
+            ]
+        )
+        self.assertTrue(dict_value_cycle.has_cycles)
+        self.assertEqual("result = {'self': {...}}", unparse(dict_value_cycle.ast))
+
+    def test_impossible_cyclic_pickle(self):
+        """Test that impossible cyclic structures raise InterpretationError."""
+        # Dict with itself as key: d = {}; d[d] = "value"
+        # Python raises: TypeError: unhashable type: 'dict'
+        dict_key_cycle = Pickled(
+            [
+                Proto(2),
+                EmptyDict(),
+                Memoize(),
+                Get(0),
+                ShortBinUnicode("value"),
+                SetItem(),
+                Stop(),
+            ]
+        )
+        # Should flag as having interpretation error
+        self.assertTrue(dict_key_cycle.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(dict_key_cycle)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)
+
+        # Set containing itself: s = set(); s.add(s)
+        # Python raises: TypeError: unhashable type: 'set'
+        set_cycle = Pickled(
+            [
+                Proto(4),
+                EmptySet(),
+                Memoize(),
+                Mark(),
+                Get(0),
+                AddItems(),
+                Stop(),
+            ]
+        )
+        # Should flag as having interpretation error
+        self.assertTrue(set_cycle.has_interpretation_error)
+
+        # Safety check should flag it
+        results = check_safety(set_cycle)
+        self.assertGreater(results.severity, Severity.LIKELY_SAFE)
 
 
 class TestExpansionAttacks(TestCase):

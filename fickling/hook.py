@@ -31,8 +31,11 @@ class FicklingSafetyUnpickler:
 
 def run_hook():
     """Replace pickle.load() and pickle.Unpickler by fickling's safe versions"""
-    # Hook the function
+    # Hook functions
     pickle.load = loader.load
+    _pickle.load = loader.load
+    pickle.loads = loader.loads
+    _pickle.loads = loader.loads
 
     # Hook the Unpickler class
     pickle.Unpickler = FicklingSafetyUnpickler
