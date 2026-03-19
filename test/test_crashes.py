@@ -197,7 +197,7 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         # Should complete without RecursionError
         result = check_safety(pickled)
         self.assertIsNotNone(result)
-        
+
         # Cyclic reference should be replaced with placeholders
         code = unparse(pickled.ast)
         self.assertEqual("result = [[...]]", code)
