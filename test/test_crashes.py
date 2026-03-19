@@ -3,7 +3,6 @@ This test module checks against inputs that previously caused crashes
 """
 
 import io
-import pickle
 from ast import unparse
 from base64 import b64decode
 from functools import wraps
