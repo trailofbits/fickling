@@ -241,6 +241,17 @@ class InterpretationErrorAnalysis(Analysis):
             )
 
 
+class ResourceExhaustionAnalysis(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        if context.pickled.has_resource_exhaustion:
+            yield AnalysisResult(
+                Severity.LIKELY_OVERTLY_MALICIOUS,
+                "Resource limits were exceeded during interpretation; "
+                "this is indicative of an expansion attack (Billion Laughs style)",
+                "ResourceExhaustion",
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
@@ -432,8 +443,8 @@ class UnusedVariables(Analysis):
         interpreter = Interpreter(context.pickled)
         try:
             unused = interpreter.unused_assignments()
-        except InterpretationError:
-            # Malformed pickle - InterpretationErrorAnalysis will report this
+        except (InterpretationError, ResourceExhaustionError):
+            # Malformed pickle or resource exhaustion - dedicated analyses will report this
             return
         for varname, asmt in unused.items():
             shortened, _ = context.shorten_code(asmt.value)

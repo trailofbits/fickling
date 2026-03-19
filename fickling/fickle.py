@@ -680,6 +680,7 @@ class Pickled(OpcodeSequence):
         # Whether the pickle contains cyclic references
         self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
+        self._has_resource_exhaustion: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -1001,6 +1002,11 @@ class Pickled(OpcodeSequence):
         _ = self.ast  # Ensure interpretation ran
         return self._has_interpretation_error
 
+    @property
+    def has_resource_exhaustion(self) -> bool:
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_resource_exhaustion
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, bytes | bytearray | Buffer):
@@ -1155,6 +1161,7 @@ on the Pickled object instead"""
                 )
                 self._ast = ast.Module(body=[], type_ignores=[])
             except ResourceExhaustionError:
+                self._has_resource_exhaustion = True
                 sys.stderr.write(
                     "Warning: resource limits exceeded during interpretation; "
                     "returning empty AST to continue analysis\n"
