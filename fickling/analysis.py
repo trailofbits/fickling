@@ -7,13 +7,22 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
+from fickling.exception import ResourceExhaustionError
 from fickling.fickle import (
     BUILTIN_MODULE_NAMES,
     SAFE_BUILTINS,
+    BinGet,
+    BinPut,
+    Dup,
+    Get,
     InterpretationError,
     Interpreter,
+    LongBinGet,
+    LongBinPut,
+    Memoize,
     Pickled,
     Proto,
+    Put,
 )
 
 
@@ -35,7 +44,29 @@ class AnalysisContext:
         self.results_by_analysis: dict[type[Analysis], list[AnalysisResult]] = defaultdict(list)
 
     def analyze(self, analysis: Analysis) -> list[AnalysisResult]:
-        results = list(analysis.analyze(self))
+        try:
+            results = list(analysis.analyze(self))
+        except ResourceExhaustionError as e:
+            # Resource limits exceeded - this is a DoS attack indicator
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                    f"Resource exhaustion detected during analysis: {e}; "
+                    f"this is indicative of an expansion attack (Billion Laughs style)",
+                    "ResourceExhaustion",
+                    trigger=f"{e.resource_type}: {e.actual}",
+                )
+            ]
+        except (ValueError, IndexError, RecursionError) as e:
+            # Malformed pickle caused an interpretation error
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"The pickle file has malformed opcode sequences ({type(e).__name__}: {e}); "
+                    f"it is either corrupted or attempting to bypass the pickle security analysis",
+                    "InterpretationError",
+                )
+            ]
         if not results:
             self.results_by_analysis[type(analysis)].append(AnalysisResult(Severity.LIKELY_SAFE))
         else:
@@ -207,6 +238,17 @@ class InterpretationErrorAnalysis(Analysis):
                 Severity.LIKELY_UNSAFE,
                 "The pickle file has malformed opcode sequences. "
                 "It is either corrupted or attempting to bypass the pickle security analysis",
+            )
+
+
+class ResourceExhaustionAnalysis(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        if context.pickled.has_resource_exhaustion:
+            yield AnalysisResult(
+                Severity.LIKELY_OVERTLY_MALICIOUS,
+                "Resource limits were exceeded during interpretation; "
+                "this is indicative of an expansion attack (Billion Laughs style)",
+                "ResourceExhaustion",
             )
 
 
@@ -401,8 +443,8 @@ class UnusedVariables(Analysis):
         interpreter = Interpreter(context.pickled)
         try:
             unused = interpreter.unused_assignments()
-        except InterpretationError:
-            # Malformed pickle - InterpretationErrorAnalysis will report this
+        except (InterpretationError, ResourceExhaustionError):
+            # Malformed pickle or resource exhaustion - dedicated analyses will report this
             return
         for varname, asmt in unused.items():
             shortened, _ = context.shorten_code(asmt.value)
@@ -413,6 +455,102 @@ class UnusedVariables(Analysis):
                 "UnusedVariables",
                 trigger=f"{varname}: {shortened}",
             )
+
+
+class ExpansionAttackAnalysis(Analysis):
+    """Detects potential exponential expansion attacks (Billion Laughs style).
+
+    These attacks use:
+    - High GET/PUT ratio: Many GET operations retrieving memoized values
+    - Excessive DUP operations: Duplicating stack items repeatedly
+    """
+
+    # Thresholds for pattern detection
+    DEFAULT_GET_PUT_RATIO_THRESHOLD = 10  # GETs per PUT that is suspicious
+    DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD = 50  # Extremely high ratio
+    DEFAULT_DUP_COUNT_THRESHOLD = 100  # Number of DUPs that is suspicious
+
+    def __init__(
+        self,
+        *,
+        get_put_ratio_threshold: int = DEFAULT_GET_PUT_RATIO_THRESHOLD,
+        high_get_put_ratio_threshold: int = DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD,
+        dup_count_threshold: int = DEFAULT_DUP_COUNT_THRESHOLD,
+    ):
+        self._get_put_ratio_threshold = get_put_ratio_threshold
+        self._high_get_put_ratio_threshold = high_get_put_ratio_threshold
+        self._dup_count_threshold = dup_count_threshold
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        get_count = 0
+        put_count = 0
+        dup_count = 0
+
+        for opcode in context.pickled:
+            if isinstance(opcode, BinGet | LongBinGet | Get):
+                get_count += 1
+            elif isinstance(opcode, BinPut | LongBinPut | Put | Memoize):
+                put_count += 1
+            elif isinstance(opcode, Dup):
+                dup_count += 1
+
+        findings: list[AnalysisResult] = []
+
+        # Check for high GET/PUT ratio
+        if put_count > 0:
+            ratio = get_count / put_count
+            if ratio > self._high_get_put_ratio_threshold:
+                findings.append(
+                    AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"Extremely high GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this pattern is indicative of an exponential expansion attack "
+                        f"(Billion Laughs style) that could cause DoS",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+            elif ratio > self._get_put_ratio_threshold:
+                findings.append(
+                    AnalysisResult(
+                        Severity.SUSPICIOUS,
+                        f"High GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this may indicate an expansion attack pattern",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+        elif get_count > self._get_put_ratio_threshold:
+            # GETs with no PUTs is inherently malformed/malicious
+            findings.append(
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"GET operations ({get_count}) with no PUT operations detected; "
+                    f"this is indicative of a malformed or malicious pickle",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"GET count: {get_count}, PUT count: 0",
+                )
+            )
+
+        # Check for excessive DUP operations
+        if dup_count > self._dup_count_threshold:
+            findings.append(
+                AnalysisResult(
+                    Severity.SUSPICIOUS,
+                    f"Excessive DUP operations ({dup_count}) detected; "
+                    f"this may indicate a stack duplication attack",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"DUP count: {dup_count}",
+                )
+            )
+
+        # Multiple indicators together are more severe
+        if len(findings) > 1:
+            for finding in findings:
+                if finding.severity < Severity.LIKELY_UNSAFE:
+                    finding.severity = Severity.LIKELY_UNSAFE
+
+        yield from findings
 
 
 class AnalysisResults:
