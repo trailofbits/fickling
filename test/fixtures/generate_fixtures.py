@@ -14,7 +14,6 @@ Usage:
     uv run test/fixtures/generate_fixtures.py
 """
 
-import warnings
 from pathlib import Path
 
 import torch
