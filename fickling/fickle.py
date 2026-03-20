@@ -8,6 +8,7 @@ import struct
 import sys
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, MutableSequence, Sequence
+from dataclasses import dataclass
 from enum import Enum
 from io import BytesIO
 from pickletools import OpcodeInfo, genops, opcodes
@@ -19,7 +20,7 @@ from typing import (
     overload,
 )
 
-from fickling.exception import WrongMethodError
+from fickling.exception import ExpansionAttackError, ResourceExhaustionError, WrongMethodError
 
 T = TypeVar("T")
 
@@ -27,6 +28,26 @@ if sys.version_info < (3, 12):
     from typing_extensions import Buffer
 else:
     from collections.abc import Buffer
+
+
+@dataclass(frozen=True)
+class InterpreterLimits:
+    """Resource limits to prevent DoS attacks during pickle interpretation."""
+
+    max_opcodes: int = 1_000_000
+    max_stack_depth: int = 10_000
+    max_memo_size: int = 100_000
+    max_get_ratio: int = 50  # Maximum GETs per PUT threshold
+
+    def __post_init__(self) -> None:
+        for field_name in ("max_opcodes", "max_stack_depth", "max_memo_size", "max_get_ratio"):
+            value = getattr(self, field_name)
+            if value < 1:
+                raise ValueError(f"{field_name} must be positive, got {value}")
+
+
+# Default limits instance (frozen, so safe as a global singleton)
+DEFAULT_INTERPRETER_LIMITS = InterpreterLimits()
 
 
 OpcodeSequence = MutableSequence["Opcode"]
@@ -64,8 +85,14 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "eval",
         # Import manipulation
         "importlib",
+        "_frozen_importlib",
+        "_frozen_importlib_external",
+        "_imp",
         "pkgutil",
         "zipimport",
+        "gc",
+        # Attribute access (getattr equivalent bypasses)
+        "inspect",
         # Operator module bypasses
         "_operator",
         "operator",
@@ -135,6 +162,9 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # File reading/enumeration
         "fileinput",
         "glob",
+        "platform",
+        "linecache",
+        "difflib",
         # Code compilation (writes .pyc files)
         "compileall",
         "py_compile",
@@ -151,6 +181,10 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "zipfile",
         # Shelve (opens database files)
         "shelve",
+        # Stdlib modules with hidden subprocess/os.system calls
+        "uuid",
+        "_osx_support",
+        "_aix_support",
     ]
 )
 
@@ -646,6 +680,7 @@ class Pickled(OpcodeSequence):
         # Whether the pickle contains cyclic references
         self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
+        self._has_resource_exhaustion: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -967,6 +1002,11 @@ class Pickled(OpcodeSequence):
         _ = self.ast  # Ensure interpretation ran
         return self._has_interpretation_error
 
+    @property
+    def has_resource_exhaustion(self) -> bool:
+        _ = self.ast  # Ensure interpretation ran
+        return self._has_resource_exhaustion
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, bytes | bytearray | Buffer):
@@ -1120,6 +1160,13 @@ on the Pickled object instead"""
                     f"returning empty AST to continue analysis\n"
                 )
                 self._ast = ast.Module(body=[], type_ignores=[])
+            except ResourceExhaustionError:
+                self._has_resource_exhaustion = True
+                sys.stderr.write(
+                    "Warning: resource limits exceeded during interpretation; "
+                    "returning empty AST to continue analysis\n"
+                )
+                self._ast = ast.Module(body=[], type_ignores=[])
         return self._ast
 
     @property
@@ -1202,7 +1249,11 @@ class ModuleBody:
 
 class Interpreter:
     def __init__(
-        self, pickled: Pickled, first_variable_id: int = 0, result_variable: str = "result"
+        self,
+        pickled: Pickled,
+        first_variable_id: int = 0,
+        result_variable: str = "result",
+        limits: InterpreterLimits | None = None,
     ):
         self.pickled: Pickled = pickled
         self.memory: dict[int, ast.expr] = {}
@@ -1213,6 +1264,12 @@ class Interpreter:
         self._var_counter: int = first_variable_id
         self._opcodes: Iterator[Opcode] = iter(pickled)
         self._has_cycle: bool = False
+
+        # Resource limits and tracking for DoS protection
+        self.limits: InterpreterLimits = limits or DEFAULT_INTERPRETER_LIMITS
+        self._opcode_count: int = 0
+        self._get_count: int = 0
+        self._put_count: int = 0
 
     @property
     def next_variable_id(self) -> int:
@@ -1281,9 +1338,35 @@ class Interpreter:
                 stmt.col_offset = 0
             self._module = ast.Module(list(self.module_body), type_ignores=[])
             raise StopIteration()
+        self._opcode_count += 1
         self.stack.opcode = opcode
         opcode.run(self)
+        self._check_limits()
         return opcode
+
+    def _check_limits(self) -> None:
+        """Check resource limits and raise if exceeded."""
+        if self._opcode_count > self.limits.max_opcodes:
+            raise ResourceExhaustionError("opcodes", self.limits.max_opcodes, self._opcode_count)
+        if len(self.stack) > self.limits.max_stack_depth:
+            raise ResourceExhaustionError(
+                "stack_depth", self.limits.max_stack_depth, len(self.stack)
+            )
+        if len(self.memory) > self.limits.max_memo_size:
+            raise ResourceExhaustionError("memo_size", self.limits.max_memo_size, len(self.memory))
+        # Check for suspicious GET/PUT ratio (expansion attack indicator)
+        if self._put_count > 0:
+            ratio = self._get_count / self._put_count
+            if ratio > self.limits.max_get_ratio:
+                raise ExpansionAttackError(self.limits.max_get_ratio, round(ratio))
+
+    def track_get(self) -> None:
+        """Track a GET operation for DoS protection."""
+        self._get_count += 1
+
+    def track_put(self) -> None:
+        """Track a PUT operation for DoS protection."""
+        self._put_count += 1
 
     def new_variable(self, value: ast.expr, name: str | None = None) -> str:
         if name is None:
@@ -1490,6 +1573,7 @@ class Put(Opcode):
     name = "PUT"
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_put()
         interpreter.memory[self.arg] = interpreter.stack[-1]
 
     def encode_body(self) -> bytes:
@@ -1501,6 +1585,7 @@ class BinPut(Opcode):
     name = "BINPUT"
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_put()
         interpreter.memory[self.arg] = interpreter.stack[-1]
 
     def encode_body(self):
@@ -1809,6 +1894,7 @@ class BinGet(Opcode):
     name = "BINGET"
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_get()
         if self.arg not in interpreter.memory:
             sys.stderr.write(
                 f"Warning: malformed pickle file. BINGET references non-existent memo key {self.arg}; "
@@ -1827,6 +1913,7 @@ class LongBinGet(Opcode):
     name = "LONG_BINGET"
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_get()
         if self.arg not in interpreter.memory:
             sys.stderr.write(
                 f"Warning: malformed pickle file. LONG_BINGET references non-existent memo key {self.arg}; "
@@ -1845,6 +1932,7 @@ class Get(Opcode):
         return int(self.arg)
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_get()
         if self.memo_id not in interpreter.memory:
             sys.stderr.write(
                 f"Warning: malformed pickle file. BINGET references non-existent memo key {self.memo_id}; "
@@ -1978,6 +2066,7 @@ class Memoize(Opcode):
     name = "MEMOIZE"
 
     def run(self, interpreter: Interpreter):
+        interpreter.track_put()
         interpreter.memory[len(interpreter.memory)] = interpreter.stack[-1]
 
 

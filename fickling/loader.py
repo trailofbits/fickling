@@ -32,6 +32,11 @@ class RelaxedZipFile(zipfile.ZipFile):
             )
         return f
 
+# Save the original pickle.loads before any hooks can replace it.
+# loader.load() must use the real pickle.loads for final deserialization,
+# otherwise hooking pickle.loads causes infinite recursion.
+_original_pickle_loads = pickle.loads
+
 
 def load(
     file,
@@ -48,7 +53,7 @@ def load(
         # We don't do pickle.load(file) because it could allow for a race
         # condition where the file we check is not the same that gets
         # loaded after the analysis.
-        return pickle.loads(pickled_data.dumps(), *args, **kwargs)
+        return _original_pickle_loads(pickled_data.dumps(), *args, **kwargs)
     if pickled_data.has_invalid_opcode:
         raise UnsafeFileError(
             file,

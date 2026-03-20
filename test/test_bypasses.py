@@ -616,6 +616,73 @@ class TestBypasses(TestCase):
             Severity.LIKELY_SAFE,
         )
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5hwf-rc88-82xm
+    def test_missing_uuid(self):
+        """uuid._get_command_stdout calls subprocess.Popen internally."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("uuid"),
+                op.ShortBinUnicode("_get_command_stdout"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("echo"),
+                op.ShortBinUnicode("PROOF_OF_CONCEPT"),
+                op.TupleTwo(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from uuid import _get_command_stdout",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5hwf-rc88-82xm
+    def test_missing_aix_support(self):
+        """_aix_support._read_cmd_output calls os.system internally."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("_aix_support"),
+                op.ShortBinUnicode("_read_cmd_output"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("echo PROOF_OF_CONCEPT"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from _aix_support import _read_cmd_output",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5hwf-rc88-82xm
+    def test_missing_osx_support(self):
+        """_osx_support._find_build_tool allows command injection via os.system."""
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("_osx_support"),
+                op.ShortBinUnicode("_find_build_tool"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("x; echo INJECTED #"),
+                op.TupleOne(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from _osx_support import _find_build_tool",
+        )
+
 
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""

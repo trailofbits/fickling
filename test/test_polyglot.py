@@ -128,10 +128,9 @@ class TestPolyglotModule(unittest.TestCase):
         formats = polyglot.identify_pytorch_file_format(self.filename_v1_3)
         self.assertEqual(formats, ["PyTorch v1.3"])
 
-    # NOTE(boyan): this test doesn't pass but it should. This needs to be fixed.
-    # def test_legacy_pickle(self):
-    #     formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
-    #     self.assertEqual(formats, ["PyTorch v0.1.10"])
+    def test_legacy_pickle(self):
+        formats = polyglot.identify_pytorch_file_format(self.filename_legacy_pickle)
+        self.assertEqual(formats, ["PyTorch v0.1.10"])
 
     @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript(self):
@@ -197,10 +196,8 @@ class TestPolyglotModule(unittest.TestCase):
         self.assertEqual(properties, proper_result)
 
     def test_legacy_pickle_properties(self):
-        properties = polyglot.find_file_properties(self.filename_v1_3)
-        proper_result = _make_properties(
-            is_torch_zip=True, is_standard_zip=True, has_data_pkl=True, has_version=True
-        )
+        properties = polyglot.find_file_properties(self.filename_legacy_pickle)
+        proper_result = _make_properties(is_valid_pickle=True)
         self.assertEqual(properties, proper_result)
 
     @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
