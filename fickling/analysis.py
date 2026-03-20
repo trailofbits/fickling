@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from abc import ABC, abstractmethod
 from ast import unparse
@@ -425,10 +426,11 @@ class OvertlyBadEvals(Analysis):
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
-            if node.module in BUILTIN_MODULE_NAMES and all(
-                n.name in SAFE_BUILTINS for n in node.names
-            ):
-                continue
+            if isinstance(node, ast.ImportFrom):
+                if node.module in BUILTIN_MODULE_NAMES and all(
+                    n.name in SAFE_BUILTINS for n in node.names
+                ):
+                    continue
             shortened, _ = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
