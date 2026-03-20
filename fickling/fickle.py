@@ -256,7 +256,7 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
 
 
 def is_std_module(module_name: str) -> bool:
-    return module_name in BUILTIN_STDLIB_MODULE_NAMES
+    return module_name.split(".")[0] in BUILTIN_STDLIB_MODULE_NAMES
 
 
 def extract_identifier_from_ast_node(
