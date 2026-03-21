@@ -135,7 +135,7 @@ class TestScanZipArchive(unittest.TestCase):
                 for ext in ("pkl", "pickle", "bin"):
                     zf.writestr(f"model.{ext}", safe_data)
             results = scan_zip_archive(zip_path)
-            self.assertEqual(len(results), 5)
+            self.assertEqual(len(results), 3)
         finally:
             Path(zip_path).unlink()
 
