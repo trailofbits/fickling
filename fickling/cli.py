@@ -41,9 +41,11 @@ def _scan_huggingface(
     """
     try:
         from huggingface_hub import HfApi, hf_hub_download
+
+        from .polyglot import find_file_properties
     except ImportError:
         sys.stderr.write(
-            "Error: huggingface_hub is required for --huggingface scanning.\n"
+            "Error: huggingface_hub and torch are required for --huggingface scanning.\n"
             "Install with: pip install fickling[huggingface]\n"
         )
         return EXIT_ERROR
@@ -61,33 +63,21 @@ def _scan_huggingface(
             print(f"No files found in {repo_id}")
         return EXIT_CLEAN
 
-    pickle_files = []
-    for f in repo_info.siblings:
-        ext = PurePosixPath(f.rfilename).suffix.lower()
-        if ext in HF_PICKLE_EXTENSIONS:
-            pickle_files.append(f.rfilename)
-        elif (
-            ext not in HF_KNOWN_SAFE_EXTENSIONS
-            and PurePosixPath(f.rfilename).name not in HF_KNOWN_SAFE_FILES
-        ):
-            sys.stderr.write(f"Warning: skipping '{f.rfilename}' (unknown extension '{ext}')\n")
+    files_to_scan = [f.rfilename for f in repo_info.siblings]
 
-    if not pickle_files:
+    if not files_to_scan:
         if print_results:
-            print(f"No pickle files found in {repo_id}")
+            print(f"No scannable files found in {repo_id}")
         return EXIT_CLEAN
 
     if print_results:
-        print(f"Scanning {len(pickle_files)} file(s) in {repo_id}...")
+        print(f"Scanning {len(files_to_scan)} file(s) in {repo_id}...")
 
     overall_safe = True
     failed = 0
     json_output = json_output_path or DEFAULT_JSON_OUTPUT_FILE
 
-    for filename in pickle_files:
-        if print_results:
-            print(f"\n  Scanning: {filename}")
-
+    for filename in files_to_scan:
         try:
             local_path = hf_hub_download(
                 repo_id=repo_id,
@@ -102,13 +92,34 @@ def _scan_huggingface(
             continue
 
         ext = PurePosixPath(filename).suffix.lower()
-        if ext in HF_ZIP_PICKLE_EXTENSIONS:
+        props = find_file_properties(local_path)
+        is_zip = (
+            props["is_torch_zip"] or props["is_standard_zip"] or ext in HF_ZIP_PICKLE_EXTENSIONS
+        )
+        if is_zip:
+            if print_results:
+                print(f"\n  Scanning: {filename}")
             member_results = scan_zip_archive(
                 local_path, graceful=True, json_output_path=json_output
             )
             file_results = list(member_results.values())
-        else:
+        elif props["is_valid_pickle"] or ext in HF_RAW_PICKLE_EXTENSIONS:
+            if print_results:
+                print(f"\n  Scanning: {filename}")
             file_results = [scan_file(local_path, graceful=True, json_output_path=json_output)]
+        elif props.get("is_7z") or props["is_tar"] or props["is_numpy_pickle"]:
+            sys.stderr.write(
+                f"Warning: '{filename}' detected as 7z/TAR/NumPy archive but scanning "
+                f"these formats is not yet supported; skipping\n"
+            )
+            continue
+        else:
+            name = PurePosixPath(filename).name
+            if ext not in HF_KNOWN_SAFE_EXTENSIONS and name not in HF_KNOWN_SAFE_FILES:
+                sys.stderr.write(f"Warning: skipping '{filename}' (unknown extension '{ext}')\n")
+            elif print_results:
+                print(f"  Skipping safe file: {filename}")
+            continue
 
         for result in file_results:
             if print_results:
@@ -129,7 +140,7 @@ def _scan_huggingface(
 
     if print_results:
         if failed > 0:
-            sys.stderr.write(f"\nWARNING: {failed}/{len(pickle_files)} file(s) failed to scan\n")
+            sys.stderr.write(f"\nWARNING: {failed}/{len(files_to_scan)} file(s) failed to scan\n")
         if overall_safe:
             print(f"\n{repo_id}: No obvious safety issues detected")
         else:

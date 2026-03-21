@@ -51,6 +51,7 @@ archive = [
 ]
 huggingface = [
     "huggingface_hub >= 0.20.0",
+    "fickling[torch]",
 ]
 dev = [
   "fickling[lint,test,torch,archive,huggingface]",
