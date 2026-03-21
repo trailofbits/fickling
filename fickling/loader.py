@@ -2,6 +2,7 @@ import pickle
 import warnings
 import zipfile
 from io import BytesIO
+from pathlib import PurePosixPath
 
 from fickling.analysis import AnalysisResults, Severity, check_safety
 from fickling.exception import UnsafeFileError
@@ -154,7 +155,7 @@ def scan_file(
     try:
         with open(filepath, "rb") as f:
             data = f.read()
-    except Exception as e:
+    except OSError as e:
         if graceful:
             return ScanResult(
                 filepath=filepath,
@@ -166,18 +167,19 @@ def scan_file(
     return _scan_bytes(filepath, data, graceful, json_output_path)
 
 
-def scan_archive(
+def scan_zip_archive(
     filepath: str,
     graceful: bool = False,
     json_output_path: str | None = None,
 ) -> dict[str, ScanResult]:
-    """Scan a ZIP archive for malicious pickle content.
+    """Scan a ZIP archive for malicious raw pickle content.
 
-    Scans each file within the archive that has a pickle-related extension
-    (.pkl, .pickle, .bin, .pt, .pth).
+    Scans each file within the archive that has a raw pickle-related extension
+    (.pkl, .pickle, .bin). Only ZIP archives are supported;
+    for TAR or 7z archives, see fickling.polyglot.
 
     Args:
-        filepath: Path to the archive to scan
+        filepath: Path to the ZIP archive to scan
         graceful: If True, continue on parse errors and report them
         json_output_path: Optional path to write JSON analysis results
 
@@ -185,14 +187,14 @@ def scan_archive(
         Dict mapping archive member names to their ScanResults
     """
     results: dict[str, ScanResult] = {}
-    pickle_extensions = {".pkl", ".pickle", ".bin", ".pt", ".pth"}
+    pickle_extensions = {".pkl", ".pickle", ".bin"}
 
     try:
         with RelaxedZipFile(filepath, "r") as archive:
             for info in archive.infolist():
                 if info.is_dir():
                     continue
-                ext = "." + info.filename.rsplit(".", 1)[-1].lower() if "." in info.filename else ""
+                ext = PurePosixPath(info.filename).suffix.lower()
                 if ext not in pickle_extensions:
                     continue
 

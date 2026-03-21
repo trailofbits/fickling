@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from fickling.analysis import Severity
 from fickling.fickle import PickleDecodeError
-from fickling.loader import RelaxedZipFile, ScanResult, scan_archive, scan_file
+from fickling.loader import RelaxedZipFile, ScanResult, scan_file, scan_zip_archive
 
 
 class Payload:
@@ -100,14 +100,14 @@ class TestScanFile(unittest.TestCase):
             Path(path).unlink()
 
 
-class TestScanArchive(unittest.TestCase):
+class TestScanZipArchive(unittest.TestCase):
     def test_detects_malicious_pkl(self):
         malicious_data = pickle.dumps(Payload())
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
             zip_path = f.name
         try:
             _create_zip_with_pickle(zip_path, "model.pkl", malicious_data)
-            results = scan_archive(zip_path)
+            results = scan_zip_archive(zip_path)
             self.assertIn("model.pkl", results)
             self.assertFalse(results["model.pkl"].is_safe)
         finally:
@@ -120,7 +120,7 @@ class TestScanArchive(unittest.TestCase):
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("readme.txt", b"hello")
                 zf.writestr("model.pkl", pickle.dumps([1, 2, 3]))
-            results = scan_archive(zip_path)
+            results = scan_zip_archive(zip_path)
             self.assertNotIn("readme.txt", results)
             self.assertIn("model.pkl", results)
         finally:
@@ -132,9 +132,9 @@ class TestScanArchive(unittest.TestCase):
         try:
             safe_data = pickle.dumps(42)
             with zipfile.ZipFile(zip_path, "w") as zf:
-                for ext in ("pkl", "pickle", "bin", "pt", "pth"):
+                for ext in ("pkl", "pickle", "bin"):
                     zf.writestr(f"model.{ext}", safe_data)
-            results = scan_archive(zip_path)
+            results = scan_zip_archive(zip_path)
             self.assertEqual(len(results), 5)
         finally:
             Path(zip_path).unlink()
@@ -144,7 +144,7 @@ class TestScanArchive(unittest.TestCase):
             f.write(b"not a zip file at all")
             bad_path = f.name
         try:
-            results = scan_archive(bad_path, graceful=True)
+            results = scan_zip_archive(bad_path, graceful=True)
             self.assertIn("<archive>", results)
             self.assertGreater(len(results["<archive>"].errors), 0)
         finally:
@@ -156,18 +156,18 @@ class TestScanArchive(unittest.TestCase):
             bad_path = f.name
         try:
             with self.assertRaises(zipfile.BadZipFile):
-                scan_archive(bad_path, graceful=False)
+                scan_zip_archive(bad_path, graceful=False)
         finally:
             Path(bad_path).unlink()
 
     def test_nonexistent_graceful(self):
-        results = scan_archive("/nonexistent/archive.zip", graceful=True)
+        results = scan_zip_archive("/nonexistent/archive.zip", graceful=True)
         self.assertIn("<archive>", results)
         self.assertGreater(len(results["<archive>"].errors), 0)
 
     def test_nonexistent_non_graceful_raises(self):
         with self.assertRaises(FileNotFoundError):
-            scan_archive("/nonexistent/archive.zip", graceful=False)
+            scan_zip_archive("/nonexistent/archive.zip", graceful=False)
 
     def test_graceful_mixed_good_and_bad_members(self):
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
@@ -176,7 +176,7 @@ class TestScanArchive(unittest.TestCase):
             with zipfile.ZipFile(zip_path, "w") as zf:
                 zf.writestr("good.pkl", pickle.dumps([1, 2, 3]))
                 zf.writestr("bad.pkl", b"\x00\x01corrupt_pickle")
-            results = scan_archive(zip_path, graceful=True)
+            results = scan_zip_archive(zip_path, graceful=True)
             self.assertIn("good.pkl", results)
             self.assertIn("bad.pkl", results)
             self.assertTrue(results["good.pkl"].is_safe)
