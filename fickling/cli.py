@@ -9,10 +9,15 @@ from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
 from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 from .exception import ResourceExhaustionError
+from .loader import scan_file, scan_zip_archive
 
 DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
 
-HF_PICKLE_EXTENSIONS = frozenset({".bin", ".pt", ".pth", ".pkl", ".pickle"})
+HF_RAW_PICKLE_EXTENSIONS = frozenset({".bin", ".pkl", ".pickle"})
+HF_ZIP_PICKLE_EXTENSIONS = frozenset({".pt", ".pth"})
+HF_PICKLE_EXTENSIONS = HF_RAW_PICKLE_EXTENSIONS | HF_ZIP_PICKLE_EXTENSIONS
+HF_KNOWN_SAFE_EXTENSIONS = frozenset({".json", ".safetensors", ".onnx"})
+HF_KNOWN_SAFE_FILES = frozenset({".gitattributes", ".gitignore", "README.md"})
 
 
 def _scan_huggingface(
@@ -56,11 +61,16 @@ def _scan_huggingface(
             print(f"No files found in {repo_id}")
         return EXIT_CLEAN
 
-    pickle_files = [
-        f.rfilename
-        for f in repo_info.siblings
-        if PurePosixPath(f.rfilename).suffix.lower() in HF_PICKLE_EXTENSIONS
-    ]
+    pickle_files = []
+    for f in repo_info.siblings:
+        ext = PurePosixPath(f.rfilename).suffix.lower()
+        if ext in HF_PICKLE_EXTENSIONS:
+            pickle_files.append(f.rfilename)
+        elif (
+            ext not in HF_KNOWN_SAFE_EXTENSIONS
+            and PurePosixPath(f.rfilename).name not in HF_KNOWN_SAFE_FILES
+        ):
+            sys.stderr.write(f"Warning: skipping '{f.rfilename}' (unknown extension '{ext}')\n")
 
     if not pickle_files:
         if print_results:
@@ -85,35 +95,37 @@ def _scan_huggingface(
                 revision=revision,
                 token=token,
             )
+        except Exception as e:  # noqa: BLE001 -- HF Hub may raise unpredictable errors
+            sys.stderr.write(f"Error downloading {filename}: {e!s}\n")
+            overall_safe = False
+            failed += 1
+            continue
 
-            with open(local_path, "rb") as f:
-                stacked_pickled = fickle.StackedPickle.load(f, fail_on_decode_error=False)
+        ext = PurePosixPath(filename).suffix.lower()
+        if ext in HF_ZIP_PICKLE_EXTENSIONS:
+            member_results = scan_zip_archive(
+                local_path, graceful=True, json_output_path=json_output
+            )
+            file_results = list(member_results.values())
+        else:
+            file_results = [scan_file(local_path, graceful=True, json_output_path=json_output)]
 
-            for pickled in stacked_pickled:
-                safety_results = check_safety(pickled, json_output_path=json_output)
-
-                if print_results:
-                    result_str = safety_results.to_string()
+        for result in file_results:
+            if print_results:
+                for ar in result.results:
+                    result_str = ar.to_string()
                     if result_str:
                         print(f"    {result_str}")
 
-                if safety_results.severity > Severity.LIKELY_SAFE:
-                    overall_safe = False
-                    if print_results:
-                        sys.stderr.write(f"    WARNING: {filename} may contain unsafe content!\n")
+            if not result.is_safe:
+                overall_safe = False
+                if print_results:
+                    sys.stderr.write(f"    WARNING: {filename} may contain unsafe content!\n")
 
-        except fickle.PickleDecodeError as e:
-            sys.stderr.write(f"Error parsing {filename}: {e!s}\n")
-            sys.stderr.write(
-                "Parsing errors may indicate a maliciously crafted pickle file. "
-                "DO NOT TRUST this file without further analysis!\n"
-            )
-            overall_safe = False
-            failed += 1
-        except Exception as e:  # noqa: BLE001 -- HF Hub may raise unpredictable errors
-            sys.stderr.write(f"Error scanning {filename}: {e!s}\n")
-            overall_safe = False
-            failed += 1
+            if result.errors:
+                for err in result.errors:
+                    sys.stderr.write(f"    {err}\n")
+                failed += 1
 
     if print_results:
         if failed > 0:
