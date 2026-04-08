@@ -1,4 +1,3 @@
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,7 +8,7 @@ import torchvision.models as models
 from fickling.fickle import Pickled
 from fickling.pytorch import PyTorchModelWrapper
 
-_lacks_torch_jit_support = sys.version_info >= (3, 14)
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 class TestPyTorchModule(unittest.TestCase):
@@ -21,10 +20,8 @@ class TestPyTorchModule(unittest.TestCase):
         self.filename_v1_3 = tmppath / "test_model.pth"
         torch.save(model, self.filename_v1_3)
 
-        if not _lacks_torch_jit_support:
-            m = torch.jit.script(model)
-            self.torchscript_filename = tmppath / "test_model_torchscript.pth"
-            torch.jit.save(m, self.torchscript_filename)
+        # Pre-generated fixture to avoid torch.jit deprecation warnings
+        self.torchscript_filename = FIXTURES_DIR / "squeezenet1_0_torchscript_v1_4.pt"
 
     def tearDown(self):
         self.tmpdir.cleanup()
@@ -35,7 +32,6 @@ class TestPyTorchModule(unittest.TestCase):
         except Exception as e:  # noqa
             self.fail(f"PyTorchModelWrapper was not able to load a PyTorch v1.3 file: {e}")
 
-    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_wrapper(self):
         try:
             PyTorchModelWrapper(self.torchscript_filename)
@@ -47,7 +43,6 @@ class TestPyTorchModule(unittest.TestCase):
         pickled_portion = result.pickled
         self.assertIsInstance(pickled_portion, Pickled)
 
-    @unittest.skipIf(_lacks_torch_jit_support, "PyTorch 2.9.1 JIT broken with Python 3.14+")
     def test_torchscript_pickled(self):
         result = PyTorchModelWrapper(self.torchscript_filename)
         pickled_portion = result.pickled
