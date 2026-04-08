@@ -1305,6 +1305,12 @@ class Interpreter:
                                 f"Warning: Duplicate declaration of variable {target.id}\n"
                             )
                         assignments[target.id] = statement
+                    else:
+                        # For complex targets like subscripts (e.g. _var[_key] = val),
+                        # names within the target expression are uses, not definitions.
+                        for node in ast.walk(target):
+                            if isinstance(node, ast.Name):
+                                used.add(node.id)
                 statement = statement.value
             if statement is not None:
                 for node in ast.walk(statement):
