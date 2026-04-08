@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from abc import ABC, abstractmethod
 from ast import unparse
@@ -325,45 +326,55 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened, _ = context.shorten_code(node)
-            all_modules = [
-                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
-            ]
-            for module_name in all_modules:
-                if module_name in self.UNSAFE_MODULES:
-                    # Special handling for builtins - check specific function names
-                    if module_name in BUILTIN_MODULE_NAMES:
-                        for n in node.names:
-                            if n.name not in SAFE_BUILTINS:
-                                risk_info = self.UNSAFE_MODULES[module_name]
-                                yield AnalysisResult(
-                                    Severity.LIKELY_OVERTLY_MALICIOUS,
-                                    f"`{shortened}` imports `{n.name}` from `{module_name}` "
-                                    f"which can execute arbitrary code. {risk_info}",
-                                    "UnsafeImportsML",
-                                    trigger=shortened,
-                                )
-                    else:
-                        # All other unsafe modules are fully blocked
-                        risk_info = self.UNSAFE_MODULES[module_name]
-                        yield AnalysisResult(
-                            Severity.LIKELY_OVERTLY_MALICIOUS,
-                            f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
-                            "UnsafeImportsML",
-                            trigger=shortened,
-                        )
-            if node.module in self.UNSAFE_IMPORTS:
-                for n in node.names:
-                    if n.name in self.UNSAFE_IMPORTS[node.module]:
-                        risk_info = self.UNSAFE_IMPORTS[node.module][n.name]
-                        yield AnalysisResult(
-                            Severity.LIKELY_OVERTLY_MALICIOUS,
-                            f"`{shortened}` imports `{n.name}` that is indicative of a malicious pickle file. {risk_info}",
-                            "UnsafeImportsML",
-                            trigger=shortened,
-                        )
+
+            match node:
+                case ast.ImportFrom(module=module, names=names) if module:
+                    modules_to_check = [module]
+                    imported_names = names
+                case ast.Import(names=names):
+                    modules_to_check = [alias.name for alias in names]
+                    imported_names = []
+                case _:
+                    continue
+
+            for module in modules_to_check:
+                all_modules = [module.rsplit(".", i)[0] for i in range(0, module.count(".") + 1)]
+                for module_name in all_modules:
+                    if module_name in self.UNSAFE_MODULES:
+                        # Special handling for builtins - check specific function names
+                        if module_name in BUILTIN_MODULE_NAMES:
+                            for n in imported_names:
+                                if n.name not in SAFE_BUILTINS:
+                                    risk_info = self.UNSAFE_MODULES[module_name]
+                                    yield AnalysisResult(
+                                        Severity.LIKELY_OVERTLY_MALICIOUS,
+                                        f"`{shortened}` imports `{n.name}` from `{module_name}` "
+                                        f"which can execute arbitrary code. {risk_info}",
+                                        "UnsafeImportsML",
+                                        trigger=shortened,
+                                    )
+                        else:
+                            # All other unsafe modules are fully blocked
+                            risk_info = self.UNSAFE_MODULES[module_name]
+                            yield AnalysisResult(
+                                Severity.LIKELY_OVERTLY_MALICIOUS,
+                                f"`{shortened}` uses `{module_name}` that is indicative of a malicious pickle file. {risk_info}",
+                                "UnsafeImportsML",
+                                trigger=shortened,
+                            )
+                if module in self.UNSAFE_IMPORTS:
+                    for n in imported_names:
+                        if n.name in self.UNSAFE_IMPORTS[module]:
+                            risk_info = self.UNSAFE_IMPORTS[module][n.name]
+                            yield AnalysisResult(
+                                Severity.LIKELY_OVERTLY_MALICIOUS,
+                                f"`{shortened}` imports `{n.name}` that is indicative of a malicious pickle file. {risk_info}",
+                                "UnsafeImportsML",
+                                trigger=shortened,
+                            )
             # NOTE(boyan): Special case with eval?
             # Copy pasted from pickled.unsafe_imports() original implementation
-            elif "eval" in (n.name for n in node.names):
+            if "eval" in (n.name for n in imported_names):
                 yield AnalysisResult(
                     Severity.LIKELY_OVERTLY_MALICIOUS,
                     f"`{shortened}` imports `eval` which can execute arbitrary code",
@@ -425,10 +436,11 @@ class OvertlyBadEvals(Analysis):
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
-            if node.module in BUILTIN_MODULE_NAMES and all(
-                n.name in SAFE_BUILTINS for n in node.names
-            ):
-                continue
+            if isinstance(node, ast.ImportFrom):
+                if node.module in BUILTIN_MODULE_NAMES and all(
+                    n.name in SAFE_BUILTINS for n in node.names
+                ):
+                    continue
             shortened, _ = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
