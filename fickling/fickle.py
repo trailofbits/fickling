@@ -97,6 +97,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "unittest",
         # Attribute access (getattr equivalent bypasses)
         "inspect",
+        "test",
         # Operator module bypasses
         "_operator",
         "operator",
