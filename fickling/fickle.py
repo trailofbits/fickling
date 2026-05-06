@@ -84,6 +84,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "compile",
         "exec",
         "eval",
+        "doctest",
         # Import manipulation
         "importlib",
         "_frozen_importlib",
@@ -93,6 +94,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "zipimport",
         "gc",
         "site",
+        "unittest",
         # Attribute access (getattr equivalent bypasses)
         "inspect",
         # Operator module bypasses
