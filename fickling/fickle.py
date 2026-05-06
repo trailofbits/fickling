@@ -74,6 +74,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "pty",
         "commands",  # Legacy Python 2 module
         "multiprocessing",
+        "_posixsubprocess",
         # Code execution/compilation
         "code",
         "codeop",
@@ -91,6 +92,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "pkgutil",
         "zipimport",
         "gc",
+        "site",
         # Attribute access (getattr equivalent bypasses)
         "inspect",
         # Operator module bypasses
@@ -156,6 +158,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "_signal",
         "threading",
         "_thread",
+        "atexit",
         # Database/file creation
         "sqlite3",
         "_sqlite3",
