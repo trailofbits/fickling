@@ -295,9 +295,7 @@ class MLAllowlist(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
-            shortened, already_reported = context.shorten_code(node)
-            if already_reported:
-                continue
+            shortened = context.shorten_code(node)
 
             if isinstance(node, ast.ImportFrom):
                 # from module import x

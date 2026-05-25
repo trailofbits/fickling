@@ -78,19 +78,25 @@ class AnalysisContext:
     def results(self) -> AnalysisResults:
         return AnalysisResults(pickled=self.pickled, results=self.previous_results)
 
-    def shorten_code(self, ast_node) -> tuple[str, bool]:
+    def shorten_code(self, ast_node) -> str:
+        """Return a short, human-readable form of an AST node for use in
+        analysis messages. Pure formatter — does not touch dedup state.
+        """
         code = unparse(ast_node).strip()
         if len(code) > 32:
             cutoff = code.find("(")
-            if code[cutoff] == "(":
-                shortened_code = f"{code[: code.find('(')].strip()}(...)"
-            else:
-                shortened_code = code
-        else:
-            shortened_code = code
-        was_already_reported = shortened_code in self.reported_shortened_code
-        self.reported_shortened_code.add(shortened_code)
-        return shortened_code, was_already_reported
+            if cutoff >= 0:
+                return f"{code[:cutoff].strip()}(...)"
+        return code
+
+    def mark_reported(self, shortened: str) -> bool:
+        """Mark a shortened code fragment as reported. Returns True if
+        this was the first mark, False if a prior call already marked it.
+        """
+        if shortened in self.reported_shortened_code:
+            return False
+        self.reported_shortened_code.add(shortened)
+        return True
 
 
 class Analyzer(metaclass=AnalyzerMeta):
@@ -255,8 +261,8 @@ class ResourceExhaustionAnalysis(Analysis):
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
-            shortened, already_reported = context.shorten_code(node)
-            if not already_reported:
+            shortened = context.shorten_code(node)
+            if context.mark_reported(shortened):
                 yield AnalysisResult(
                     Severity.LIKELY_UNSAFE,
                     f"`{shortened}` imports a Python module that is not a part of "
@@ -324,7 +330,7 @@ class UnsafeImportsML(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
-            shortened, _ = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             all_modules = [
                 node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
             ]
@@ -377,7 +383,7 @@ class BadCalls(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
-            shortened, _already_reported = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
@@ -397,7 +403,7 @@ class OvertlyBadEvals(Analysis):
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
-            shortened, already_reported = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             if (
                 shortened.startswith("eval(")
                 or shortened.startswith("exec(")
@@ -413,7 +419,7 @@ class OvertlyBadEvals(Analysis):
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
-            elif not already_reported:
+            elif context.mark_reported(shortened):
                 yield AnalysisResult(
                     Severity.LIKELY_UNSAFE,
                     f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe",
@@ -429,7 +435,7 @@ class UnsafeImports(Analysis):
                 n.name in SAFE_BUILTINS for n in node.names
             ):
                 continue
-            shortened, _ = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
                 f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file",
@@ -447,7 +453,7 @@ class UnusedVariables(Analysis):
             # Malformed pickle or resource exhaustion - dedicated analyses will report this
             return
         for varname, asmt in unused.items():
-            shortened, _ = context.shorten_code(asmt.value)
+            shortened = context.shorten_code(asmt.value)
             yield AnalysisResult(
                 Severity.SUSPICIOUS,
                 f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "

@@ -683,6 +683,28 @@ class TestBypasses(TestCase):
             "from _osx_support import _find_build_tool",
         )
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-cffv-grgg-g429
+    def test_ml_allowlist_not_shadowed_by_unsafe_imports_ml(self):
+        """MLAllowlist must flag imports outside ML_ALLOWLIST even when another
+        analysis (UnsafeImportsML) has already iterated the same import.
+        """
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("ast"),
+                op.ShortBinUnicode("parse"),
+                op.StackGlobal(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(
+            detailed.get("MLAllowlist"),
+            "MLAllowlist did not produce a finding for `from ast import parse`",
+        )
+
 
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""
