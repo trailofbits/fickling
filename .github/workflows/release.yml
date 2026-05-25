@@ -30,6 +30,8 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: false
 
       - name: Build distributions
         run: uv build
