@@ -2,8 +2,9 @@ import marshal
 from unittest import TestCase
 
 import fickling.fickle as op
-from fickling.analysis import Severity, UnsafeImportsML, check_safety
+from fickling.analysis import Analyzer, Severity, UnsafeImportsML, check_safety
 from fickling.fickle import Pickled
+from fickling.ml import MLAllowlist
 
 
 class TestBypasses(TestCase):
@@ -697,7 +698,8 @@ class TestBypasses(TestCase):
                 op.Stop(),
             ]
         )
-        res = check_safety(pickled)
+        analyzer = Analyzer([UnsafeImportsML(), MLAllowlist()])
+        res = check_safety(pickled, analyzer=analyzer)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
         detailed = res.detailed_results().get("AnalysisResult", {})
         self.assertIsNotNone(

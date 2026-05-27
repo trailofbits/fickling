@@ -170,8 +170,10 @@ class AnalysisResult:
 class Analysis(ABC):
     ALL: list[Analysis] = []
 
-    def __init_subclass__(cls, **kwargs):
-        Analysis.ALL.append(cls())
+    def __init_subclass__(cls, *, register: bool = True, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if register:
+            Analysis.ALL.append(cls())
 
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:

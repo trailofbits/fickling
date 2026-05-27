@@ -288,7 +288,7 @@ ML_ALLOWLIST = {
 }
 
 
-class MLAllowlist(Analysis):
+class MLAllowlist(Analysis, register=False):
     def __init__(self):
         super().__init__()
         self.allowlist = ML_ALLOWLIST
