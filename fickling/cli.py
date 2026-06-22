@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser
 from ast import unparse
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
@@ -149,6 +149,130 @@ def _scan_huggingface(
     return EXIT_CLEAN if overall_safe else EXIT_UNSAFE
 
 
+def _is_glob(target: str) -> bool:
+    """Return True if `target` looks like a shell glob pattern."""
+    return any(ch in target for ch in "*?[")
+
+
+def _collect_scan_targets(target: str, recursive: bool) -> tuple[list[Path], bool]:
+    """Expand a path, directory, or glob into a sorted list of candidate files.
+
+    Args:
+        target: A file path, directory path, or glob pattern. Patterns express
+            recursion explicitly with ``**`` (e.g. ``models/**/*.pkl``); the
+            `recursive` flag governs bare-directory inputs only.
+        recursive: If True, a directory input is walked depth-first.
+
+    Returns:
+        A tuple ``(files, resolved)``. ``files`` is the sorted list of existing
+        regular files. ``resolved`` is False only when `target` matched nothing
+        on disk (no such file, directory, or glob match) so the caller can emit
+        EXIT_ERROR rather than a misleading "clean" result.
+    """
+    path = Path(target)
+    if path.is_dir():
+        pattern = "**/*" if recursive else "*"
+        return sorted(p for p in path.glob(pattern) if p.is_file()), True
+    # Check for an existing regular file before treating `target` as a glob, so a
+    # literal filename containing glob metacharacters (e.g. ``data[v1].pkl``) is
+    # scanned as itself rather than mis-parsed as a pattern that matches nothing.
+    if path.is_file():
+        return [path], True
+    if _is_glob(target):
+        # Path.glob requires a relative pattern, so split off any anchor (e.g.
+        # the leading "/") and glob from there. ``**`` recurses on its own.
+        anchor = Path(path.anchor) if path.anchor else Path()
+        pattern = str(path.relative_to(path.anchor)) if path.anchor else target
+        matches = list(anchor.glob(pattern))
+        files = sorted(m for m in matches if m.is_file())
+        return files, bool(matches)
+    return [], False
+
+
+def _scan_paths(
+    target: str,
+    recursive: bool = False,
+    json_output_path: str | None = None,
+    print_results: bool = False,
+) -> int:
+    """Safety-scan every pickle file under a directory or glob pattern.
+
+    Reuses :func:`scan_file` and :func:`scan_zip_archive` and the
+    ``HF_PICKLE_EXTENSIONS`` classification to triage a tree of files in one
+    invocation. Per-file verdicts are aggregated into a single ClamAV-compatible
+    exit code with the following precedence: any unsafe file -> EXIT_UNSAFE,
+    otherwise any scan error -> EXIT_ERROR, otherwise EXIT_CLEAN.
+
+    Args:
+        target: Directory path or glob pattern to scan.
+        recursive: Walk directories recursively when True.
+        json_output_path: Optional path to write JSON analysis results.
+        print_results: Whether to print results to console.
+
+    Returns:
+        EXIT_CLEAN (0), EXIT_UNSAFE (1), or EXIT_ERROR (2)
+    """
+    files, resolved = _collect_scan_targets(target, recursive)
+    if not resolved:
+        sys.stderr.write(f"Error: no such file, directory, or glob match: '{target}'\n")
+        return EXIT_ERROR
+
+    candidates = [f for f in files if f.suffix.lower() in HF_PICKLE_EXTENSIONS]
+    if not candidates:
+        if print_results:
+            print(f"No scannable pickle files found in '{target}'")
+        return EXIT_CLEAN
+
+    json_output = json_output_path or DEFAULT_JSON_OUTPUT_FILE
+    if print_results:
+        print(f"Scanning {len(candidates)} file(s) under '{target}'...")
+
+    any_unsafe = False
+    any_error = False
+
+    for filepath in candidates:
+        path_str = str(filepath)
+        if filepath.suffix.lower() in HF_ZIP_PICKLE_EXTENSIONS:
+            member_results = scan_zip_archive(path_str, graceful=True, json_output_path=json_output)
+            file_results = list(member_results.values())
+        else:
+            file_results = [scan_file(path_str, graceful=True, json_output_path=json_output)]
+
+        if print_results:
+            print(f"\n  Scanning: {path_str}")
+
+        for result in file_results:
+            if print_results:
+                for ar in result.results:
+                    result_str = ar.to_string()
+                    if result_str:
+                        print(f"    {result_str}")
+
+            if not result.is_safe:
+                any_unsafe = True
+                if print_results:
+                    sys.stderr.write(f"    WARNING: {path_str} may contain unsafe content!\n")
+
+            if result.errors:
+                any_error = True
+                for err in result.errors:
+                    sys.stderr.write(f"    {err}\n")
+
+    if print_results:
+        if any_unsafe:
+            print(f"\n{target}: Potentially unsafe content detected!")
+        elif any_error:
+            print(f"\n{target}: Completed with scan errors; review warnings above")
+        else:
+            print(f"\n{target}: No obvious safety issues detected")
+
+    if any_unsafe:
+        return EXIT_UNSAFE
+    if any_error:
+        return EXIT_ERROR
+    return EXIT_CLEAN
+
+
 def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv
@@ -234,6 +358,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="print a runtime trace while interpreting the input pickle file",
     )
+    parser.add_argument(
+        "--recursive",
+        "-R",
+        action="store_true",
+        help="when PICKLE_FILE is a directory, scan it recursively. Directory and "
+        "glob inputs are always safety-scanned (reusing the --check-safety analysis), "
+        "aggregating per-file verdicts into a single ClamAV-compatible exit code "
+        "(unsafe takes precedence over scan errors).",
+    )
     parser.add_argument("--version", "-v", action="store_true", help="print the version and exit")
     options.add_argument(
         "--huggingface",
@@ -274,6 +407,27 @@ def main(argv: list[str] | None = None) -> int:
             repo_id=args.huggingface,
             revision=args.hf_revision,
             token=args.hf_token,
+            json_output_path=args.json_output,
+            print_results=args.print_results,
+        )
+
+    # Directory / glob scanning mode (bulk triage). Triggered when PICKLE_FILE is
+    # a directory, a glob pattern, or --recursive is set, as long as no single-file
+    # operation (inject/create/trace) was requested.
+    if (
+        args.create is None
+        and args.inject is None
+        and not args.trace
+        and args.PICKLE_FILE != "-"
+        and (
+            args.recursive
+            or (_is_glob(args.PICKLE_FILE) and not Path(args.PICKLE_FILE).is_file())
+            or Path(args.PICKLE_FILE).is_dir()
+        )
+    ):
+        return _scan_paths(
+            args.PICKLE_FILE,
+            recursive=args.recursive,
             json_output_path=args.json_output,
             print_results=args.print_results,
         )
