@@ -288,16 +288,14 @@ ML_ALLOWLIST = {
 }
 
 
-class MLAllowlist(Analysis):
+class MLAllowlist(Analysis, register=False):
     def __init__(self):
         super().__init__()
         self.allowlist = ML_ALLOWLIST
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
-            shortened, already_reported = context.shorten_code(node)
-            if already_reported:
-                continue
+            shortened = context.shorten_code(node)
 
             if isinstance(node, ast.ImportFrom):
                 # from module import x
