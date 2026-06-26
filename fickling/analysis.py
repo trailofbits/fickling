@@ -7,13 +7,22 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
 
+from fickling.exception import ResourceExhaustionError
 from fickling.fickle import (
     BUILTIN_MODULE_NAMES,
     SAFE_BUILTINS,
+    BinGet,
+    BinPut,
+    Dup,
+    Get,
     InterpretationError,
     Interpreter,
+    LongBinGet,
+    LongBinPut,
+    Memoize,
     Pickled,
     Proto,
+    Put,
 )
 
 
@@ -35,7 +44,29 @@ class AnalysisContext:
         self.results_by_analysis: dict[type[Analysis], list[AnalysisResult]] = defaultdict(list)
 
     def analyze(self, analysis: Analysis) -> list[AnalysisResult]:
-        results = list(analysis.analyze(self))
+        try:
+            results = list(analysis.analyze(self))
+        except ResourceExhaustionError as e:
+            # Resource limits exceeded - this is a DoS attack indicator
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_OVERTLY_MALICIOUS,
+                    f"Resource exhaustion detected during analysis: {e}; "
+                    f"this is indicative of an expansion attack (Billion Laughs style)",
+                    "ResourceExhaustion",
+                    trigger=f"{e.resource_type}: {e.actual}",
+                )
+            ]
+        except (ValueError, IndexError, RecursionError) as e:
+            # Malformed pickle caused an interpretation error
+            results = [
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"The pickle file has malformed opcode sequences ({type(e).__name__}: {e}); "
+                    f"it is either corrupted or attempting to bypass the pickle security analysis",
+                    "InterpretationError",
+                )
+            ]
         if not results:
             self.results_by_analysis[type(analysis)].append(AnalysisResult(Severity.LIKELY_SAFE))
         else:
@@ -47,19 +78,25 @@ class AnalysisContext:
     def results(self) -> AnalysisResults:
         return AnalysisResults(pickled=self.pickled, results=self.previous_results)
 
-    def shorten_code(self, ast_node) -> tuple[str, bool]:
+    def shorten_code(self, ast_node) -> str:
+        """Return a short, human-readable form of an AST node for use in
+        analysis messages. Pure formatter — does not touch dedup state.
+        """
         code = unparse(ast_node).strip()
         if len(code) > 32:
             cutoff = code.find("(")
-            if code[cutoff] == "(":
-                shortened_code = f"{code[: code.find('(')].strip()}(...)"
-            else:
-                shortened_code = code
-        else:
-            shortened_code = code
-        was_already_reported = shortened_code in self.reported_shortened_code
-        self.reported_shortened_code.add(shortened_code)
-        return shortened_code, was_already_reported
+            if cutoff >= 0:
+                return f"{code[:cutoff].strip()}(...)"
+        return code
+
+    def mark_reported(self, shortened: str) -> bool:
+        """Mark a shortened code fragment as reported. Returns True if
+        this was the first mark, False if a prior call already marked it.
+        """
+        if shortened in self.reported_shortened_code:
+            return False
+        self.reported_shortened_code.add(shortened)
+        return True
 
 
 class Analyzer(metaclass=AnalyzerMeta):
@@ -133,8 +170,10 @@ class AnalysisResult:
 class Analysis(ABC):
     ALL: list[Analysis] = []
 
-    def __init_subclass__(cls, **kwargs):
-        Analysis.ALL.append(cls())
+    def __init_subclass__(cls, *, register: bool = True, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if register:
+            Analysis.ALL.append(cls())
 
     @abstractmethod
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
@@ -210,11 +249,22 @@ class InterpretationErrorAnalysis(Analysis):
             )
 
 
+class ResourceExhaustionAnalysis(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        if context.pickled.has_resource_exhaustion:
+            yield AnalysisResult(
+                Severity.LIKELY_OVERTLY_MALICIOUS,
+                "Resource limits were exceeded during interpretation; "
+                "this is indicative of an expansion attack (Billion Laughs style)",
+                "ResourceExhaustion",
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.non_standard_imports():
-            shortened, already_reported = context.shorten_code(node)
-            if not already_reported:
+            shortened = context.shorten_code(node)
+            if context.mark_reported(shortened):
                 yield AnalysisResult(
                     Severity.LIKELY_UNSAFE,
                     f"`{shortened}` imports a Python module that is not a part of "
@@ -282,7 +332,7 @@ class UnsafeImportsML(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
-            shortened, _ = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             all_modules = [
                 node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
             ]
@@ -335,7 +385,7 @@ class BadCalls(Analysis):
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
-            shortened, _already_reported = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             if any(shortened.startswith(f"{c}(") for c in self.BAD_CALLS):
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
@@ -355,7 +405,7 @@ class OvertlyBadEvals(Analysis):
                 # if the call is to a constructor of an object imported from the Python
                 # standard library, it's probably okay
                 continue
-            shortened, already_reported = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             if (
                 shortened.startswith("eval(")
                 or shortened.startswith("exec(")
@@ -371,7 +421,7 @@ class OvertlyBadEvals(Analysis):
                     "OvertlyBadEval",
                     trigger=shortened,
                 )
-            elif not already_reported:
+            elif context.mark_reported(shortened):
                 yield AnalysisResult(
                     Severity.LIKELY_UNSAFE,
                     f"Call to `{shortened}` can execute arbitrary code and is inherently unsafe",
@@ -387,7 +437,7 @@ class UnsafeImports(Analysis):
                 n.name in SAFE_BUILTINS for n in node.names
             ):
                 continue
-            shortened, _ = context.shorten_code(node)
+            shortened = context.shorten_code(node)
             yield AnalysisResult(
                 Severity.LIKELY_OVERTLY_MALICIOUS,
                 f"`{shortened}` is suspicious and indicative of an overtly malicious pickle file",
@@ -401,11 +451,11 @@ class UnusedVariables(Analysis):
         interpreter = Interpreter(context.pickled)
         try:
             unused = interpreter.unused_assignments()
-        except InterpretationError:
-            # Malformed pickle - InterpretationErrorAnalysis will report this
+        except (InterpretationError, ResourceExhaustionError):
+            # Malformed pickle or resource exhaustion - dedicated analyses will report this
             return
         for varname, asmt in unused.items():
-            shortened, _ = context.shorten_code(asmt.value)
+            shortened = context.shorten_code(asmt.value)
             yield AnalysisResult(
                 Severity.SUSPICIOUS,
                 f"Variable `{varname}` is assigned value `{shortened}` but unused afterward; "
@@ -449,6 +499,102 @@ class ScannerDeactivation(Analysis):
         if isinstance(node, Import) and node.names:
             return node.names[0].name.split(".")[0]
         return None
+
+
+class ExpansionAttackAnalysis(Analysis):
+    """Detects potential exponential expansion attacks (Billion Laughs style).
+
+    These attacks use:
+    - High GET/PUT ratio: Many GET operations retrieving memoized values
+    - Excessive DUP operations: Duplicating stack items repeatedly
+    """
+
+    # Thresholds for pattern detection
+    DEFAULT_GET_PUT_RATIO_THRESHOLD = 10  # GETs per PUT that is suspicious
+    DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD = 50  # Extremely high ratio
+    DEFAULT_DUP_COUNT_THRESHOLD = 100  # Number of DUPs that is suspicious
+
+    def __init__(
+        self,
+        *,
+        get_put_ratio_threshold: int = DEFAULT_GET_PUT_RATIO_THRESHOLD,
+        high_get_put_ratio_threshold: int = DEFAULT_HIGH_GET_PUT_RATIO_THRESHOLD,
+        dup_count_threshold: int = DEFAULT_DUP_COUNT_THRESHOLD,
+    ):
+        self._get_put_ratio_threshold = get_put_ratio_threshold
+        self._high_get_put_ratio_threshold = high_get_put_ratio_threshold
+        self._dup_count_threshold = dup_count_threshold
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        get_count = 0
+        put_count = 0
+        dup_count = 0
+
+        for opcode in context.pickled:
+            if isinstance(opcode, BinGet | LongBinGet | Get):
+                get_count += 1
+            elif isinstance(opcode, BinPut | LongBinPut | Put | Memoize):
+                put_count += 1
+            elif isinstance(opcode, Dup):
+                dup_count += 1
+
+        findings: list[AnalysisResult] = []
+
+        # Check for high GET/PUT ratio
+        if put_count > 0:
+            ratio = get_count / put_count
+            if ratio > self._high_get_put_ratio_threshold:
+                findings.append(
+                    AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"Extremely high GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this pattern is indicative of an exponential expansion attack "
+                        f"(Billion Laughs style) that could cause DoS",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+            elif ratio > self._get_put_ratio_threshold:
+                findings.append(
+                    AnalysisResult(
+                        Severity.SUSPICIOUS,
+                        f"High GET/PUT ratio ({ratio:.1f}:1) detected; "
+                        f"this may indicate an expansion attack pattern",
+                        "ExpansionAttackAnalysis",
+                        trigger=f"GET/PUT ratio: {ratio:.1f}:1",
+                    )
+                )
+        elif get_count > self._get_put_ratio_threshold:
+            # GETs with no PUTs is inherently malformed/malicious
+            findings.append(
+                AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"GET operations ({get_count}) with no PUT operations detected; "
+                    f"this is indicative of a malformed or malicious pickle",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"GET count: {get_count}, PUT count: 0",
+                )
+            )
+
+        # Check for excessive DUP operations
+        if dup_count > self._dup_count_threshold:
+            findings.append(
+                AnalysisResult(
+                    Severity.SUSPICIOUS,
+                    f"Excessive DUP operations ({dup_count}) detected; "
+                    f"this may indicate a stack duplication attack",
+                    "ExpansionAttackAnalysis",
+                    trigger=f"DUP count: {dup_count}",
+                )
+            )
+
+        # Multiple indicators together are more severe
+        if len(findings) > 1:
+            for finding in findings:
+                if finding.severity < Severity.LIKELY_UNSAFE:
+                    finding.severity = Severity.LIKELY_UNSAFE
+
+        yield from findings
 
 
 class AnalysisResults:

@@ -9,6 +9,7 @@ from functools import wraps
 from unittest import TestCase
 
 from fickling.analysis import Severity, check_safety
+from fickling.exception import ExpansionAttackError, ResourceExhaustionError
 from fickling.fickle import (
     AddItems,
     Append,
@@ -16,11 +17,14 @@ from fickling.fickle import (
     BinInt1,
     BinPut,
     BinUnicode,
+    Dup,
     EmptyDict,
     EmptyList,
     EmptySet,
     Get,
     Global,
+    Interpreter,
+    InterpreterLimits,
     Mark,
     Memoize,
     Pickled,
@@ -253,3 +257,92 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         # Safety check should flag it
         results = check_safety(set_cycle)
         self.assertGreater(results.severity, Severity.LIKELY_SAFE)
+
+
+class TestInterpreterLimits(TestCase):
+    """Test runtime resource limit enforcement during pickle interpretation.
+
+    These tests verify that InterpreterLimits correctly caps opcodes,
+    stack depth, memo size, and GET/PUT ratio during Interpreter.run().
+    """
+
+    def test_opcode_limit_enforcement(self):
+        """Test that the max_opcodes limit is enforced during interpretation."""
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),
+        ]
+        for _ in range(100):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+
+        strict_limits = InterpreterLimits(max_opcodes=10)
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        with self.assertRaises(ResourceExhaustionError) as ctx:
+            interpreter.run()
+        self.assertEqual(ctx.exception.resource_type, "opcodes")
+
+    def test_stack_depth_limit_enforcement(self):
+        """Test that the max_stack_depth limit is enforced."""
+        # Push many items without popping (DUP duplicates top of stack)
+        opcodes = [Proto.create(4), EmptyList()]
+        opcodes.extend(Dup() for _ in range(50))
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+        strict_limits = InterpreterLimits(max_stack_depth=10)
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        with self.assertRaises(ResourceExhaustionError) as ctx:
+            interpreter.run()
+        self.assertEqual(ctx.exception.resource_type, "stack_depth")
+
+    def test_memo_size_limit_enforcement(self):
+        """Test that the max_memo_size limit is enforced."""
+        opcodes = [Proto.create(4), EmptyList()]
+        # Each Memoize adds a new memo entry
+        for _ in range(20):
+            opcodes.append(Memoize())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+        strict_limits = InterpreterLimits(max_memo_size=5)
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        with self.assertRaises(ResourceExhaustionError) as ctx:
+            interpreter.run()
+        self.assertEqual(ctx.exception.resource_type, "memo_size")
+
+    def test_get_ratio_enforcement(self):
+        """Test that GET/PUT ratio limits trigger ExpansionAttackError."""
+        opcodes = [
+            Proto.create(4),
+            EmptyList(),
+            Memoize(),  # 1 PUT
+        ]
+        for _ in range(60):
+            opcodes.append(BinGet(0))
+            opcodes.append(Append())
+        opcodes.append(Stop())
+
+        pickled = Pickled(opcodes)
+
+        strict_limits = InterpreterLimits(max_get_ratio=5)
+        interpreter = Interpreter(pickled, limits=strict_limits)
+
+        with self.assertRaises(ExpansionAttackError) as ctx:
+            interpreter.run()
+        self.assertEqual(ctx.exception.resource_type, "get_ratio")
+        self.assertEqual(ctx.exception.limit, 5)
+
+    def test_interpreter_limits_validation(self):
+        """Test that InterpreterLimits rejects invalid values."""
+        with self.assertRaises(ValueError):
+            InterpreterLimits(max_opcodes=0)
+        with self.assertRaises(ValueError):
+            InterpreterLimits(max_stack_depth=-1)

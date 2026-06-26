@@ -143,13 +143,15 @@ def check_numpy(file):  # returns isNumpy,isNumpyPickle
 
 def check_pickle(file, min_length=0):
     """Checks if a file can be pickled; this does not directly determine the file is a pickle"""
+    file.seek(0)
     try:
-        opcodes = Pickled.load(file).opcodes()
-        return len(opcodes) > min_length
+        p = Pickled.load(file)
+        return len(p) > min_length
     except Exception:  # noqa
+        file.seek(0)
         try:
-            StackedPickle.load(file)
-            return True
+            sp = StackedPickle.load(file)
+            return any(len(p) > min_length for p in sp.pickled)
         except Exception:  # noqa
             return False
 

@@ -2,8 +2,9 @@ import marshal
 from unittest import TestCase
 
 import fickling.fickle as op
-from fickling.analysis import Severity, UnsafeImportsML, check_safety
+from fickling.analysis import Analyzer, Severity, UnsafeImportsML, check_safety
 from fickling.fickle import Pickled
+from fickling.ml import MLAllowlist
 
 
 class TestBypasses(TestCase):
@@ -681,6 +682,49 @@ class TestBypasses(TestCase):
         self.assertEqual(
             res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
             "from _osx_support import _find_build_tool",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5j3x-jp52-966f
+    def test_dotted_attr_via_stdlib_module(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("pathlib"),
+                op.ShortBinUnicode("os.system"),
+                op.StackGlobal(),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from pathlib import os.system",
+        )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-cffv-grgg-g429
+    def test_ml_allowlist_not_shadowed_by_unsafe_imports_ml(self):
+        """MLAllowlist must flag imports outside ML_ALLOWLIST even when another
+        analysis (UnsafeImportsML) has already iterated the same import.
+        """
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("ast"),
+                op.ShortBinUnicode("parse"),
+                op.StackGlobal(),
+                op.Stop(),
+            ]
+        )
+        analyzer = Analyzer([UnsafeImportsML(), MLAllowlist()])
+        res = check_safety(pickled, analyzer=analyzer)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        detailed = res.detailed_results().get("AnalysisResult", {})
+        self.assertIsNotNone(
+            detailed.get("MLAllowlist"),
+            "MLAllowlist did not produce a finding for `from ast import parse`",
         )
 
 
