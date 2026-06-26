@@ -483,7 +483,7 @@ class ScannerDeactivation(Analysis):
         for node in context.pickled.properties.imports:
             module_name = self._get_top_level_module(node)
             if module_name and module_name in self.SCANNER_MODULES:
-                shortened, _ = context.shorten_code(node)
+                shortened = context.shorten_code(node)
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
                     f"`{shortened}` imports a pickle security scanning library; "
