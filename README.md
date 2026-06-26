@@ -164,6 +164,22 @@ safety-check pickle files:
 fickling --check-safety -p pickled.data
 ```
 
+### Scanning a directory or glob
+
+When `PICKLE_FILE` is a directory or a glob pattern, fickling safety-scans every pickle
+file it finds (`.pkl`, `.pickle`, `.bin`, and the `.pt`/`.pth` zip archives) and aggregates
+the per-file verdicts into a single ClamAV-compatible exit code. Use `-R`/`--recursive`
+to walk a directory tree — useful for triaging a downloaded model cache in one command:
+
+```console
+fickling ./model_cache --recursive
+fickling "./downloads/**/*.pkl" --recursive
+```
+
+The exit code is `1` if any file is unsafe, `2` if scans completed but errored on some file
+(and none were unsafe), or `0` if everything is clean. Add `-p`/`--print-results` for a
+per-file breakdown.
+
 ## Advanced usage
 
 ### Trace pickle execution
