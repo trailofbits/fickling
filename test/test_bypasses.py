@@ -684,6 +684,26 @@ class TestBypasses(TestCase):
             "from _osx_support import _find_build_tool",
         )
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5j3x-jp52-966f
+    def test_dotted_attr_via_stdlib_module(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("pathlib"),
+                op.ShortBinUnicode("os.system"),
+                op.StackGlobal(),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from pathlib import os.system",
+        )
+
     # https://github.com/trailofbits/fickling/security/advisories/GHSA-cffv-grgg-g429
     def test_ml_allowlist_not_shadowed_by_unsafe_imports_ml(self):
         """MLAllowlist must flag imports outside ML_ALLOWLIST even when another
