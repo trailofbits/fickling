@@ -683,6 +683,26 @@ class TestBypasses(TestCase):
             "from _osx_support import _find_build_tool",
         )
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-5j3x-jp52-966f
+    def test_dotted_attr_via_stdlib_module(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("pathlib"),
+                op.ShortBinUnicode("os.system"),
+                op.StackGlobal(),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        res = check_safety(pickled)
+        self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+            "from pathlib import os.system",
+        )
+
 
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""

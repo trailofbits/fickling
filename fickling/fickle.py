@@ -647,7 +647,11 @@ class ASTProperties(ast.NodeVisitor):
             and node.module is not None
             and is_std_module(node.module)
         ):
-            self.likely_safe_imports |= {name.name for name in node.names}
+            self.likely_safe_imports |= {
+                n.name
+                for n in node.names
+                if not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
+            }
 
     def visit_Import(self, node: ast.Import):
         self._process_import(node)
@@ -1122,20 +1126,20 @@ on the Pickled object instead"""
         )
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
+        def is_unsafe(dotted: str) -> bool:
+            return any(c in UNSAFE_IMPORTS for c in dotted.split("."))
+
         for node in self.properties.imports:
             if isinstance(node, ast.ImportFrom):
-                if node.module and any(
-                    component in UNSAFE_IMPORTS for component in node.module.split(".")
-                ):
+                if node.module and is_unsafe(node.module):
+                    yield node
+                elif any(is_unsafe(n.name) for n in node.names):
                     yield node
                 elif "eval" in (n.name for n in node.names):
                     yield node
             else:
                 # ast.Import: check if any imported module is unsafe
-                if any(
-                    any(component in UNSAFE_IMPORTS for component in alias.name.split("."))
-                    for alias in node.names
-                ):
+                if any(is_unsafe(alias.name) for alias in node.names):
                     yield node
                 elif "eval" in (alias.name for alias in node.names):
                     yield node
