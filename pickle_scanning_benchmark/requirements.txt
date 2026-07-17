@@ -4,4 +4,4 @@ model_unpickler==0.1
 modelscan==0.8.8
 picklescan==1.0.4
 Requests==2.34.2
-torch==2.12.1
+torch==2.13.0
