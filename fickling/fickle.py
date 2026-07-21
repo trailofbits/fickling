@@ -859,7 +859,7 @@ class Pickled(OpcodeSequence):
     ):
         """Insert and call a function that takes the unpickled object as parameter.
 
-        :param function_definition: a string containing the full python definiton of the function
+        :param function_definition: a string containing the full python definition of the function
         to call, including the `def` keyword. The function prototype must be `myfunc(obj)` where
         `obj` is the object being unpickled. The function return value is used as the unpickling
         output.
