@@ -184,8 +184,11 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
+        # run_first=True + use_output_as_unpickle_result=False leaves the
+        # eval result in _var0 while preserving the original [1,2,3,4] as
+        # the unpickle result, so _var0 is genuinely unused afterward.
         loaded.insert_python_eval(
-            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
+            "[5, 6, 7, 8]", run_first=True, use_output_as_unpickle_result=False
         )
         interpreter = Interpreter(loaded)
         unused = interpreter.unused_variables()

@@ -1304,7 +1304,14 @@ class Interpreter:
                     and isinstance(statement.targets[0], ast.Name)
                     and statement.targets[0].id == "result"
                 ):
-                    # this is the return value of the program
+                    # This is the return value of the program, so the assignment
+                    # itself is always considered used. We still need to walk its
+                    # value so that any variables it references are recorded as
+                    # used — otherwise a variable only referenced via the result
+                    # expression would be falsely flagged as unused (#226).
+                    for node in ast.walk(statement.value):
+                        if isinstance(node, ast.Name):
+                            used.add(node.id)
                     break
                 for target in statement.targets:
                     if isinstance(target, ast.Name):
@@ -1619,7 +1626,7 @@ class TupleOne(Opcode):
 
     def run(self, interpreter: Interpreter):
         stack_top = interpreter.stack.pop()
-        interpreter.stack.push(ast.Tuple((stack_top,), ast.Load()))
+        interpreter.stack.push(ast.Tuple([stack_top], ast.Load()))
 
 
 class TupleTwo(Opcode):
@@ -1628,7 +1635,7 @@ class TupleTwo(Opcode):
     def run(self, interpreter: Interpreter):
         arg2 = interpreter.stack.pop()
         arg1 = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((arg1, arg2), ast.Load()))
+        interpreter.stack.append(ast.Tuple([arg1, arg2], ast.Load()))
 
 
 class TupleThree(Opcode):
@@ -1638,7 +1645,7 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
+        interpreter.stack.append(ast.Tuple([bot, mid, top], ast.Load()))
 
 
 class AddItems(Opcode):
@@ -1878,7 +1885,11 @@ class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        interpreter.stack.append(ast.Tuple(tuple(stack_slice), ast.Load()))
+        # `elts` must be a list, not a tuple, because `ast.walk` only
+        # recurses into list-typed fields — passing a tuple here would
+        # cause any variable referenced inside this tuple to be missed
+        # by `Interpreter.unused_assignments()` (#226).
+        interpreter.stack.append(ast.Tuple(list(stack_slice), ast.Load()))
 
 
 class Build(Opcode):
@@ -2238,7 +2249,11 @@ class Dict(Opcode):
                 f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
             )
 
-        interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
+        # `keys`/`values` must be lists, not reversed iterators, because
+        # `ast.walk` only recurses into list-typed fields — passing an
+        # iterator here would cause any variable referenced as a dict
+        # key or value to be missed by `unused_assignments()` (#226).
+        interpreter.stack.append(ast.Dict(keys=list(reversed(keys)), values=list(reversed(values))))
 
 
 PickledSequence = Sequence[Pickled]
