@@ -127,6 +127,12 @@ class Severity(Enum):
     def __eq__(self, other):
         return isinstance(other, Severity) and other.value == self.value
 
+    def __hash__(self):
+        # Defining __eq__ above would otherwise set __hash__ to None, making
+        # Severity members unhashable and breaking their use as dict keys or
+        # set members. Restore hashability consistently with __eq__.
+        return hash(self.value)
+
     def __ge__(self, other):
         return self > other or self == other
 
