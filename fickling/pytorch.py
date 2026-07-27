@@ -94,7 +94,7 @@ class PyTorchModelWrapper:
                         """A fickling wrapper and injection method does not exist for that format.
                         Please raise an issue on our GitHub or use the argument `force=True`."""
                     )
-        if self._formats and self._formats[0] == "TorchScript v1.4":
+        if "TorchScript v1.4" in self._formats:
             warnings.warn(
                 """Support for TorchScript v1.4 files is experimental.""",
                 UserWarning,
@@ -125,7 +125,7 @@ class PyTorchModelWrapper:
         self, payload: str, output_path: Path, injection: str = "all", overwrite: bool = False
     ) -> None:
         self.output_path = output_path
-        if self.formats and self.formats[0] == "TorchScript v1.4":
+        if "TorchScript v1.4" in self.formats:
             warnings.warn(
                 """Support for TorchScript  v1.4 files is experimental.
                 Injections may not be effective depending on the model and the target parser.""",
