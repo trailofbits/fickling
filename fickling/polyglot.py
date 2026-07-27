@@ -377,15 +377,22 @@ def check_for_corruption(properties):
     return corrupted, reason
 
 
-def identify_pytorch_file_format(file, print_properties=False, print_results=False):
+def identify_pytorch_file_format(
+    file: str | os.PathLike[str],
+    print_properties: bool = False,
+    print_results: bool = False,
+) -> list[str]:
     """
     We are intentionally matching the semantics of the PyTorch reference parsers.
     To be polyglot-aware, we show the file formats ranked by likelihood.
     Our parsing depth is at the file structure level;
     However, it can be at the full parsing level if necessary.
+
+    Returns the identified formats ranked by likelihood, so index 0 is the primary
+    format. The list is empty when the file is not identified as a PyTorch file.
     """
     properties = find_file_properties(file, print_properties)
-    formats = []
+    formats: list[str] = []
     corrupted = False
     # The order of this identification is intentional and tries to match PyTorch
     if properties["is_torch_zip"]:
@@ -509,10 +516,16 @@ def create_polyglot(first_file, second_file, polyglot_file_name=None, print_resu
     temp_second_file = "temp_" + os.path.basename(second_file)
     shutil.copy(first_file, temp_first_file)
     shutil.copy(second_file, temp_second_file)
-    files = [
-        (temp_first_file, identify_pytorch_file_format(temp_first_file)[0]),
-        (temp_second_file, identify_pytorch_file_format(temp_second_file)[0]),
-    ]
+    files: list[tuple[str, str]] = []
+    for original, temp in ((first_file, temp_first_file), (second_file, temp_second_file)):
+        # An unidentified file has no primary format, so it cannot be paired into a polyglot
+        temp_formats = identify_pytorch_file_format(temp)
+        if not temp_formats:
+            raise ValueError(
+                f"{original} has not been identified as a PyTorch file, "
+                "so it cannot be used to create a polyglot."
+            )
+        files.append((temp, temp_formats[0]))
     formats = set(map(lambda x: x[1], files))  # noqa
     if {"PyTorch model archive format", "PyTorch v0.1.10"}.issubset(formats):
         if polyglot_file_name is None:

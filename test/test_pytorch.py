@@ -1,10 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 import torchvision.models as models
 
+import fickling.polyglot
 from fickling.fickle import Pickled
 from fickling.pytorch import PyTorchModelWrapper
 
@@ -67,3 +69,11 @@ class TestPyTorchModule(unittest.TestCase):
             self.fail(
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
             )
+
+
+class TestUnidentifiedFile(unittest.TestCase):
+    def test_force_on_unidentified_file_does_not_crash(self):
+        with mock.patch.object(fickling.polyglot, "identify_pytorch_file_format", return_value=[]):
+            wrapper = PyTorchModelWrapper(Path("does_not_exist.bin"), force=True)
+            with self.assertWarnsRegex(UserWarning, "not been identified"):
+                self.assertEqual(wrapper.validate_file_format(), [])
