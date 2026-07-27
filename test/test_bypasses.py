@@ -727,6 +727,28 @@ class TestBypasses(TestCase):
             "MLAllowlist did not produce a finding for `from ast import parse`",
         )
 
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-6ggj-6f2q-f7mx
+    def test_private_stdlib_interpreters_blocklisted(self):
+        for module in ("_interpreters", "_xxsubinterpreters"):
+            with self.subTest(module=module):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.ShortBinUnicode(module),
+                        op.ShortBinUnicode("create"),
+                        op.StackGlobal(),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertEqual(
+                    res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+                    f"from {module} import create",
+                )
+                self.assertGreaterEqual(res.severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
 
 class TestUnsafeModuleCoverage(TestCase):
     """Verify every entry in UNSAFE_MODULES and UNSAFE_IMPORTS triggers detection."""

@@ -85,6 +85,9 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "exec",
         "eval",
         "doctest",
+        # Subinterpreters (execute arbitrary code in a fresh interpreter)
+        "_interpreters",  # 3.13+
+        "_xxsubinterpreters",  # <=3.12
         # Import manipulation
         "importlib",
         "_frozen_importlib",
