@@ -264,8 +264,50 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
 )
 
 
+# Exact (module, name) private-stdlib imports that legitimate serializers emit.
+PRIVATE_STDLIB_IMPORT_ALLOWLIST: frozenset[tuple[str, str]] = frozenset({("_codecs", "encode")})
+
+# Whole underscore-prefixed stdlib modules that any name may be imported from.
+# `__future__` is a dunder module (so is_private_or_dunder_stdlib_module flags it) whose
+# attributes are all inert feature-flag objects, so it can legitimately appear in
+# a pickle (e.g. what `pickle.dumps(__future__.annotations)` emits).
+PRIVATE_STDLIB_MODULE_ALLOWLIST: frozenset[str] = frozenset({"__future__"})
+
+
 def is_std_module(module_name: str) -> bool:
     return module_name in BUILTIN_STDLIB_MODULE_NAMES
+
+
+def is_private_or_dunder_stdlib_module(name: str) -> bool:
+    """A stdlib module with a leading underscore (`_socket`, `_pickle`,
+    `__future__`, …): internal or non-public, so it should never appear in a
+    pickle. Benign exceptions are handled in _is_allowed_private_import.
+    """
+    return name.startswith("_") and name in BUILTIN_STDLIB_MODULE_NAMES
+
+
+def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
+    """Yield every dotted component of an import's module and imported names.
+
+    Pickle resolves dotted names, so every component of the module and of each
+    imported name is independently reachable (see GHSA-5j3x-jp52-966f).
+    """
+    if isinstance(node, ast.ImportFrom) and node.module:
+        yield from node.module.split(".")
+    for alias in node.names:
+        yield from alias.name.split(".")
+
+
+def _is_allowed_private_import(node: ast.Import | ast.ImportFrom) -> bool:
+    # Exact-shape match only: dotted modules (`foo._codecs`) and dotted names
+    # (`_codecs.encode.<x>`, `__future__._ssl.<x>`) never match.
+    if not isinstance(node, ast.ImportFrom) or node.module is None or len(node.names) != 1:
+        return False
+    name = node.names[0].name
+    # A whole-module allowlist entry permits any simple (non-dotted) name.
+    if node.module in PRIVATE_STDLIB_MODULE_ALLOWLIST and "." not in name:
+        return True
+    return (node.module, name) in PRIVATE_STDLIB_IMPORT_ALLOWLIST
 
 
 def extract_identifier_from_ast_node(
@@ -649,11 +691,18 @@ class ASTProperties(ast.NodeVisitor):
             isinstance(node, ast.ImportFrom)
             and node.module is not None
             and is_std_module(node.module)
+            and (
+                not is_private_or_dunder_stdlib_module(node.module)
+                or _is_allowed_private_import(node)
+            )
         ):
             self.likely_safe_imports |= {
                 n.name
                 for n in node.names
-                if not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
+                if not any(
+                    c in UNSAFE_IMPORTS or is_private_or_dunder_stdlib_module(c)
+                    for c in n.name.split(".")
+                )
             }
 
     def visit_Import(self, node: ast.Import):
@@ -1129,23 +1178,11 @@ on the Pickled object instead"""
         )
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
-        def is_unsafe(dotted: str) -> bool:
-            return any(c in UNSAFE_IMPORTS for c in dotted.split("."))
-
         for node in self.properties.imports:
-            if isinstance(node, ast.ImportFrom):
-                if node.module and is_unsafe(node.module):
-                    yield node
-                elif any(is_unsafe(n.name) for n in node.names):
-                    yield node
-                elif "eval" in (n.name for n in node.names):
-                    yield node
-            else:
-                # ast.Import: check if any imported module is unsafe
-                if any(is_unsafe(alias.name) for alias in node.names):
-                    yield node
-                elif "eval" in (alias.name for alias in node.names):
-                    yield node
+            if any(c in UNSAFE_IMPORTS for c in import_name_components(node)):
+                yield node
+            elif "eval" in (n.name for n in node.names):
+                yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
@@ -1158,6 +1195,13 @@ on the Pickled object instead"""
                 # import x, y, z - check if any name is non-standard
                 if any(not is_std_module(alias.name) for alias in node.names):
                     yield node
+
+    def private_stdlib_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
+        for node in self.properties.imports:
+            if _is_allowed_private_import(node):
+                continue
+            if any(is_private_or_dunder_stdlib_module(c) for c in import_name_components(node)):
+                yield node
 
     @property
     def ast(self) -> ast.Module:

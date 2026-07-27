@@ -265,17 +265,30 @@ class ResourceExhaustionAnalysis(Analysis):
 
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
-        for node in context.pickled.non_standard_imports():
-            shortened = context.shorten_code(node)
-            if context.mark_reported(shortened):
-                yield AnalysisResult(
-                    Severity.LIKELY_UNSAFE,
-                    f"`{shortened}` imports a Python module that is not a part of "
-                    "the standard library; this can execute arbitrary code and is "
-                    "inherently unsafe",
-                    "NonStandardImports",
-                    trigger=shortened,
-                )
+        sources = (
+            (
+                context.pickled.non_standard_imports(),
+                "imports a Python module that is not a part of the standard "
+                "library; this can execute arbitrary code and is inherently unsafe",
+            ),
+            (
+                context.pickled.private_stdlib_imports(),
+                "imports a private, underscore-prefixed module of the Python "
+                "standard library; these are internal implementation details not "
+                "intended for direct use and never appear in legitimate pickles, "
+                "so this is treated as unsafe",
+            ),
+        )
+        for nodes, reason in sources:
+            for node in nodes:
+                shortened = context.shorten_code(node)
+                if context.mark_reported(shortened):
+                    yield AnalysisResult(
+                        Severity.LIKELY_UNSAFE,
+                        f"`{shortened}` {reason}",
+                        "NonStandardImports",
+                        trigger=shortened,
+                    )
 
 
 class UnsafeImportsML(Analysis):
