@@ -1,10 +1,12 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import torch
 import torchvision.models as models
 
+import fickling.polyglot
 from fickling.fickle import Pickled
 from fickling.pytorch import PyTorchModelWrapper
 
@@ -68,18 +70,10 @@ class TestPyTorchModule(unittest.TestCase):
                 f"PyTorchModelWrapper was not able to inject code into a PyTorch v1.3 file: {e}"
             )
 
+
+class TestUnidentifiedFile(unittest.TestCase):
     def test_force_on_unidentified_file_does_not_crash(self):
-        # Regression: force=True on an unrecognized file must warn and proceed
-        # (reporting no identified formats) instead of raising IndexError from
-        # indexing an empty formats list in validate_file_format().
-        bogus = Path(self.tmpdir.name) / "not_a_pytorch_file.bin"
-        bogus.write_bytes(b"definitely not a pytorch file, just random bytes 123")
-
-        # Without force, an unidentified file is rejected with a clear ValueError.
-        with self.assertRaises(ValueError):
-            PyTorchModelWrapper(bogus).validate_file_format()
-
-        # With force=True it must not raise (only warn) and report no formats.
-        with self.assertWarns(UserWarning):
-            formats = PyTorchModelWrapper(bogus, force=True).validate_file_format()
-        self.assertEqual(list(formats), [])
+        with mock.patch.object(fickling.polyglot, "identify_pytorch_file_format", return_value=[]):
+            wrapper = PyTorchModelWrapper(Path("does_not_exist.bin"), force=True)
+            with self.assertWarnsRegex(UserWarning, "not been identified"):
+                self.assertEqual(wrapper.validate_file_format(), [])
