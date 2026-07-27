@@ -127,6 +127,9 @@ class Severity(Enum):
     def __eq__(self, other):
         return isinstance(other, Severity) and other.value == self.value
 
+    def __hash__(self):
+        return hash(self.value)
+
     def __ge__(self, other):
         return self > other or self == other
 
