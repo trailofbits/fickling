@@ -37,7 +37,7 @@ class PyTorchModelWrapper:
         self.path: Path = path
         self._pickled: Pickled | None = None
         self.force: bool = force
-        self._formats: set[str] = set()
+        self._formats: list[str] = []
 
     def validate_file_format(self):
         self._formats = fickling.polyglot.identify_pytorch_file_format(self.path)
