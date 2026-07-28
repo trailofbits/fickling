@@ -267,9 +267,11 @@ class TestRelaxedZipFile(unittest.TestCase):
             Path(zip_path).write_bytes(raw)
 
             # Standard ZipFile should raise on read
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                with self.assertRaises(zipfile.BadZipFile):
-                    zf.read("data.pkl")
+            with (
+                zipfile.ZipFile(zip_path, "r") as zf,
+                self.assertRaises(zipfile.BadZipFile),
+            ):
+                zf.read("data.pkl")
 
             # RelaxedZipFile should succeed
             with RelaxedZipFile(zip_path, "r") as rzf:

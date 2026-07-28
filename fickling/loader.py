@@ -246,7 +246,7 @@ def _scan_bytes(
                 results.append(result)
                 if result.severity > overall_severity:
                     overall_severity = result.severity
-            except Exception as e:
+            except Exception as e:  # noqa: PERF203 -- each pickle is analyzed independently
                 if graceful:
                     errors.append(f"Analysis error ({type(e).__name__}): {e!s}")
                     overall_severity = max(overall_severity, Severity.LIKELY_UNSAFE)

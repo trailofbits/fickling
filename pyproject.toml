@@ -121,18 +121,12 @@ select = [
 ignore = [
   "E501",  # line too long (handled by formatter)
   "T201",  # print statements (needed for CLI)
-  # Pre-existing issues to fix in future PRs
-  "PTH123",  # open() should be replaced by Path.open()
-  "RUF012",  # Mutable class attributes should use ClassVar
-  "B028",   # No explicit stacklevel in warnings
-  "B904",   # Use raise ... from within except blocks
-  "SIM102",  # Use single if instead of nested if
-  "SIM108",  # Use ternary operator instead of if-else
-  "SIM115",  # Use context handler for opening files
-  "SIM117",  # Use single with statement for multiple contexts
-  "PERF203", # try-except in loop could be moved outside
-  "RET504",  # Unnecessary assignment before return
-  "RUF015",  # Prefer next() over list indexing
+  # builtin open() is fine; Path.open() is a style preference with no behavioral gain
+  "PTH123",
+  # several call sites intentionally manage the handle themselves: the temporary files in
+  # polyglot.py must be closed before their path is reopened by the recursive scan, and cli.py
+  # binds either a stdio stream or an opened file to the same variable
+  "SIM115",
 ]
 
 [tool.ruff.lint.per-file-ignores]

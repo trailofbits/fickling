@@ -9,12 +9,12 @@ from fickling.fickle import Pickled
 
 try:
     import torch
-except ModuleNotFoundError:
+except ModuleNotFoundError as e:
     raise ImportError(
         "The 'torch' module is required for this functionality."
         "PyTorch is now an optional dependency in Fickling."
         "Please use `pip install fickling[torch]`"
-    )
+    ) from e
 
 
 class BaseInjection(torch.nn.Module):
@@ -55,6 +55,7 @@ class PyTorchModelWrapper:
                     If it is a PyTorch file, raise an issue on GitHub
                     """,
                     UserWarning,
+                    stacklevel=2,
                 )
             else:
                 raise ValueError(
@@ -72,6 +73,7 @@ class PyTorchModelWrapper:
                         Try Pickled.load() or StackedPickle.load() if this fails
                         """,
                         UserWarning,
+                        stacklevel=2,
                     )
                 else:
                     raise ValueError(
@@ -87,6 +89,7 @@ class PyTorchModelWrapper:
                         """A fickling wrapper and injection method does not exist for that format.
                         Please raise an issue on our GitHub.""",
                         UserWarning,
+                        stacklevel=2,
                     )
                 else:
                     raise NotImplementedError(
@@ -97,6 +100,7 @@ class PyTorchModelWrapper:
             warnings.warn(
                 """Support for TorchScript v1.4 files is experimental.""",
                 UserWarning,
+                stacklevel=2,
             )
         return self._formats
 
@@ -129,6 +133,7 @@ class PyTorchModelWrapper:
                 """Support for TorchScript  v1.4 files is experimental.
                 Injections may not be effective depending on the model and the target parser.""",
                 UserWarning,
+                stacklevel=2,
             )
         if injection == "insertion":
             # This does NOT bypass the weights based unpickler
@@ -137,14 +142,16 @@ class PyTorchModelWrapper:
             pickled.insert_python_exec(payload)
 
             # Create a new ZIP file to store the modified data
-            with zipfile.ZipFile(output_path, "w") as new_zip_ref:
-                with zipfile.ZipFile(self.path, "r") as zip_ref:
-                    for item in zip_ref.infolist():
-                        with zip_ref.open(item.filename) as entry:
-                            if item.filename.endswith("/data.pkl"):
-                                new_zip_ref.writestr(item.filename, pickled.dumps())
-                            else:
-                                new_zip_ref.writestr(item.filename, entry.read())
+            with (
+                zipfile.ZipFile(output_path, "w") as new_zip_ref,
+                zipfile.ZipFile(self.path, "r") as zip_ref,
+            ):
+                for item in zip_ref.infolist():
+                    with zip_ref.open(item.filename) as entry:
+                        if item.filename.endswith("/data.pkl"):
+                            new_zip_ref.writestr(item.filename, pickled.dumps())
+                        else:
+                            new_zip_ref.writestr(item.filename, entry.read())
         if injection == "combination":
             injected_model = BaseInjection(self.pickled, payload)
             torch.save(injected_model, output_path)

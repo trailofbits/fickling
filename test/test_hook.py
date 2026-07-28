@@ -65,6 +65,8 @@ class TestHook(unittest.TestCase):
             "_pickle.Unpickler": lambda: _pickle.Unpickler(io.BytesIO(data)).load(),
         }
         for name, call in cases.items():
-            with self.subTest(entry_point=name):
-                with self.assertRaises(UnsafeFileError, msg=f"{name} was not intercepted"):
-                    call()
+            with (
+                self.subTest(entry_point=name),
+                self.assertRaises(UnsafeFileError, msg=f"{name} was not intercepted"),
+            ):
+                call()

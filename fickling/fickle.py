@@ -15,6 +15,7 @@ from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
+    ClassVar,
     Generic,
     TypeVar,
     overload,
@@ -457,14 +458,8 @@ class Opcode:
         return super().__init_subclass__(**kwargs)
 
     def __repr__(self):
-        if self.pos is None:
-            p = ""
-        else:
-            p = f", position={self.pos!r}"
-        if self.has_data():
-            d = f", data={self.data!r}"
-        else:
-            d = ""
+        p = "" if self.pos is None else f", position={self.pos!r}"
+        d = f", data={self.data!r}" if self.has_data() else ""
         return f"{self.__class__.__name__}(info={self.info!r}, argument={self.arg!r}{d}{p})"
 
 
@@ -477,7 +472,7 @@ class DynamicLength(Opcode, ABC):
     length_signed: bool = False
     length_bytes: int = 4
     length_endianness: Endianness = Endianness.Little
-    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
+    struct_types: ClassVar[dict[int, str]] = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -548,7 +543,7 @@ def raw_unicode_escape(byte_string: bytes) -> str:
 
 
 class ConstantOpcode(Opcode):
-    ConstantOpcodePriorities: dict[type[ConstantOpcode], int] = {}
+    ConstantOpcodePriorities: ClassVar[dict[type[ConstantOpcode], int]] = {}
     priority: int
 
     def run(self, interpreter: Interpreter):
@@ -602,7 +597,7 @@ class ConstantInt(ConstantOpcode, ABC):
     signed: bool = False
     num_bytes: int = 4
     endianness: Endianness = Endianness.Little
-    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
+    struct_types: ClassVar[dict[int, str]] = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -1258,10 +1253,7 @@ class Pickled(OpcodeSequence):
                     if pos is not None:
                         pickled.seek(pos)
                     if info.arg is None or info.arg.n == 0:
-                        if pos is not None:
-                            data = None
-                        else:
-                            data = info.code.encode("utf-8")
+                        data = info.code.encode("utf-8") if pos is None else None
                     elif info.arg.n > 0 and pos is not None:
                         data = pickled.read(len(info.code) + info.arg.n)
                         if len(data) != len(info.code) + info.arg.n:
@@ -1279,10 +1271,10 @@ class Pickled(OpcodeSequence):
         except ValueError as e:
             if opcodes:
                 if fail_on_decode_error:
-                    raise PickleDecodeError(e)
+                    raise PickleDecodeError(e) from e
                 has_invalid_opcode = True
             else:
-                raise EmptyPickleError()
+                raise EmptyPickleError() from e
         if opcodes:
             if opcodes[-1].pos is not None:
                 if opcodes[-1].has_data():
@@ -1531,11 +1523,11 @@ class Interpreter:
 
     def run(self):
         self.pickled.validate_frames()
-        while True:
-            try:
+        try:
+            while True:
                 self.step()
-            except StopIteration:
-                break
+        except StopIteration:
+            pass
 
     def step(self) -> Opcode:
         try:
