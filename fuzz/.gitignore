@@ -1,0 +1,10 @@
+# Fuzzing is run manually; nothing it produces belongs in the repo.
+.venv/
+artifacts/
+corpus/
+crash-*
+timeout-*
+oom-*
+leak-*
+htmlcov/
+.coverage
