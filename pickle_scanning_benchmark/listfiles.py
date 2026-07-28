@@ -2,12 +2,11 @@ import json
 import sys
 from pathlib import Path
 from pprint import pprint
-from typing import Optional
 
 from huggingface_hub import HfApi
 
 
-def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
+def hf_get_candidate_files_list(n: int = 100, outfile: Path | None = None):
     """Get a list of pickle files currently hosted on HuggingFace.
     :n: the number of files to get"""
     api = HfApi()
@@ -20,10 +19,12 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
     files = []
     for model in models:
         if model.siblings:
-            for s in model.siblings:
-                if s.rfilename.endswith((".pkl", ".pt", ".pth", ".bin", "pickle", ".pk")):
-                    # TODO(boyan): more filtering here?
-                    files.append({"filename": s.rfilename, "project": model.id})
+            # TODO(boyan): more filtering here?
+            files.extend(
+                {"filename": s.rfilename, "project": model.id}
+                for s in model.siblings
+                if s.rfilename.endswith((".pkl", ".pt", ".pth", ".bin", "pickle", ".pk"))
+            )
         if len(files) >= n:
             break
 

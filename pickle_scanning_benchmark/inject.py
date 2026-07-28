@@ -6,7 +6,7 @@ import traceback
 import zipfile
 from functools import partial
 from pathlib import Path
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 
 import logger
 
@@ -113,14 +113,13 @@ for key, pl in (EXEC_PRIMITIVE_PAYLOADS | DANGEROUS_PRIMITIVE_PAYLOADS).items():
     _add_simple_payload(key, pl)
 
 
-def _get_payload(payload_key: Optional[str] = None):
+def _get_payload(payload_key: str | None = None):
     if payload_key is None:
         return random.choice(list(ALL_PAYLOADS.items()))
-    else:
-        return (payload_key, ALL_PAYLOADS[payload_key])
+    return (payload_key, ALL_PAYLOADS[payload_key])
 
 
-def _inject_payload(infile: BinaryIO, outfile: BinaryIO, payload_key: Optional[str] = None):
+def _inject_payload(infile: BinaryIO, outfile: BinaryIO, payload_key: str | None = None):
     # Get payload
     payload_id, inject_func = _get_payload(payload_key)
     # Inject
@@ -131,7 +130,7 @@ def _inject_payload(infile: BinaryIO, outfile: BinaryIO, payload_key: Optional[s
     return payload_id
 
 
-def inject_pickle_file(infile: Path, outfile: Path, payload_key: Optional[str] = None):
+def inject_pickle_file(infile: Path, outfile: Path, payload_key: str | None = None):
     """Return the ID of the payload that was injected"""
     print(f"> Injecting payload in {infile}")
     print(f"\t> Writing malicious pickle in {outfile}")
@@ -139,7 +138,7 @@ def inject_pickle_file(infile: Path, outfile: Path, payload_key: Optional[str] =
         return _inject_payload(f, outf, payload_key)
 
 
-def inject_pytorch_file(infile: Path, outfile: Path, payload_key: Optional[str] = None):
+def inject_pytorch_file(infile: Path, outfile: Path, payload_key: str | None = None):
     """Return the ID of the payload that was injected"""
     print(f"> Injecting payload in {infile}")
     print(f"\t> Writing malicious pickle in {outfile}")
@@ -172,8 +171,7 @@ def inject_pytorch_file(infile: Path, outfile: Path, payload_key: Optional[str] 
     # Make sure we injected the payload in a file
     if injected:
         return res
-    else:
-        raise Exception("No pickle found in torch archive")
+    raise Exception("No pickle found in torch archive")
 
 
 def create_malicious_dataset(clean_dataset_dir: Path, outdir: Path, n: int = 10):

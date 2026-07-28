@@ -9,8 +9,8 @@ https://pytorch.org/tutorials/beginner/saving_loading_models.html
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
-from torch import nn, optim
+import torch.nn.functional as F  # noqa: N812
+from torch import nn
 
 from fickling.pytorch import PyTorchModelWrapper
 
