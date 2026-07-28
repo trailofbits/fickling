@@ -224,6 +224,32 @@ class TestInterpreter(TestCase):
         self.assertEqual(len(Interpreter(pickled).unused_variables()), 0)
         self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
 
+    def test_variable_used_only_in_an_assignment_target(self):
+        # `unused_assignments()` must scan compound assignment targets: `SETITEM` on a non-empty
+        # dict emits `_var1[_var0] = '2'`, so both the dict and the key are used from the target
+        # rather than from the value. The first `SETITEM` below takes the empty-dict branch that
+        # builds an `ast.Dict`; only the second one emits the subscript assignment.
+        pickled = Pickled(
+            [
+                fpickle.Proto.create(2),
+                fpickle.EmptyDict(),
+                fpickle.ShortBinUnicode("a"),
+                fpickle.ShortBinUnicode("1"),
+                fpickle.SetItem(),  # _var1 = {'a': '1'}
+                fpickle.ShortBinUnicode("decimal"),
+                fpickle.ShortBinUnicode("Decimal"),
+                fpickle.StackGlobal(),
+                fpickle.ShortBinUnicode("1"),
+                fpickle.TupleOne(),
+                fpickle.Reduce(),  # _var0 = Decimal('1')
+                fpickle.ShortBinUnicode("2"),
+                fpickle.SetItem(),  # _var1[_var0] = '2'
+                fpickle.Stop(),
+            ]
+        )
+        self.assertEqual(len(Interpreter(pickled).unused_variables()), 0)
+        self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
+
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
         pass
