@@ -1847,7 +1847,7 @@ class AddItems(Opcode):
         else:
             raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         if not interpreter.stack:
-            raise ValueError("Stack was empty; expected a pyset")
+            raise InterpretationError("Stack was empty; expected a pyset")
         pyset = interpreter.stack[-1]
         if not isinstance(pyset, ast.Set):
             raise InterpretationError(
