@@ -472,6 +472,9 @@ class TestBypasses(TestCase):
         )
         res = check_safety(pickled)
         self.assertGreater(res.severity, Severity.LIKELY_SAFE)
+        detailed = res.detailed_results()["AnalysisResult"]
+        self.assertEqual(detailed.get("UnsafeImports"), "from _operator import methodcaller")
+        self.assertEqual(detailed.get("NonStandardImports"), "from _operator import methodcaller")
 
     # https://github.com/mmaitre314/picklescan/security/advisories/GHSA-m273-6v24-x4m4
     def test_distutils_write_file(self):
@@ -726,6 +729,61 @@ class TestBypasses(TestCase):
             detailed.get("MLAllowlist"),
             "MLAllowlist did not produce a finding for `from ast import parse`",
         )
+
+    # https://github.com/trailofbits/fickling/security/advisories/GHSA-6ggj-6f2q-f7mx
+    def test_private_stdlib_interpreters_blocklisted(self):
+        for module in ("_interpreters", "_xxsubinterpreters"):
+            with self.subTest(module=module):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.ShortBinUnicode(module),
+                        op.ShortBinUnicode("create"),
+                        op.StackGlobal(),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+                res = check_safety(pickled)
+                self.assertEqual(
+                    res.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+                    f"from {module} import create",
+                )
+                self.assertGreaterEqual(res.severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
+    # `_codecs.encode` and `__future__` are the only private/dunder stdlib shapes
+    # kept off NonStandardImports: numpy emits `_codecs.encode(data, 'latin1')`
+    # when reconstructing arrays, and `__future__` exposes only inert feature
+    # flags. Detection of non-allowlisted private modules is covered by
+    # test_operator_methodcaller and test_private_stdlib_interpreters_blocklisted.
+    def test_private_stdlib_allowlist(self):
+        def import_global(module, name):
+            return Pickled(
+                [
+                    op.Proto.create(4),
+                    op.ShortBinUnicode(module),
+                    op.ShortBinUnicode(name),
+                    op.StackGlobal(),
+                    op.Stop(),
+                ]
+            )
+
+        for module, name in (("_codecs", "encode"), ("__future__", "annotations")):
+            with self.subTest(allowed=f"{module}.{name}"):
+                res = check_safety(import_global(module, name))
+                self.assertNotIn(
+                    "NonStandardImports", res.detailed_results().get("AnalysisResult", {})
+                )
+                self.assertEqual(res.severity, Severity.LIKELY_SAFE)
+
+        # Anti-widening: a dotted name under an allowlisted module is not allowlisted.
+        res = check_safety(import_global("__future__", "_ssl.RAND_bytes"))
+        self.assertEqual(
+            res.detailed_results()["AnalysisResult"].get("NonStandardImports"),
+            "from __future__ import _ssl.RAND_bytes",
+        )
+        self.assertGreaterEqual(res.severity, Severity.LIKELY_UNSAFE)
 
 
 class TestUnsafeModuleCoverage(TestCase):
