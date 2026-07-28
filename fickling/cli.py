@@ -11,8 +11,6 @@ from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 from .exception import ResourceExhaustionError
 from .loader import scan_file, scan_zip_archive
 
-DEFAULT_JSON_OUTPUT_FILE = "safety_results.json"
-
 HF_RAW_PICKLE_EXTENSIONS = frozenset({".bin", ".pkl", ".pickle"})
 HF_ZIP_PICKLE_EXTENSIONS = frozenset({".pt", ".pth"})
 HF_PICKLE_EXTENSIONS = HF_RAW_PICKLE_EXTENSIONS | HF_ZIP_PICKLE_EXTENSIONS
@@ -75,7 +73,7 @@ def _scan_huggingface(
 
     overall_safe = True
     failed = 0
-    json_output = json_output_path or DEFAULT_JSON_OUTPUT_FILE
+    json_output = json_output_path
 
     for filename in files_to_scan:
         try:
@@ -217,8 +215,8 @@ def main(argv: list[str] | None = None) -> int:
         "--json-output",
         type=str,
         default=None,
-        help="path to the output JSON file to store the analysis results from check-safety."
-        f"If not provided, a default file named {DEFAULT_JSON_OUTPUT_FILE} will be used.",
+        help="path to a JSON file to write the check-safety analysis results to. "
+        "If not provided, no JSON file is written.",
     )
 
     parser.add_argument(
@@ -330,9 +328,8 @@ def main(argv: list[str] | None = None) -> int:
                 pickled.dump(buffer)
         elif args.check_safety:
             was_safe = True
-            json_output_path = args.json_output or DEFAULT_JSON_OUTPUT_FILE
             for pickled in stacked_pickled:
-                safety_results = check_safety(pickled, json_output_path=json_output_path)
+                safety_results = check_safety(pickled, json_output_path=args.json_output)
 
                 # Print results if requested
                 if args.print_results:
