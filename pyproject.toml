@@ -35,8 +35,8 @@ torch = [
     "numpy >= 2.3.5; python_version >= '3.11'",
 ]
 lint = [
-  "ruff >= 0.8.0",
-  "ty >= 0.0.12",
+  "ruff >= 0.16.0",
+  "ty >= 0.0.60",
   # for the Buffer ABC before Python 3.12
   "typing-extensions; python_version < '3.12'",
 ]
