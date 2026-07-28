@@ -1341,37 +1341,27 @@ class Interpreter:
         if self._module is None:
             self.run()
         used: set[str] = set()
-        defined: set[str] = set()
         assignments: dict[str, ast.Assign] = {}
         for statement in self.module_body:
-            # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
-                if (
-                    len(statement.targets) == 1
-                    and isinstance(statement.targets[0], ast.Name)
-                    and statement.targets[0].id == "result"
-                ):
-                    # this is the return value of the program;
-                    # skip recording it as 'defined' but still scan
-                    # its value for variable usage and continue
-                    # processing remaining statements (closes #226)
-                    statement = statement.value
-                else:
-                    for target in statement.targets:
-                        if isinstance(target, ast.Name):
-                            defined.add(target.id)
-                            if target.id in assignments:
-                                # this should never happen, since Fickling constructs the AST
-                                sys.stderr.write(
-                                    f"Warning: Duplicate declaration of variable {target.id}\n"
-                                )
-                            assignments[target.id] = statement
-                    statement = statement.value
+                for target in statement.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == self.result_variable:
+                            # This is the return value of the program, which the program itself
+                            # never uses, so do not record it as defined.
+                            continue
+                        if target.id in assignments:
+                            # This should never happen, since Fickling constructs the AST.
+                            sys.stderr.write(
+                                f"Warning: Duplicate declaration of variable {target.id}\n"
+                            )
+                        assignments[target.id] = statement
+                statement = statement.value
             if statement is not None:
                 for node in ast.walk(statement):
                     if isinstance(node, ast.Name):
                         used.add(node.id)
-        return {varname: assignments[varname] for varname in defined - used}
+        return {name: asmt for name, asmt in assignments.items() if name not in used}
 
     def unused_variables(self) -> frozenset[str]:
         return self.unused_assignments().keys()  # type: ignore
