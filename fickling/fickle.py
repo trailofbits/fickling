@@ -1342,25 +1342,34 @@ class Interpreter:
             self.run()
         used: set[str] = set()
         assignments: dict[str, ast.Assign] = {}
+
+        def record_uses(node: ast.AST) -> None:
+            for child in ast.walk(node):
+                if isinstance(child, ast.Name):
+                    used.add(child.id)
+
         for statement in self.module_body:
             if isinstance(statement, ast.Assign):
                 for target in statement.targets:
-                    if isinstance(target, ast.Name):
-                        if target.id == self.result_variable:
-                            # This is the return value of the program, which the program itself
-                            # never uses, so do not record it as defined.
-                            continue
-                        if target.id in assignments:
-                            # This should never happen, since Fickling constructs the AST.
-                            sys.stderr.write(
-                                f"Warning: Duplicate declaration of variable {target.id}\n"
-                            )
-                        assignments[target.id] = statement
+                    if not isinstance(target, ast.Name):
+                        # A compound target is a *use* of every name it mentions, not a
+                        # definition: in the `d[k] = v` that `SETITEM` emits, the target reads
+                        # both `d` and `k`. (`v` is the value, scanned below.)
+                        record_uses(target)
+                        continue
+                    if target.id == self.result_variable:
+                        # This is the return value of the program, which the program itself
+                        # never uses, so do not record it as defined.
+                        continue
+                    if target.id in assignments:
+                        # This should never happen, since Fickling constructs the AST.
+                        sys.stderr.write(
+                            f"Warning: Duplicate declaration of variable {target.id}\n"
+                        )
+                    assignments[target.id] = statement
                 statement = statement.value
             if statement is not None:
-                for node in ast.walk(statement):
-                    if isinstance(node, ast.Name):
-                        used.add(node.id)
+                record_uses(statement)
         return {name: asmt for name, asmt in assignments.items() if name not in used}
 
     def unused_variables(self) -> frozenset[str]:
