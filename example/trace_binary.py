@@ -6,7 +6,7 @@ from fickling.fickle import Interpreter, Pickled
 
 # Grab mystery binary object
 # This comes from https://github.com/maurosoria/dirsearch/issues/1073
-mystery = b"\x80\x04\x95E\x00\x00\x00\x00\x00\x00\x00(\x8c\x08builtins\x8c\x07getattr\x93\x8c\x08builtins\x8c\n__import__\x93\x8c\x02os\x85R\x8c\x06system\x86R\x8c\x02id\x85R1N."  # noqa
+mystery = b"\x80\x04\x95E\x00\x00\x00\x00\x00\x00\x00(\x8c\x08builtins\x8c\x07getattr\x93\x8c\x08builtins\x8c\n__import__\x93\x8c\x02os\x85R\x8c\x06system\x86R\x8c\x02id\x85R1N."
 binary = io.BytesIO(mystery)
 
 # Load using fickling

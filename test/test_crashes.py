@@ -306,8 +306,7 @@ class TestInterpreterLimits(TestCase):
         """Test that the max_memo_size limit is enforced."""
         opcodes = [Proto.create(4), EmptyList()]
         # Each Memoize adds a new memo entry
-        for _ in range(20):
-            opcodes.append(Memoize())
+        opcodes.extend(Memoize() for _ in range(20))
         opcodes.append(Stop())
 
         pickled = Pickled(opcodes)

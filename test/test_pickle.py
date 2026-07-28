@@ -42,7 +42,9 @@ def stacked_correctness_test(*to_pickle):
             stacked = [dumps(p) for p in to_pickle_list]
             stacked_pickle = StackedPickle.load(b"".join(stacked))
             self.assertEqual(len(stacked_pickle), len(stacked))
-            for pickled, p_bytes, original in zip(stacked_pickle, stacked, to_pickle_list):
+            for pickled, p_bytes, original in zip(
+                stacked_pickle, stacked, to_pickle_list, strict=True
+            ):
                 stacked_ast = pickled.ast
                 true_ast = Pickled.load(p_bytes).ast
                 stacked_code = unparse(stacked_ast)
