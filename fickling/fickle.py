@@ -1341,23 +1341,17 @@ class Interpreter:
         if self._module is None:
             self.run()
         used: set[str] = set()
-        defined: set[str] = set()
         assignments: dict[str, ast.Assign] = {}
         for statement in self.module_body:
-            # skip the last statement because it is always used
             if isinstance(statement, ast.Assign):
-                if (
-                    len(statement.targets) == 1
-                    and isinstance(statement.targets[0], ast.Name)
-                    and statement.targets[0].id == "result"
-                ):
-                    # this is the return value of the program
-                    break
                 for target in statement.targets:
                     if isinstance(target, ast.Name):
-                        defined.add(target.id)
+                        if target.id == self.result_variable:
+                            # This is the return value of the program, which the program itself
+                            # never uses, so do not record it as defined.
+                            continue
                         if target.id in assignments:
-                            # this should never happen, since Fickling constructs the AST
+                            # This should never happen, since Fickling constructs the AST.
                             sys.stderr.write(
                                 f"Warning: Duplicate declaration of variable {target.id}\n"
                             )
@@ -1367,7 +1361,7 @@ class Interpreter:
                 for node in ast.walk(statement):
                     if isinstance(node, ast.Name):
                         used.add(node.id)
-        return {varname: assignments[varname] for varname in defined - used}
+        return {name: asmt for name, asmt in assignments.items() if name not in used}
 
     def unused_variables(self) -> frozenset[str]:
         return self.unused_assignments().keys()  # type: ignore
@@ -1617,7 +1611,7 @@ class Inst(StackSliceOpcode):
         module, classname = self.module, self.cls
         alias = ast.alias(classname)
         interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
-        args = ast.Tuple(tuple(stack_slice))
+        args = ast.Tuple(list(stack_slice))
         call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
@@ -1658,7 +1652,7 @@ class EmptyTuple(Opcode):
     name = "EMPTY_TUPLE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Tuple((), ast.Load()))
+        interpreter.stack.append(ast.Tuple([], ast.Load()))
 
 
 class TupleOne(Opcode):
@@ -1666,7 +1660,7 @@ class TupleOne(Opcode):
 
     def run(self, interpreter: Interpreter):
         stack_top = interpreter.stack.pop()
-        interpreter.stack.push(ast.Tuple((stack_top,), ast.Load()))
+        interpreter.stack.push(ast.Tuple([stack_top], ast.Load()))
 
 
 class TupleTwo(Opcode):
@@ -1675,7 +1669,7 @@ class TupleTwo(Opcode):
     def run(self, interpreter: Interpreter):
         arg2 = interpreter.stack.pop()
         arg1 = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((arg1, arg2), ast.Load()))
+        interpreter.stack.append(ast.Tuple([arg1, arg2], ast.Load()))
 
 
 class TupleThree(Opcode):
@@ -1685,7 +1679,7 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
+        interpreter.stack.append(ast.Tuple([bot, mid, top], ast.Load()))
 
 
 class AddItems(Opcode):
@@ -1925,7 +1919,7 @@ class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        interpreter.stack.append(ast.Tuple(tuple(stack_slice), ast.Load()))
+        interpreter.stack.append(ast.Tuple(list(stack_slice), ast.Load()))
 
 
 class Build(Opcode):
@@ -2285,7 +2279,7 @@ class Dict(Opcode):
                 f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
             )
 
-        interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
+        interpreter.stack.append(ast.Dict(keys=list(reversed(keys)), values=list(reversed(values))))
 
 
 PickledSequence = Sequence[Pickled]

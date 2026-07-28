@@ -184,15 +184,45 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
-        loaded.insert_python_eval(
-            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
-        )
+        # The injected eval's output is discarded, so `_var0` really is unused.
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False)
         interpreter = Interpreter(loaded)
         unused = interpreter.unused_variables()
         self.assertEqual(len(unused), 1)
         self.assertIn("_var0", unused)
         test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
+
+    def test_variable_used_only_in_result(self):
+        # `unused_assignments()` must scan the `result = ...` assignment it stops at. Here the
+        # injected eval's output becomes the unpickling result, which is `_var0`'s only use.
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
+        loaded.insert_python_eval(
+            "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
+        )
+        self.assertEqual(len(Interpreter(loaded).unused_variables()), 0)
+
+    def test_variable_used_only_inside_a_tuple(self):
+        # `ast.walk()` only descends into node fields that are lists, so the tuple opcodes must
+        # build `ast.Tuple` with a list of elements. Otherwise the interpreter cannot see the use
+        # of `_var0` below, and UnusedVariables reports it as unused.
+        pickled = Pickled(
+            [
+                fpickle.Proto.create(2),
+                fpickle.EmptyList(),
+                fpickle.ShortBinUnicode("decimal"),
+                fpickle.ShortBinUnicode("Decimal"),
+                fpickle.StackGlobal(),
+                fpickle.EmptyTuple(),
+                fpickle.Reduce(),  # _var0 = Decimal()
+                fpickle.TupleOne(),
+                fpickle.Build(),  # _var1.__setstate__((_var0,))
+                fpickle.Stop(),
+            ]
+        )
+        self.assertEqual(len(Interpreter(pickled).unused_variables()), 0)
+        self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
