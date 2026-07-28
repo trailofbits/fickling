@@ -184,17 +184,24 @@ class TestInterpreter(TestCase):
         pickled = dumps([1, 2, 3, 4])
         loaded = Pickled.load(pickled)
         self.assertIsInstance(loaded[-1], fpickle.Stop)
+        # The injected eval's output is discarded, so `_var0` really is unused.
+        loaded.insert_python_eval("[5, 6, 7, 8]", run_first=False)
+        interpreter = Interpreter(loaded)
+        unused = interpreter.unused_variables()
+        self.assertEqual(len(unused), 1)
+        self.assertIn("_var0", unused)
+        test_unused_variables_results = check_safety(loaded).to_dict()
+        self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
+
+    def test_variable_used_only_in_result(self):
+        # `unused_assignments()` must scan the `result = ...` assignment it stops at. Here the
+        # injected eval's output becomes the unpickling result, which is `_var0`'s only use.
+        pickled = dumps([1, 2, 3, 4])
+        loaded = Pickled.load(pickled)
         loaded.insert_python_eval(
             "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=True
         )
-        interpreter = Interpreter(loaded)
-        unused = interpreter.unused_variables()
-        # After fixing #226: _var0 is used in 'result = _var0' and is
-        # correctly NOT flagged as unused.  The old behaviour (break on
-        # result assignment) was the root cause of the false positive.
-        self.assertEqual(len(unused), 0)
-        test_unused_variables_results = check_safety(loaded).to_dict()
-        self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
+        self.assertEqual(len(Interpreter(loaded).unused_variables()), 0)
 
     def test_variable_used_only_inside_a_tuple(self):
         # `ast.walk()` only descends into node fields that are lists, so the tuple opcodes must
