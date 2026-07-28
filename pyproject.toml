@@ -121,14 +121,12 @@ select = [
 ignore = [
   "E501",  # line too long (handled by formatter)
   "T201",  # print statements (needed for CLI)
-  "T203",  # pprint statements
   # Pre-existing issues to fix in future PRs
   "PTH123",  # open() should be replaced by Path.open()
   "PTH107",  # os.remove should be replaced by Path.unlink
   "PTH118",  # os.path.join should be replaced by Path
   "PTH119",  # os.path.basename should be replaced by Path.name
   "RUF012",  # Mutable class attributes should use ClassVar
-  "RUF013",  # PEP 484 prohibits implicit Optional
   "B028",   # No explicit stacklevel in warnings
   "B904",   # Use raise ... from within except blocks
   "SIM102",  # Use single if instead of nested if
@@ -146,11 +144,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Ignore various checks for benchmark and example code
-"pickle_scanning_benchmark/*.py" = ["BLE", "T20", "N806"]
+"pickle_scanning_benchmark/*.py" = ["BLE", "T20"]
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
 "fickling/hook.py" = ["N816"]
-"fickling/fickle.py" = ["N802"]  # AST visitor methods must be named visit_*
 
 [tool.ruff.lint.isort]
 known-first-party = ["fickling"]
