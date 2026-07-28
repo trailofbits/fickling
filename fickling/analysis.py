@@ -6,6 +6,7 @@ from ast import Import, ImportFrom, unparse
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
+from typing import ClassVar
 
 from fickling.exception import ResourceExhaustionError
 from fickling.fickle import (
@@ -171,7 +172,7 @@ class AnalysisResult:
 
 
 class Analysis(ABC):
-    ALL: list[Analysis] = []
+    ALL: ClassVar[list[Analysis]] = []
 
     def __init_subclass__(cls, *, register: bool = True, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -219,16 +220,15 @@ class DuplicateProtoAnalysis(Analysis):
 class MisplacedProtoAnalysis(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for i, opcode in enumerate(context.pickled):
-            if isinstance(opcode, Proto):
-                if opcode.version >= 2 and i > 0:
-                    yield AnalysisResult(
-                        Severity.LIKELY_UNSAFE,
-                        f"The protocol version is {opcode.version}, but the PROTO opcode is not "
-                        f"the first opcode in the pickle, as required for versions 2 and later; "
-                        f"this may be indicative of a tampered pickle",
-                        "MisplacedProtoAnalysis",
-                        trigger=str(opcode.version),
-                    )
+            if isinstance(opcode, Proto) and opcode.version >= 2 and i > 0:
+                yield AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"The protocol version is {opcode.version}, but the PROTO opcode is not "
+                    f"the first opcode in the pickle, as required for versions 2 and later; "
+                    f"this may be indicative of a tampered pickle",
+                    "MisplacedProtoAnalysis",
+                    trigger=str(opcode.version),
+                )
 
 
 class InvalidOpcode(Analysis):
@@ -295,7 +295,7 @@ class UnsafeImportsML(Analysis):
     # ML-specific unsafe modules only; general-purpose modules (os, subprocess,
     # socket, pickle, etc.) are already covered by fickle.py's UNSAFE_IMPORTS
     # frozenset and caught by the UnsafeImports analysis.
-    UNSAFE_MODULES = {
+    UNSAFE_MODULES: ClassVar[dict[str, str]] = {
         "torch.hub": (
             "This module can load untrusted files from the web, exposing the system to "
             "arbitrary code execution."
@@ -312,7 +312,7 @@ class UnsafeImportsML(Analysis):
     # modules are blocked at the module level by fickle.py's UNSAFE_IMPORTS.
     # _io/io are kept here because blocking the entire io module would flag
     # io.BytesIO which is ubiquitous in ML model loading.
-    UNSAFE_IMPORTS = {
+    UNSAFE_IMPORTS: ClassVar[dict[str, dict[str, str]]] = {
         "torch": {
             "load": "This function can load untrusted files and code from arbitrary web sources.",
             "compile": "This function can compile and execute arbitrary code.",
@@ -397,7 +397,7 @@ class UnsafeImportsML(Analysis):
 
 
 class BadCalls(Analysis):
-    BAD_CALLS = ["exec", "eval", "compile", "open"]
+    BAD_CALLS: ClassVar[list[str]] = ["exec", "eval", "compile", "open"]
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
@@ -642,7 +642,7 @@ class AnalysisResults:
 
     def to_dict(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         analysis_message = self.to_string(verbosity)
-        severity_data = {
+        return {
             "severity": self.severity.name,
             "analysis": (
                 analysis_message
@@ -653,7 +653,6 @@ class AnalysisResults:
             ),
             "detailed_results": self.detailed_results(),
         }
-        return severity_data
 
 
 def check_safety(
