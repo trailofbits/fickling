@@ -1,5 +1,4 @@
 import json
-import os
 import random
 import sys
 import traceback
@@ -184,7 +183,7 @@ def create_malicious_dataset(clean_dataset_dir: Path, outdir: Path, n: int = 10)
         clean_index = json.load(f)
     malicious_index = []
     for f in clean_index:
-        filename = os.path.basename(f["file"])
+        filename = Path(f["file"]).name
         outfile = outdir / filename
         try:
             # TODO(boyan): check "type" field with new datasets

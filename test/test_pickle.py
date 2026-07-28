@@ -484,7 +484,7 @@ class TestInterpreter(TestCase):
             )
             pickled = Pickled.load(io.BytesIO(pickle_bytes))
             result = get_result(pickled)
-            self.assertEqual(result, os.path.join("/home", "user"))
+            self.assertEqual(result, os.path.join("/home", "user"))  # noqa: PTH118
 
             # Compare with real pickle
             real_result = loads(pickle_bytes)

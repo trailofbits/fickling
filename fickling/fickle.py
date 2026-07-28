@@ -556,7 +556,7 @@ class ConstantOpcode(Opcode):
 
     def __init_subclass__(cls, **kwargs):
         ret = super().__init_subclass__(**kwargs)
-        if not cls.__name__ == "ConstantInt":
+        if cls.__name__ != "ConstantInt":
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
             if (
@@ -1330,9 +1330,9 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if any(c in UNSAFE_IMPORTS for c in import_name_components(node)):
-                yield node
-            elif "eval" in (n.name for n in node.names):
+            unsafe_module = any(c in UNSAFE_IMPORTS for c in import_name_components(node))
+            imports_eval = "eval" in (n.name for n in node.names)
+            if unsafe_module or imports_eval:
                 yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:

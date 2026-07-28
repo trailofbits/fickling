@@ -244,7 +244,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
     check_zip = properties["is_standard_zip"]
     # if it's the correct type of zip to be torch, make sure it's not a torch file
     if check_zip and not properties["is_standard_not_torch"]:
-        for key in properties.keys():
+        for key in properties:
             if key.startswith("has_") and properties[key]:
                 # if it is a torch file, no need to check it
                 check_zip = False
@@ -319,7 +319,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
     return properties
 
 
-def check_if_legacy_format(file):
+def check_if_legacy_format(file: str | os.PathLike[str]) -> bool:
     """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
     required_entries = {"pickle", "storages", "tensors"}
     found_entries = set()
@@ -334,9 +334,10 @@ def check_if_legacy_format(file):
     except Exception:  # noqa
         print("False")
         return False
+    return False
 
 
-def check_if_model_archive_format(file, properties):
+def check_if_model_archive_format(file: str | os.PathLike[str], properties: FileProperties) -> bool:
     """
     PyTorch model archive format: ZIP file that includes Python code files and pickle files
 
@@ -358,6 +359,7 @@ def check_if_model_archive_format(file, properties):
         ) or check_and_find_in_7z(file, ".pth", check_extension=True)
         has_code = check_and_find_in_7z(file, ".py", check_extension=True)
         return has_json and has_serialized_model and has_code
+    return False
 
 
 def check_for_corruption(properties):
@@ -512,8 +514,8 @@ def create_mar_legacy_tar_polyglot(
 
 def create_polyglot(first_file, second_file, polyglot_file_name=None, print_results=True):
     polyglot_found = False
-    temp_first_file = "temp_" + os.path.basename(first_file)
-    temp_second_file = "temp_" + os.path.basename(second_file)
+    temp_first_file = "temp_" + Path(first_file).name
+    temp_second_file = "temp_" + Path(second_file).name
     shutil.copy(first_file, temp_first_file)
     shutil.copy(second_file, temp_second_file)
     files: list[tuple[str, str]] = []
@@ -549,6 +551,6 @@ def create_polyglot(first_file, second_file, polyglot_file_name=None, print_resu
             )
         else:
             print(f"The polyglot is contained in {polyglot_file_name}")
-    os.remove(temp_first_file)
-    os.remove(temp_second_file)
+    Path(temp_first_file).unlink()
+    Path(temp_second_file).unlink()
     return polyglot_found

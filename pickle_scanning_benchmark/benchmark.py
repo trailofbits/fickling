@@ -64,7 +64,7 @@ def load_index(filepath):
         return json.load(f)
 
 
-def run_fickling(filepath, filetype):
+def run_fickling(filepath, filetype) -> bool:
     analysis = [
         MLAllowlist(),  # Import non standard non whitelisted stuff
         UnsafeImportsML(),  # Importing from unsafe modules
@@ -74,6 +74,7 @@ def run_fickling(filepath, filetype):
         return run_fickling_pickle(filepath, analysis)
     if filetype == "pytorch":
         return run_fickling_pytorch(filepath, analysis)
+    raise Exception("Unsupported file type")
 
 
 def run_fickling_pickle(filepath, analysis) -> bool:
