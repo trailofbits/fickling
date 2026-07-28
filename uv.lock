@@ -522,6 +522,9 @@ wheels = [
 [[package]]
 name = "fickling"
 source = { editable = "." }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
+]
 
 [package.optional-dependencies]
 archive = [
@@ -539,7 +542,6 @@ dev = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "ty" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 examples = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -556,7 +558,6 @@ huggingface = [
 lint = [
     { name = "ruff" },
     { name = "ty" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 test = [
     { name = "coverage", extra = ["toml"] },
@@ -610,8 +611,7 @@ requires-dist = [
     { name = "torchvision", marker = "extra == 'torch'", specifier = ">=0.24.1" },
     { name = "ty", marker = "extra == 'dev'", specifier = ">=0.0.60" },
     { name = "ty", marker = "extra == 'lint'", specifier = ">=0.0.60" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12' and extra == 'dev'" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12' and extra == 'lint'" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'", specifier = ">=4.6.0" },
 ]
 provides-extras = ["archive", "dev", "examples", "huggingface", "lint", "test", "torch"]
 

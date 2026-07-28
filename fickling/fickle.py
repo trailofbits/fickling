@@ -21,16 +21,15 @@ from typing import (
     overload,
 )
 
-from typing_extensions import Self
-
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError, WrongMethodError
 
 T = TypeVar("T")
 
 if sys.version_info < (3, 12):
-    from typing_extensions import Buffer
+    from typing_extensions import Buffer, Self
 else:
     from collections.abc import Buffer
+    from typing import Self
 
 
 @dataclass(frozen=True)
