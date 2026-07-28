@@ -8,11 +8,13 @@ Static analyzer, decompiler, and bytecode rewriter for Python pickle serializati
 make dev            # uv sync --all-extras
 make test           # pytest --cov=fickling test/ + coverage report
 make test-quick     # pytest -q test/ (no coverage)
-make lint           # ruff format --check + ruff check + mypy
+make lint           # ruff format --check + ruff check + ty (advisory)
 make format         # ruff check --fix + ruff format
 ```
 
-CI uses `ty check fickling/` for type checking (not mypy). Run `uv run ty check fickling/` locally to match CI.
+`make lint` mirrors `lint.yml`: formatting is checked over the whole repo
+(including Python snippets in Markdown), and `ty` is advisory, so a non-zero
+`ty` exit does not fail the target. Use `make typecheck` to have it fail.
 
 ## Architecture
 
