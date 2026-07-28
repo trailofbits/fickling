@@ -69,6 +69,11 @@ Source = "https://github.com/trailofbits/fickling"
 
 # Black configuration removed - using ruff format instead
 
+[tool.pytest.ini_options]
+# A bare `pytest` must not wander into fuzz/, which is a separate uv project pinned to 3.14
+# and unimportable under this one's interpreter.
+testpaths = ["test"]
+
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints
 omit = ["fickling/__main__.py", "fickling/cli.py"]
@@ -86,6 +91,7 @@ exclude = [
   "/.github",
   "/test",
   "/example",
+  "/fuzz",
   "/pickle_scanning_benchmark",
   "/.gitignore",
   "/Makefile",
