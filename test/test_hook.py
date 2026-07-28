@@ -6,7 +6,7 @@ from pickle import UnpicklingError
 
 import numpy
 
-import fickling.hook as hook
+from fickling import hook
 from fickling.exception import UnsafeFileError
 
 

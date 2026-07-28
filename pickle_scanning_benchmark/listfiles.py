@@ -39,7 +39,7 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Path | None = None):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <outfile> <nbfiles>")
-        exit(0)
+        sys.exit(0)
     outfile = sys.argv[1]
     n = int(sys.argv[2])
     hf_get_candidate_files_list(n=n, outfile=outfile)

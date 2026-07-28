@@ -8,10 +8,10 @@ Note you may need to run `pip install pytorchfi`
 import pickle
 
 import torch
-import torchvision.models as models
 from pytorchfi.core import fault_injection
+from torchvision import models
 
-import fickling.analysis as analysis
+from fickling import analysis
 from fickling.fickle import Pickled
 
 # Load AlexNet

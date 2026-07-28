@@ -100,15 +100,14 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = [
+# Only prefixes whose rules the defaults do not already cover in full are listed.
+extend-select = [
   "E",     # pycodestyle errors
   "F",     # pyflakes
   "W",     # pycodestyle warnings
   "I",     # isort
   "N",     # pep8-naming
   "UP",    # pyupgrade
-  "YTT",   # flake8-2020
-  "BLE",   # flake8-blind-except
   "B",     # flake8-bugbear
   "C4",    # flake8-comprehensions
   "T20",   # flake8-print
@@ -130,10 +129,11 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Ignore various checks for benchmark and example code
-"pickle_scanning_benchmark/*.py" = ["BLE", "T20"]
+"fickling/fickle.py" = ["TRY004"]
+"pickle_scanning_benchmark/*.py" = ["BLE", "LOG015", "T20", "TRY002"]
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
+"test/test_pickle.py" = ["S102"]
 "fickling/hook.py" = ["N816"]
 
 [tool.ruff.lint.isort]

@@ -26,6 +26,12 @@ from fickling.fickle import (
     Put,
 )
 
+# Calls that are almost never legitimate in a pickle. These are matched against the
+# unparsed call expression, so the opening parenthesis is part of every entry.
+OVERTLY_BAD_CALL_PREFIXES: frozenset[str] = frozenset(
+    {"eval(", "exec(", "compile(", "open(", "_run_code(", "execWrapper("}
+)
+
 
 class AnalyzerMeta(type):
     _DEFAULT_INSTANCE: Analyzer | None = None
@@ -268,15 +274,19 @@ class NonStandardImports(Analysis):
         sources = (
             (
                 context.pickled.non_standard_imports(),
-                "imports a Python module that is not a part of the standard "
-                "library; this can execute arbitrary code and is inherently unsafe",
+                (
+                    "imports a Python module that is not a part of the standard "
+                    "library; this can execute arbitrary code and is inherently unsafe"
+                ),
             ),
             (
                 context.pickled.private_stdlib_imports(),
-                "imports a private, underscore-prefixed module of the Python "
-                "standard library; these are internal implementation details not "
-                "intended for direct use and never appear in legitimate pickles, "
-                "so this is treated as unsafe",
+                (
+                    "imports a private, underscore-prefixed module of the Python "
+                    "standard library; these are internal implementation details not "
+                    "intended for direct use and never appear in legitimate pickles, "
+                    "so this is treated as unsafe"
+                ),
             ),
         )
         for nodes, reason in sources:
@@ -349,9 +359,7 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened = context.shorten_code(node)
-            all_modules = [
-                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
-            ]
+            all_modules = [node.module.rsplit(".", i)[0] for i in range(node.module.count(".") + 1)]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     # Special handling for builtins - check specific function names
@@ -422,14 +430,7 @@ class OvertlyBadEvals(Analysis):
                 # standard library, it's probably okay
                 continue
             shortened = context.shorten_code(node)
-            if (
-                shortened.startswith("eval(")
-                or shortened.startswith("exec(")
-                or shortened.startswith("compile(")
-                or shortened.startswith("open(")
-                or shortened.startswith("_run_code(")
-                or shortened.startswith("execWrapper(")
-            ):
+            if any(shortened.startswith(prefix) for prefix in OVERTLY_BAD_CALL_PREFIXES):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
@@ -607,8 +608,7 @@ class ExpansionAttackAnalysis(Analysis):
         # Multiple indicators together are more severe
         if len(findings) > 1:
             for finding in findings:
-                if finding.severity < Severity.LIKELY_UNSAFE:
-                    finding.severity = Severity.LIKELY_UNSAFE
+                finding.severity = max(finding.severity, Severity.LIKELY_UNSAFE)
 
         yield from findings
 

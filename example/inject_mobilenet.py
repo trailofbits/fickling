@@ -1,6 +1,6 @@
 import pickle
 
-import torchvision.models as models
+from torchvision import models
 
 import fickling
 from fickling.fickle import Pickled

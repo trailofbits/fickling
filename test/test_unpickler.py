@@ -5,7 +5,7 @@ import unittest
 import numpy
 import torch
 
-import fickling.hook as hook
+from fickling import hook
 from fickling.exception import UnsafeFileError
 
 

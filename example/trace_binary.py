@@ -1,7 +1,7 @@
 import io
 from ast import unparse
 
-import fickling.tracing as tracing
+from fickling import tracing
 from fickling.fickle import Interpreter, Pickled
 
 # Grab mystery binary object

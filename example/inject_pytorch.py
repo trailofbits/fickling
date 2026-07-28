@@ -1,5 +1,5 @@
 import torch
-import torchvision.models as models
+from torchvision import models
 
 from fickling.pytorch import PyTorchModelWrapper
 
