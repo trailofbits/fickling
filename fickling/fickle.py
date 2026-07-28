@@ -1621,7 +1621,7 @@ class Inst(StackSliceOpcode):
         module, classname = self.module, self.cls
         alias = ast.alias(classname)
         interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
-        args = ast.Tuple(tuple(stack_slice))
+        args = ast.Tuple(list(stack_slice))
         call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
@@ -1662,7 +1662,7 @@ class EmptyTuple(Opcode):
     name = "EMPTY_TUPLE"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(ast.Tuple((), ast.Load()))
+        interpreter.stack.append(ast.Tuple([], ast.Load()))
 
 
 class TupleOne(Opcode):
@@ -1670,7 +1670,7 @@ class TupleOne(Opcode):
 
     def run(self, interpreter: Interpreter):
         stack_top = interpreter.stack.pop()
-        interpreter.stack.push(ast.Tuple((stack_top,), ast.Load()))
+        interpreter.stack.push(ast.Tuple([stack_top], ast.Load()))
 
 
 class TupleTwo(Opcode):
@@ -1679,7 +1679,7 @@ class TupleTwo(Opcode):
     def run(self, interpreter: Interpreter):
         arg2 = interpreter.stack.pop()
         arg1 = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((arg1, arg2), ast.Load()))
+        interpreter.stack.append(ast.Tuple([arg1, arg2], ast.Load()))
 
 
 class TupleThree(Opcode):
@@ -1689,7 +1689,7 @@ class TupleThree(Opcode):
         top = interpreter.stack.pop()
         mid = interpreter.stack.pop()
         bot = interpreter.stack.pop()
-        interpreter.stack.append(ast.Tuple((bot, mid, top), ast.Load()))
+        interpreter.stack.append(ast.Tuple([bot, mid, top], ast.Load()))
 
 
 class AddItems(Opcode):
@@ -1929,7 +1929,7 @@ class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        interpreter.stack.append(ast.Tuple(tuple(stack_slice), ast.Load()))
+        interpreter.stack.append(ast.Tuple(list(stack_slice), ast.Load()))
 
 
 class Build(Opcode):
@@ -2289,7 +2289,7 @@ class Dict(Opcode):
                 f"Number of keys ({len(keys)}) and values ({len(values)}) for DICT do not match"
             )
 
-        interpreter.stack.append(ast.Dict(keys=reversed(keys), values=reversed(values)))
+        interpreter.stack.append(ast.Dict(keys=list(reversed(keys)), values=list(reversed(values))))
 
 
 PickledSequence = Sequence[Pickled]

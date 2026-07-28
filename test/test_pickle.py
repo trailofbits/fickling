@@ -196,6 +196,27 @@ class TestInterpreter(TestCase):
         test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
 
+    def test_variable_used_only_inside_a_tuple(self):
+        # `ast.walk()` only descends into node fields that are lists, so the tuple opcodes must
+        # build `ast.Tuple` with a list of elements. Otherwise the interpreter cannot see the use
+        # of `_var0` below, and UnusedVariables reports it as unused.
+        pickled = Pickled(
+            [
+                fpickle.Proto.create(2),
+                fpickle.EmptyList(),
+                fpickle.ShortBinUnicode("decimal"),
+                fpickle.ShortBinUnicode("Decimal"),
+                fpickle.StackGlobal(),
+                fpickle.EmptyTuple(),
+                fpickle.Reduce(),  # _var0 = Decimal()
+                fpickle.TupleOne(),
+                fpickle.Build(),  # _var1.__setstate__((_var0,))
+                fpickle.Stop(),
+            ]
+        )
+        self.assertEqual(len(Interpreter(pickled).unused_variables()), 0)
+        self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
+
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
         pass
