@@ -26,6 +26,9 @@ classifiers = [
   "Topic :: Utilities",
 ]
 requires-python = ">=3.10"
+dependencies = [
+  "typing-extensions >= 4.6.0; python_version < '3.12'",
+]
 
 [project.optional-dependencies]
 torch = [
@@ -37,8 +40,6 @@ torch = [
 lint = [
   "ruff >= 0.16.0",
   "ty >= 0.0.60",
-  # for the Buffer ABC before Python 3.12
-  "typing-extensions; python_version < '3.12'",
 ]
 test = [
   "pytest >= 8.0.0",
