@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import warnings
 import zipfile
 from pathlib import Path
@@ -154,4 +153,4 @@ class PyTorchModelWrapper:
             Path(output_path).rename(self.path)
             output_path = Path(self.output_path)
             if output_path.exists():
-                os.remove(output_path)
+                output_path.unlink()
