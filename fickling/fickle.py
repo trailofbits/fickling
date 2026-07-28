@@ -1351,18 +1351,22 @@ class Interpreter:
                     and isinstance(statement.targets[0], ast.Name)
                     and statement.targets[0].id == "result"
                 ):
-                    # this is the return value of the program
-                    break
-                for target in statement.targets:
-                    if isinstance(target, ast.Name):
-                        defined.add(target.id)
-                        if target.id in assignments:
-                            # this should never happen, since Fickling constructs the AST
-                            sys.stderr.write(
-                                f"Warning: Duplicate declaration of variable {target.id}\n"
-                            )
-                        assignments[target.id] = statement
-                statement = statement.value
+                    # this is the return value of the program;
+                    # skip recording it as 'defined' but still scan
+                    # its value for variable usage and continue
+                    # processing remaining statements (closes #226)
+                    statement = statement.value
+                else:
+                    for target in statement.targets:
+                        if isinstance(target, ast.Name):
+                            defined.add(target.id)
+                            if target.id in assignments:
+                                # this should never happen, since Fickling constructs the AST
+                                sys.stderr.write(
+                                    f"Warning: Duplicate declaration of variable {target.id}\n"
+                                )
+                            assignments[target.id] = statement
+                    statement = statement.value
             if statement is not None:
                 for node in ast.walk(statement):
                     if isinstance(node, ast.Name):

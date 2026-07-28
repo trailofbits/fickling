@@ -189,8 +189,10 @@ class TestInterpreter(TestCase):
         )
         interpreter = Interpreter(loaded)
         unused = interpreter.unused_variables()
-        self.assertEqual(len(unused), 1)
-        self.assertIn("_var0", unused)
+        # After fixing #226: _var0 is used in 'result = _var0' and is
+        # correctly NOT flagged as unused.  The old behaviour (break on
+        # result assignment) was the root cause of the false positive.
+        self.assertEqual(len(unused), 0)
         test_unused_variables_results = check_safety(loaded).to_dict()
         self.assertEqual(test_unused_variables_results["severity"], "OVERTLY_MALICIOUS")
 
