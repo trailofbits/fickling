@@ -60,15 +60,17 @@ uv run pytest -q test/test_bypasses.py     # just bypass regression tests
 
 ```python
 def test_example_bypass(self):
-    pickled = Pickled([
-        op.Proto.create(4),
-        op.ShortBinUnicode("dangerous_module"),
-        op.ShortBinUnicode("dangerous_func"),
-        op.StackGlobal(),
-        op.EmptyTuple(),
-        op.Reduce(),
-        op.Stop(),
-    ])
+    pickled = Pickled(
+        [
+            op.Proto.create(4),
+            op.ShortBinUnicode("dangerous_module"),
+            op.ShortBinUnicode("dangerous_func"),
+            op.StackGlobal(),
+            op.EmptyTuple(),
+            op.Reduce(),
+            op.Stop(),
+        ]
+    )
     self.assertGreater(check_safety(pickled).severity, Severity.LIKELY_SAFE)
 ```
 
