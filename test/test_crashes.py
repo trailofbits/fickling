@@ -72,7 +72,6 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
     )
     def test_stable_diffusion(self):
         """Reproduces https://github.com/trailofbits/fickling/issues/22"""
-        pass
 
     @unparse_test(
         io.BytesIO(
@@ -82,12 +81,10 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
     def test_pop_mark(self):
         """Tests the correctness of the POP_MARK opcode by using the bytecode from https://github.com/mindspore-ai/mindspore/issues/183
         This can be simplified to allow for the correctness of additional opcodes to be tested"""
-        pass
 
     @unparse_test(io.BytesIO(b'(cos\nsystem\nS"whoami"\no.'))
     def test_obj(self):
         """Tests the correctness of the OBJ opcode"""
-        pass
 
     # Based on the CTF challenge shared in https://github.com/trailofbits/fickling/issues/125.
     def test_stack_global_dynamic_import(self):

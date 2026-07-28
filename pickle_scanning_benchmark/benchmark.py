@@ -138,8 +138,8 @@ def _analyze_file(
             else:
                 results.tools[toolname].add_fp()
                 logger.warning(f"Clean file mislabeled by {toolname}: {fileinfo['file']}")
-        except KeyboardInterrupt as e:
-            raise e
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             print(traceback.format_exc())
             logger.error(f"Failed to analyze file: {e}")
@@ -154,8 +154,8 @@ def _analyze_file(
                 )
             else:
                 results.tools[toolname].add_tp()
-        except KeyboardInterrupt as e:
-            raise e
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             print(traceback.format_exc())
             logger.error(f"Failed to analyze file: {e}")

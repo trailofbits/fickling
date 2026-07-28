@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest import mock
 
 import torch
-import torchvision.models as models
+from torchvision import models
 
 import fickling.polyglot
 from fickling.fickle import Pickled

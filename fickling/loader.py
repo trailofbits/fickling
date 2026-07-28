@@ -244,8 +244,7 @@ def _scan_bytes(
             try:
                 result = check_safety(pickled, json_output_path=json_output_path)
                 results.append(result)
-                if result.severity > overall_severity:
-                    overall_severity = result.severity
+                overall_severity = max(overall_severity, result.severity)
             except Exception as e:  # noqa: PERF203 -- each pickle is analyzed independently
                 if graceful:
                     errors.append(f"Analysis error ({type(e).__name__}): {e!s}")

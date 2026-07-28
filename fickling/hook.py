@@ -2,7 +2,7 @@ import _pickle
 import io
 import pickle
 
-import fickling.loader as loader
+from fickling import loader
 from fickling.ml import FicklingMLUnpickler
 
 _original_pickle_load = pickle.load

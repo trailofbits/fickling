@@ -21,6 +21,8 @@ from typing import (
     overload,
 )
 
+from typing_extensions import Self
+
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError, WrongMethodError
 
 T = TypeVar("T")
@@ -575,7 +577,7 @@ class ConstantOpcode(Opcode):
         raise NotImplementedError()
 
     @classmethod
-    def new(cls: type[T], obj) -> T:
+    def new(cls, obj) -> Self:
         for subclass, _ in sorted(
             ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]
         ):
@@ -722,8 +724,6 @@ class EmptyPickleError(PickleDecodeError):
 
 class InterpretationError(PickleDecodeError):
     """Raised when pickle interpretation fails due to malformed opcode sequences."""
-
-    pass
 
 
 class Pickled(OpcodeSequence):
@@ -1029,8 +1029,7 @@ class Pickled(OpcodeSequence):
         return bytes(b)
 
     def dump(self, file: BinaryIO):
-        for opcode in self:
-            file.write(opcode.data)
+        file.writelines(opcode.data for opcode in self)
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
         """Dump bytecode only between two opcodes
@@ -1699,7 +1698,7 @@ class AddItems(Opcode):
             raise ValueError("Stack was empty; expected a pyset")
         pyset = interpreter.stack[-1]
         if not isinstance(pyset, ast.Set):
-            raise ValueError(
+            raise InterpretationError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
         # Check for cyclic references - sets cannot contain themselves (unhashable)
@@ -2134,7 +2133,9 @@ class Append(Opcode):
                 interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise InterpretationError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class Appends(StackSliceOpcode):
@@ -2149,7 +2150,9 @@ class Appends(StackSliceOpcode):
                     interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise InterpretationError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class BinFloat(ConstantOpcode):

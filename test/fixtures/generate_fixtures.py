@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10,<3.14"
 # dependencies = ["torch>=2.10,<3", "torchvision>=0.25,<1"]
@@ -17,7 +17,7 @@ Usage:
 from pathlib import Path
 
 import torch
-import torchvision.models as models
+from torchvision import models
 
 FIXTURES_DIR = Path(__file__).parent
 
