@@ -9,8 +9,8 @@ https://pytorch.org/tutorials/beginner/saving_loading_models.html
 from pathlib import Path
 
 import torch
-import torch.nn.functional as F
-from torch import nn, optim
+import torch.nn.functional as F  # noqa: N812
+from torch import nn
 
 from fickling.pytorch import PyTorchModelWrapper
 
@@ -32,8 +32,7 @@ class TheModelClass(nn.Module):
         x = x.view(-1, 16 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
+        return self.fc3(x)
 
 
 if __name__ == "__main__":

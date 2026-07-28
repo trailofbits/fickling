@@ -6,7 +6,7 @@ import warnings
 from collections.abc import Sequence
 from types import ModuleType
 
-import fickling.loader as loader
+from fickling import loader
 
 warnings.warn(
     "This feature is experimental and should not be used for safety-critical endeavors.",

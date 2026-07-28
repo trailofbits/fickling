@@ -1,7 +1,6 @@
 import pickle
 
-import fickling.hook as hook
-import fickling.loader as loader
+from fickling import hook, loader
 from fickling.analysis import Severity
 
 

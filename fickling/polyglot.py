@@ -44,12 +44,12 @@ Another useful reference is https://github.com/lutzroeder/netron/blob/main/sourc
 
 try:
     from torch.serialization import _is_zipfile
-except ModuleNotFoundError:
+except ModuleNotFoundError as e:
     raise ImportError(
         "The 'torch' module is required for this functionality."
         "PyTorch is now an optional dependency in Fickling."
         "Please use `pip install fickling[torch]`"
-    )
+    ) from e
 
 
 def check_and_find_in_zip(
@@ -244,7 +244,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
     check_zip = properties["is_standard_zip"]
     # if it's the correct type of zip to be torch, make sure it's not a torch file
     if check_zip and not properties["is_standard_not_torch"]:
-        for key in properties.keys():
+        for key in properties:
             if key.startswith("has_") and properties[key]:
                 # if it is a torch file, no need to check it
                 check_zip = False
@@ -319,7 +319,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
     return properties
 
 
-def check_if_legacy_format(file):
+def check_if_legacy_format(file: str | os.PathLike[str]) -> bool:
     """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
     required_entries = {"pickle", "storages", "tensors"}
     found_entries = set()
@@ -334,9 +334,10 @@ def check_if_legacy_format(file):
     except Exception:  # noqa
         print("False")
         return False
+    return False
 
 
-def check_if_model_archive_format(file, properties):
+def check_if_model_archive_format(file: str | os.PathLike[str], properties: FileProperties) -> bool:
     """
     PyTorch model archive format: ZIP file that includes Python code files and pickle files
 
@@ -358,6 +359,7 @@ def check_if_model_archive_format(file, properties):
         ) or check_and_find_in_7z(file, ".pth", check_extension=True)
         has_code = check_and_find_in_7z(file, ".py", check_extension=True)
         return has_json and has_serialized_model and has_code
+    return False
 
 
 def check_for_corruption(properties):
@@ -365,14 +367,14 @@ def check_for_corruption(properties):
     corrupted = False
     reason = ""
     # We expect this to be expanded upon
-    if properties["is_torch_zip"]:
-        if (
-            properties["has_model_json"]
-            and not properties["has_attributes_pkl"]
-            and not properties["has_constants_pkl"]
-        ):
-            corrupted = True
-            reason = """Your file may be corrupted. It contained a
+    if (
+        properties["is_torch_zip"]
+        and properties["has_model_json"]
+        and not properties["has_attributes_pkl"]
+        and not properties["has_constants_pkl"]
+    ):
+        corrupted = True
+        reason = """Your file may be corrupted. It contained a
             model.json file without an attributes.pkl or constants.pkl file."""
     return corrupted, reason
 
@@ -429,11 +431,8 @@ def identify_pytorch_file_format(
         if print_results:
             print("Your file is most likely of this format: ", primary, "\n")
         secondary = formats[1:]
-        if len(secondary) != 0:
-            if print_results:
-                print(
-                    "It is also possible that your file can be validly interpreted as: ", secondary
-                )
+        if len(secondary) != 0 and print_results:
+            print("It is also possible that your file can be validly interpreted as: ", secondary)
     else:
         if print_results:
             print(
@@ -464,8 +463,7 @@ def create_mar_legacy_pickle_polyglot(
         print("Making a PyTorch MAR/PyTorch v0.1.10 polyglot")
     polyglot_file = append_file(*[file[0] for file in files])
     shutil.copy(polyglot_file, polyglot_file_name)
-    polyglot_found = True
-    return polyglot_found
+    return True
 
 
 def create_standard_torchscript_polyglot(
@@ -474,8 +472,8 @@ def create_standard_torchscript_polyglot(
     if print_results:
         print("Making a PyTorch v1.3/TorchScript v1.4 polyglot")
         print("Warning: For some parsers, this may generate polymocks instead of polyglots.")
-    standard_pytorch_file = [file[0] for file in files if file[1] == "PyTorch v1.3"][0]
-    torchscript_file = [file[0] for file in files if file[1] == "TorchScript v1.4"][0]
+    standard_pytorch_file = next(file[0] for file in files if file[1] == "PyTorch v1.3")
+    torchscript_file = next(file[0] for file in files if file[1] == "TorchScript v1.4")
     if polyglot_file_name is None:
         polyglot_file_name = "polyglot.pt"
     shutil.copy(standard_pytorch_file, polyglot_file_name)
@@ -493,8 +491,7 @@ def create_standard_torchscript_polyglot(
                 zip_out.writestr("constants.pkl", constants_data)
                 zip_out.writestr("version", version_data)
 
-    polyglot_found = True
-    return polyglot_found
+    return True
 
 
 def create_mar_legacy_tar_polyglot(
@@ -502,18 +499,17 @@ def create_mar_legacy_tar_polyglot(
 ):
     if print_results:
         print("Making a PyTorch v0.1.1/PyTorch MAR polyglot")
-    mar_file = [file[0] for file in files if file[1] == "PyTorch model archive format"][0]
-    tar_file = [file[0] for file in files if file[1] == "PyTorch v0.1.1"][0]
+    mar_file = next(file[0] for file in files if file[1] == "PyTorch model archive format")
+    tar_file = next(file[0] for file in files if file[1] == "PyTorch v0.1.1")
     polyglot_file = append_file(mar_file, tar_file)
     shutil.copy(polyglot_file, polyglot_file_name)
-    polyglot_found = True
-    return polyglot_found
+    return True
 
 
 def create_polyglot(first_file, second_file, polyglot_file_name=None, print_results=True):
     polyglot_found = False
-    temp_first_file = "temp_" + os.path.basename(first_file)
-    temp_second_file = "temp_" + os.path.basename(second_file)
+    temp_first_file = "temp_" + Path(first_file).name
+    temp_second_file = "temp_" + Path(second_file).name
     shutil.copy(first_file, temp_first_file)
     shutil.copy(second_file, temp_second_file)
     files: list[tuple[str, str]] = []
@@ -549,6 +545,6 @@ def create_polyglot(first_file, second_file, polyglot_file_name=None, print_resu
             )
         else:
             print(f"The polyglot is contained in {polyglot_file_name}")
-    os.remove(temp_first_file)
-    os.remove(temp_second_file)
+    Path(temp_first_file).unlink()
+    Path(temp_second_file).unlink()
     return polyglot_found

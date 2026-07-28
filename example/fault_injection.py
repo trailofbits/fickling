@@ -8,10 +8,10 @@ Note you may need to run `pip install pytorchfi`
 import pickle
 
 import torch
-import torchvision.models as models
 from pytorchfi.core import fault_injection
+from torchvision import models
 
-import fickling.analysis as analysis
+from fickling import analysis
 from fickling.fickle import Pickled
 
 # Load AlexNet
@@ -28,7 +28,7 @@ channels = 3
 
 random_image = torch.rand((batch_size, channels, height, width))
 output = model(random_image)
-proper_label = list(torch.argmax(output, dim=1))[0].item()
+proper_label = torch.argmax(output, dim=1)[0].item()
 print("Error-free label:", proper_label)
 
 # Fickle the safe model
@@ -53,7 +53,7 @@ injected_model = injected_model.declare_neuron_fi(
 )
 
 injected_output = injected_model(random_image)
-injected_label = list(torch.argmax(injected_output, dim=1))[0].item()
+injected_label = torch.argmax(injected_output, dim=1)[0].item()
 print("Injected Label:", injected_label)
 
 # Fickle the model with the fault injection

@@ -41,7 +41,9 @@ def stacked_correctness_test(*to_pickle):
             stacked = [dumps(p) for p in to_pickle_list]
             stacked_pickle = StackedPickle.load(b"".join(stacked))
             self.assertEqual(len(stacked_pickle), len(stacked))
-            for pickled, p_bytes, original in zip(stacked_pickle, stacked, to_pickle_list):
+            for pickled, p_bytes, original in zip(
+                stacked_pickle, stacked, to_pickle_list, strict=True
+            ):
                 stacked_ast = pickled.ast
                 true_ast = Pickled.load(p_bytes).ast
                 stacked_code = unparse(stacked_ast)
@@ -429,7 +431,7 @@ class TestInterpreter(TestCase):
             )
             pickled = Pickled.load(io.BytesIO(pickle_bytes))
             result = get_result(pickled)
-            self.assertEqual(result, os.path.join("/home", "user"))
+            self.assertEqual(result, os.path.join("/home", "user"))  # noqa: PTH118
 
             # Compare with real pickle
             real_result = loads(pickle_bytes)

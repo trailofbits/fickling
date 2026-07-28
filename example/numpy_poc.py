@@ -5,7 +5,7 @@ import pickle
 
 import numpy
 
-import fickling.analysis as analysis
+from fickling import analysis
 from fickling.fickle import Pickled
 
 

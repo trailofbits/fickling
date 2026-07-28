@@ -6,6 +6,7 @@ from ast import Import, ImportFrom, unparse
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
+from typing import ClassVar
 
 from fickling.exception import ResourceExhaustionError
 from fickling.fickle import (
@@ -23,6 +24,12 @@ from fickling.fickle import (
     Pickled,
     Proto,
     Put,
+)
+
+# Calls that are almost never legitimate in a pickle. These are matched against the
+# unparsed call expression, so the opening parenthesis is part of every entry.
+OVERTLY_BAD_CALL_PREFIXES: frozenset[str] = frozenset(
+    {"eval(", "exec(", "compile(", "open(", "_run_code(", "execWrapper("}
 )
 
 
@@ -171,7 +178,7 @@ class AnalysisResult:
 
 
 class Analysis(ABC):
-    ALL: list[Analysis] = []
+    ALL: ClassVar[list[Analysis]] = []
 
     def __init_subclass__(cls, *, register: bool = True, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -219,16 +226,15 @@ class DuplicateProtoAnalysis(Analysis):
 class MisplacedProtoAnalysis(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for i, opcode in enumerate(context.pickled):
-            if isinstance(opcode, Proto):
-                if opcode.version >= 2 and i > 0:
-                    yield AnalysisResult(
-                        Severity.LIKELY_UNSAFE,
-                        f"The protocol version is {opcode.version}, but the PROTO opcode is not "
-                        f"the first opcode in the pickle, as required for versions 2 and later; "
-                        f"this may be indicative of a tampered pickle",
-                        "MisplacedProtoAnalysis",
-                        trigger=str(opcode.version),
-                    )
+            if isinstance(opcode, Proto) and opcode.version >= 2 and i > 0:
+                yield AnalysisResult(
+                    Severity.LIKELY_UNSAFE,
+                    f"The protocol version is {opcode.version}, but the PROTO opcode is not "
+                    f"the first opcode in the pickle, as required for versions 2 and later; "
+                    f"this may be indicative of a tampered pickle",
+                    "MisplacedProtoAnalysis",
+                    trigger=str(opcode.version),
+                )
 
 
 class InvalidOpcode(Analysis):
@@ -268,15 +274,19 @@ class NonStandardImports(Analysis):
         sources = (
             (
                 context.pickled.non_standard_imports(),
-                "imports a Python module that is not a part of the standard "
-                "library; this can execute arbitrary code and is inherently unsafe",
+                (
+                    "imports a Python module that is not a part of the standard "
+                    "library; this can execute arbitrary code and is inherently unsafe"
+                ),
             ),
             (
                 context.pickled.private_stdlib_imports(),
-                "imports a private, underscore-prefixed module of the Python "
-                "standard library; these are internal implementation details not "
-                "intended for direct use and never appear in legitimate pickles, "
-                "so this is treated as unsafe",
+                (
+                    "imports a private, underscore-prefixed module of the Python "
+                    "standard library; these are internal implementation details not "
+                    "intended for direct use and never appear in legitimate pickles, "
+                    "so this is treated as unsafe"
+                ),
             ),
         )
         for nodes, reason in sources:
@@ -295,7 +305,7 @@ class UnsafeImportsML(Analysis):
     # ML-specific unsafe modules only; general-purpose modules (os, subprocess,
     # socket, pickle, etc.) are already covered by fickle.py's UNSAFE_IMPORTS
     # frozenset and caught by the UnsafeImports analysis.
-    UNSAFE_MODULES = {
+    UNSAFE_MODULES: ClassVar[dict[str, str]] = {
         "torch.hub": (
             "This module can load untrusted files from the web, exposing the system to "
             "arbitrary code execution."
@@ -312,7 +322,7 @@ class UnsafeImportsML(Analysis):
     # modules are blocked at the module level by fickle.py's UNSAFE_IMPORTS.
     # _io/io are kept here because blocking the entire io module would flag
     # io.BytesIO which is ubiquitous in ML model loading.
-    UNSAFE_IMPORTS = {
+    UNSAFE_IMPORTS: ClassVar[dict[str, dict[str, str]]] = {
         "torch": {
             "load": "This function can load untrusted files and code from arbitrary web sources.",
             "compile": "This function can compile and execute arbitrary code.",
@@ -349,9 +359,7 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened = context.shorten_code(node)
-            all_modules = [
-                node.module.rsplit(".", i)[0] for i in range(0, node.module.count(".") + 1)
-            ]
+            all_modules = [node.module.rsplit(".", i)[0] for i in range(node.module.count(".") + 1)]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     # Special handling for builtins - check specific function names
@@ -397,7 +405,7 @@ class UnsafeImportsML(Analysis):
 
 
 class BadCalls(Analysis):
-    BAD_CALLS = ["exec", "eval", "compile", "open"]
+    BAD_CALLS: ClassVar[list[str]] = ["exec", "eval", "compile", "open"]
 
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.calls:
@@ -422,14 +430,7 @@ class OvertlyBadEvals(Analysis):
                 # standard library, it's probably okay
                 continue
             shortened = context.shorten_code(node)
-            if (
-                shortened.startswith("eval(")
-                or shortened.startswith("exec(")
-                or shortened.startswith("compile(")
-                or shortened.startswith("open(")
-                or shortened.startswith("_run_code(")
-                or shortened.startswith("execWrapper(")
-            ):
+            if any(shortened.startswith(prefix) for prefix in OVERTLY_BAD_CALL_PREFIXES):
                 # this is overtly bad, so record it and print it at the end
                 yield AnalysisResult(
                     Severity.OVERTLY_MALICIOUS,
@@ -607,8 +608,7 @@ class ExpansionAttackAnalysis(Analysis):
         # Multiple indicators together are more severe
         if len(findings) > 1:
             for finding in findings:
-                if finding.severity < Severity.LIKELY_UNSAFE:
-                    finding.severity = Severity.LIKELY_UNSAFE
+                finding.severity = max(finding.severity, Severity.LIKELY_UNSAFE)
 
         yield from findings
 
@@ -642,7 +642,7 @@ class AnalysisResults:
 
     def to_dict(self, verbosity: Severity = Severity.POSSIBLY_UNSAFE):
         analysis_message = self.to_string(verbosity)
-        severity_data = {
+        return {
             "severity": self.severity.name,
             "analysis": (
                 analysis_message
@@ -653,7 +653,6 @@ class AnalysisResults:
             ),
             "detailed_results": self.detailed_results(),
         }
-        return severity_data
 
 
 def check_safety(
