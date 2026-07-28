@@ -54,6 +54,7 @@ To enable Fickling security checks simply run the following lines once in your p
 
 ```python
 import fickling
+
 # This sets global hooks on pickle
 fickling.hook.activate_safe_ml_environment()
 ```
@@ -67,10 +68,12 @@ fickling.hook.deactivate_safe_ml_environment()
 It is possible that the models you are using contain imports that aren't allowed by Fickling. If you still want to load the model, you can simply allow additional imports for your specific use-case with the `also_allow` argument:
 
 ```python
-fickling.hook.activate_safe_ml_environment(also_allow=[
-    "some.import",
-    "another.allowed.import",
-])
+fickling.hook.activate_safe_ml_environment(
+    also_allow=[
+        "some.import",
+        "another.allowed.import",
+    ]
+)
 ```
 
 **Important**: You should always make sure that manually added imports are actually safe and can not enable attackers to execute arbitrary code. If you are unsure on how to do that, you can open an issue on Fickling's Github repository that indicates the imports/models in question, and our team can review them and include them in the allow list if possible.
