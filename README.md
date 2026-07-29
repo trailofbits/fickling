@@ -50,7 +50,8 @@ Fickling can help securing AI/ML codebases by automatically scanning pickle file
 models. Fickling hooks the pickle module and verifies imports made when loading a model. It only
 checks the imports against an allowlist of imports from ML libraries that are considered safe, and blocks files that contain other imports.
 
-To enable Fickling security checks simply run the following lines once in your process, before loading any AI/ML models:
+Add the following lines as early as possible, **before importing `torch`, `numpy`, or any other
+library that uses `pickle`**:
 
 ```python
 import fickling
