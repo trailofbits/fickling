@@ -114,6 +114,9 @@ with fickling.check_safety():
 pickle.load("file.pkl")
 ```
 
+On exit, the context manager restores whatever was installed when it was entered, so a hook
+already in place stays in effect instead of pickle being left unhooked.
+
 #### Option 3: check and load a single file
 
 ```python

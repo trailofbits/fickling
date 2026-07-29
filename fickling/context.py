@@ -1,25 +1,21 @@
-import pickle
-
 import fickling.hook as hook
-import fickling.loader as loader
-from fickling.analysis import Severity
 
 
 class FicklingContextManager:
-    def __init__(self, max_acceptable_severity=Severity.LIKELY_SAFE):
-        self.original_pickle_load = pickle.load
-        self.max_acceptable_severity = max_acceptable_severity
+    def __init__(self):
+        self.previous_entry_points = None
 
     def __enter__(self):
-        # Modify the `hook_pickle_load` function to use the imported loader
-        wrapped_load = lambda file, *args, **kwargs: loader.load(  # noqa
-            file, max_acceptable_severity=self.max_acceptable_severity
-        )
+        # Snapshot instead of calling remove_hook() on exit, so we restore a
+        # hook that was already installed rather than unhooking pickle.
+        self.previous_entry_points = hook.snapshot_entry_points()
         hook.run_hook()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pickle.load = self.original_pickle_load
+    def __exit__(self, *exc_info):
+        if self.previous_entry_points is not None:
+            hook.restore_entry_points(self.previous_entry_points)
+            self.previous_entry_points = None
 
 
 def check_safety():
