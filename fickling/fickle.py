@@ -54,7 +54,64 @@ OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
 
-BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
+# Static union of stdlib module names across Python 3.10-3.13.
+# Using a static list ensures consistent results regardless of which
+# Python version runs the scanner (e.g., CI on 3.11 scanning pickles
+# that will be loaded on a developer's 3.12 machine).
+# See: https://github.com/trailofbits/fickling/issues/311
+BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = getattr(
+    sys, "stdlib_module_names", frozenset()
+) | frozenset({
+    # Modules added/removed across Python 3.10-3.13
+    "__future__", "_abc", "_ast", "_asyncio", "_bisect", "_blake2",
+    "_bz2", "_codecs", "_collections", "_collections_abc", "_compat_pickle",
+    "_compression", "_contextvars", "_csv", "_ctypes", "_curses", "_datetime",
+    "_decimal", "_elementtree", "_functools", "_hashlib", "_heapq", "_imp",
+    "_io", "_json", "_locale", "_lzma", "_markupbase", "_md5", "_multibytecodec",
+    "_multiprocessing", "_opcode", "_operator", "_pickle", "_posixsubprocess",
+    "_py_abc", "_pydecimal", "_pyio", "_queue", "_random", "_sha1", "_sha256",
+    "_sha3", "_sha512", "_signal", "_sitebuiltins", "_socket", "_sqlite3",
+    "_sre", "_ssl", "_stat", "_statistics", "_string", "_struct", "_symtable",
+    "_thread", "_threading_local", "_tokenize", "_tracemalloc", "_typing",
+    "_uuid", "_warnings", "_weakref", "_weakrefset", "_zoneinfo",
+    "abc", "argparse", "array", "ast", "asyncio", "atexit", "base64",
+    "bdb", "binascii", "bisect", "builtins", "bz2", "cProfile", "calendar",
+    "cmath", "cmd", "code", "codecs", "codeop", "collections", "colorsys",
+    "compileall", "concurrent", "configparser", "contextlib", "contextvars",
+    "copy", "copyreg", "csv", "ctypes", "curses", "dataclasses", "datetime",
+    "dbm", "decimal", "difflib", "dis", "doctest", "email", "encodings",
+    "ensurepip", "enum", "errno", "faulthandler", "filecmp", "fileinput",
+    "fnmatch", "fractions", "ftplib", "functools", "gc", "genericpath",
+    "getopt", "getpass", "gettext", "glob", "graphlib", "gzip", "hashlib",
+    "heapq", "hmac", "html", "http", "importlib", "inspect", "io",
+    "ipaddress", "itertools", "json", "keyword", "linecache", "locale",
+    "logging", "lzma", "mailbox", "marshal", "math", "mimetypes", "mmap",
+    "modulefinder", "multiprocessing", "netrc", "numbers", "opcode",
+    "operator", "optparse", "os", "pathlib", "pdb", "pickle", "pickletools",
+    "pkgutil", "platform", "plistlib", "poplib", "posix", "posixpath",
+    "pprint", "profile", "pstats", "pty", "pwd", "py_compile", "pyclbr",
+    "pydoc", "pydoc_data", "pyexpat", "queue", "quopri", "random", "re",
+    "readline", "reprlib", "resource", "rlcompleter", "runpy", "sched",
+    "secrets", "select", "selectors", "shelve", "shlex", "shutil", "signal",
+    "site", "smtplib", "socket", "socketserver", "sqlite3", "sre_compile",
+    "sre_constants", "sre_parse", "ssl", "stat", "statistics", "string",
+    "stringprep", "struct", "subprocess", "symtable", "sys", "sysconfig",
+    "tabnanny", "tarfile", "tempfile", "textwrap", "this", "threading",
+    "time", "timeit", "tkinter", "token", "tokenize", "tomllib", "trace",
+    "traceback", "tracemalloc", "tty", "turtle", "turtledemo", "types",
+    "typing", "unicodedata", "unittest", "urllib", "uuid", "venv",
+    "warnings", "wave", "weakref", "webbrowser", "xml", "xmlrpc",
+    "zipapp", "zipfile", "zipimport", "zlib", "zoneinfo",
+    # Platform-specific modules
+    "fcntl", "grp", "nis", "ossaudiodev", "readline", "resource",
+    "spwd", "syslog", "termios",
+    # Windows-specific
+    "msilib", "msvcrt", "nt", "ntpath", "winreg", "winsound",
+    # Legacy/removed modules (still stdlib in some versions)
+    "aifc", "asynchat", "asyncore", "audioop", "cgi", "cgitb", "chunk",
+    "crypt", "distutils", "imghdr", "imp", "lib2to3", "mailcap",
+    "nntplib", "smtpd", "sndhdr", "sunau", "telnetlib", "uu", "xdrlib",
+})
 
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
