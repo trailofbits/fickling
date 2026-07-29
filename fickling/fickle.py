@@ -275,7 +275,7 @@ PRIVATE_STDLIB_MODULE_ALLOWLIST: frozenset[str] = frozenset({"__future__"})
 
 
 def is_std_module(module_name: str) -> bool:
-    return module_name in BUILTIN_STDLIB_MODULE_NAMES
+    return module_name.partition(".")[0] in BUILTIN_STDLIB_MODULE_NAMES
 
 
 def is_private_or_dunder_stdlib_module(name: str) -> bool:
@@ -692,7 +692,7 @@ class ASTProperties(ast.NodeVisitor):
             and node.module is not None
             and is_std_module(node.module)
             and (
-                not is_private_or_dunder_stdlib_module(node.module)
+                not any(is_private_or_dunder_stdlib_module(c) for c in node.module.split("."))
                 or _is_allowed_private_import(node)
             )
         ):
