@@ -10,12 +10,22 @@ from fickling.ml import FicklingMLUnpickler
 _LOAD_TARGETS = ((pickle, "load"), (pickle, "_load"), (_pickle, "load"))
 _LOADS_TARGETS = ((pickle, "loads"), (pickle, "_loads"), (_pickle, "loads"))
 _UNPICKLER_TARGETS = ((pickle, "Unpickler"), (pickle, "_Unpickler"), (_pickle, "Unpickler"))
+_ALL_TARGETS = _LOAD_TARGETS + _LOADS_TARGETS + _UNPICKLER_TARGETS
+
+
+def snapshot_entry_points():
+    """Capture the current value of every entry point fickling patches"""
+    return tuple((module, attr, getattr(module, attr)) for module, attr in _ALL_TARGETS)
+
+
+def restore_entry_points(snapshot):
+    """Restore the entry points captured by snapshot_entry_points()"""
+    for module, attr, value in snapshot:
+        setattr(module, attr, value)
+
 
 # Captured before patching, for remove_hook().
-_originals = tuple(
-    (module, attr, getattr(module, attr))
-    for module, attr in _LOAD_TARGETS + _LOADS_TARGETS + _UNPICKLER_TARGETS
-)
+_originals = snapshot_entry_points()
 
 
 def _patch_entry_points(load, loads, unpickler):
@@ -79,8 +89,7 @@ def activate_safe_ml_environment(also_allow=None):
 
 def remove_hook():
     """Restore original pickle functions and classes"""
-    for module, attr, original in _originals:
-        setattr(module, attr, original)
+    restore_entry_points(_originals)
 
 
 # Alias
