@@ -5,17 +5,28 @@ import pickle
 import fickling.loader as loader
 from fickling.ml import FicklingMLUnpickler
 
-_original_pickle_load = pickle.load
-_original_pickle_loads = pickle.loads
-_original_pickle_Unpickler = pickle.Unpickler
-_original__pickle_Unpickler = _pickle.Unpickler
+# pickle._* are the Python implementations, and are still usable even
+# when the C accelerator is loaded.
+_LOAD_TARGETS = ((pickle, "load"), (pickle, "_load"), (_pickle, "load"))
+_LOADS_TARGETS = ((pickle, "loads"), (pickle, "_loads"), (_pickle, "loads"))
+_UNPICKLER_TARGETS = ((pickle, "Unpickler"), (pickle, "_Unpickler"), (_pickle, "Unpickler"))
 
-# Lib/pickle.py defines the Python implementations unconditionally and only shadows the
-# public names with the _pickle (C) versions on a successful import. The underscore names 
-# stay bound to working unpicklers, so they have to be hooked too.
-_original_pickle__load = pickle._load
-_original_pickle__loads = pickle._loads
-_original_pickle__Unpickler = pickle._Unpickler
+# Captured before patching, for remove_hook().
+_originals = tuple(
+    (module, attr, getattr(module, attr))
+    for module, attr in _LOAD_TARGETS + _LOADS_TARGETS + _UNPICKLER_TARGETS
+)
+
+
+def _patch_entry_points(load, loads, unpickler):
+    """Point every pickle entry point at the given replacements"""
+    for targets, replacement in (
+        (_LOAD_TARGETS, load),
+        (_LOADS_TARGETS, loads),
+        (_UNPICKLER_TARGETS, unpickler),
+    ):
+        for module, attr in targets:
+            setattr(module, attr, replacement)
 
 
 class FicklingSafetyUnpickler:
@@ -37,19 +48,8 @@ class FicklingSafetyUnpickler:
 
 
 def run_hook():
-    """Replace pickle.load() and pickle.Unpickler by fickling's safe versions"""
-    # Hook functions
-    pickle.load = loader.load
-    pickle._load = loader.load
-    _pickle.load = loader.load
-    pickle.loads = loader.loads
-    pickle._loads = loader.loads
-    _pickle.loads = loader.loads
-
-    # Hook the Unpickler class
-    pickle.Unpickler = FicklingSafetyUnpickler
-    pickle._Unpickler = FicklingSafetyUnpickler
-    _pickle.Unpickler = FicklingSafetyUnpickler
+    """Replace pickle's load functions and Unpickler by fickling's safe versions"""
+    _patch_entry_points(loader.load, loader.loads, FicklingSafetyUnpickler)
 
 
 def always_check_safety():
@@ -68,37 +68,19 @@ def activate_safe_ml_environment(also_allow=None):
     def new_loads(data, *args, **kwargs):
         return FicklingMLUnpickler(io.BytesIO(data), also_allow=also_allow, **kwargs).load(*args)
 
-    # Hook functions
-    pickle.load = new_load
-    pickle._load = new_load
-    _pickle.load = new_load
-    pickle.loads = new_loads
-    pickle._loads = new_loads
-    _pickle.loads = new_loads
-
-    # Hook Unpickler class - create a subclass that passes also_allow
     class SafeMLUnpickler(FicklingMLUnpickler):
         """Unpickler with pre-configured also_allow list"""
 
         def __init__(self, file, *args, **kwargs):
             super().__init__(file, *args, also_allow=also_allow, **kwargs)
 
-    pickle.Unpickler = SafeMLUnpickler
-    pickle._Unpickler = SafeMLUnpickler
-    _pickle.Unpickler = SafeMLUnpickler
+    _patch_entry_points(new_load, new_loads, SafeMLUnpickler)
 
 
 def remove_hook():
     """Restore original pickle functions and classes"""
-    pickle.load = _original_pickle_load
-    pickle._load = _original_pickle__load
-    _pickle.load = _original_pickle_load
-    pickle.loads = _original_pickle_loads
-    pickle._loads = _original_pickle__loads
-    _pickle.loads = _original_pickle_loads
-    pickle.Unpickler = _original_pickle_Unpickler
-    pickle._Unpickler = _original_pickle__Unpickler
-    _pickle.Unpickler = _original__pickle_Unpickler
+    for module, attr, original in _originals:
+        setattr(module, attr, original)
 
 
 # Alias
