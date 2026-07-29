@@ -93,6 +93,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "_frozen_importlib",
         "_frozen_importlib_external",
         "_imp",
+        "imp",  # imp.load_source executes arbitrary files; removed in 3.12
         "pkgutil",
         "zipimport",
         "gc",
@@ -146,6 +147,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Shell/terminal
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
+        "pipes",  # pipes.Template runs shell commands; removed in 3.13
         # Virtual environments (can install packages)
         "venv",
         "ensurepip",
