@@ -10,6 +10,13 @@ _original_pickle_loads = pickle.loads
 _original_pickle_Unpickler = pickle.Unpickler
 _original__pickle_Unpickler = _pickle.Unpickler
 
+# Lib/pickle.py defines the Python implementations unconditionally and only shadows the
+# public names with the _pickle (C) versions on a successful import. The underscore names 
+# stay bound to working unpicklers, so they have to be hooked too.
+_original_pickle__load = pickle._load
+_original_pickle__loads = pickle._loads
+_original_pickle__Unpickler = pickle._Unpickler
+
 
 class FicklingSafetyUnpickler:
     """
@@ -33,12 +40,15 @@ def run_hook():
     """Replace pickle.load() and pickle.Unpickler by fickling's safe versions"""
     # Hook functions
     pickle.load = loader.load
+    pickle._load = loader.load
     _pickle.load = loader.load
     pickle.loads = loader.loads
+    pickle._loads = loader.loads
     _pickle.loads = loader.loads
 
     # Hook the Unpickler class
     pickle.Unpickler = FicklingSafetyUnpickler
+    pickle._Unpickler = FicklingSafetyUnpickler
     _pickle.Unpickler = FicklingSafetyUnpickler
 
 
@@ -60,8 +70,10 @@ def activate_safe_ml_environment(also_allow=None):
 
     # Hook functions
     pickle.load = new_load
+    pickle._load = new_load
     _pickle.load = new_load
     pickle.loads = new_loads
+    pickle._loads = new_loads
     _pickle.loads = new_loads
 
     # Hook Unpickler class - create a subclass that passes also_allow
@@ -72,16 +84,20 @@ def activate_safe_ml_environment(also_allow=None):
             super().__init__(file, *args, also_allow=also_allow, **kwargs)
 
     pickle.Unpickler = SafeMLUnpickler
+    pickle._Unpickler = SafeMLUnpickler
     _pickle.Unpickler = SafeMLUnpickler
 
 
 def remove_hook():
     """Restore original pickle functions and classes"""
     pickle.load = _original_pickle_load
+    pickle._load = _original_pickle__load
     _pickle.load = _original_pickle_load
     pickle.loads = _original_pickle_loads
+    pickle._loads = _original_pickle__loads
     _pickle.loads = _original_pickle_loads
     pickle.Unpickler = _original_pickle_Unpickler
+    pickle._Unpickler = _original_pickle__Unpickler
     _pickle.Unpickler = _original__pickle_Unpickler
 
 
