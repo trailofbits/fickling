@@ -1,7 +1,10 @@
 import _pickle
 import io
 import pickle
+import sys
+import types
 import unittest
+import warnings
 from pickle import UnpicklingError
 
 import numpy
@@ -68,3 +71,88 @@ class TestHook(unittest.TestCase):
             with self.subTest(entry_point=name):
                 with self.assertRaises(UnsafeFileError, msg=f"{name} was not intercepted"):
                     call()
+
+
+_CONSUMER_NAME = "fickling_test_early_importer"
+_INDIRECT_CONSUMER_NAME = "fickling_test_indirect_importer"
+
+
+class EarlyFromImportTestCase(unittest.TestCase):
+    """Base for tests needing a module that from-imported pickle before the hook was installed"""
+
+    def setUp(self):
+        # Order matters: the consumer resolves its names before the hook is installed, and it
+        # lives in sys.modules like any real dependency would.
+        self.consumer = types.ModuleType(_CONSUMER_NAME)
+        exec(
+            "from pickle import Unpickler, load, loads\n"
+            "def read_file(fp): return load(fp)\n"
+            "def read_bytes(data): return loads(data)\n"
+            "def read_unpickler(fp): return Unpickler(fp).load()\n",
+            self.consumer.__dict__,
+        )
+        sys.modules[_CONSUMER_NAME] = self.consumer
+        self.addCleanup(sys.modules.pop, _CONSUMER_NAME, None)
+        self.addCleanup(hook.remove_hook)
+
+
+class TestStaleReferenceWarning(EarlyFromImportTestCase):
+    def test_run_hook_warns_about_stale_references(self):
+        with self.assertWarns(hook.StalePickleReferenceWarning) as caught:
+            hook.run_hook()
+        message = str(caught.warning)
+        for attr in ("load", "loads", "Unpickler"):
+            with self.subTest(attr=attr):
+                self.assertIn(f"{_CONSUMER_NAME}.{attr}", message)
+        self.assertIn("cannot intercept these references", message)
+        self.assertIn("Call run_hook() before importing anything that uses pickle.", message)
+
+    def test_indirect_entry_points_are_not_reported(self):
+        # pickle._load/_loads resolve _Unpickler from pickle's globals when called, so a stale
+        # reference to one still reaches the patched unpickler.
+        indirect = types.ModuleType(_INDIRECT_CONSUMER_NAME)
+        exec("from pickle import _load, _loads", indirect.__dict__)
+        sys.modules[_INDIRECT_CONSUMER_NAME] = indirect
+        self.addCleanup(sys.modules.pop, _INDIRECT_CONSUMER_NAME, None)
+
+        with self.assertWarns(hook.StalePickleReferenceWarning) as caught:
+            hook.run_hook()
+        self.assertNotIn(_INDIRECT_CONSUMER_NAME, str(caught.warning))
+
+        # ...and the reference really is still safe to call.
+        with self.assertRaises(UnsafeFileError):
+            indirect._load(io.BytesIO(pickle.dumps(Payload())))
+
+    def test_activate_safe_ml_environment_warns_too(self):
+        with self.assertWarns(hook.StalePickleReferenceWarning) as caught:
+            hook.activate_safe_ml_environment()
+        self.assertIn(f"{_CONSUMER_NAME}.load", str(caught.warning))
+
+    def test_module_without_stale_reference_is_not_reported(self):
+        # Other test modules legitimately from-import pickle, so only assert on our consumer.
+        sys.modules.pop(_CONSUMER_NAME)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            hook.run_hook()
+        for warning in caught:
+            if warning.category is hook.StalePickleReferenceWarning:
+                self.assertNotIn(_CONSUMER_NAME, str(warning.message))
+
+
+class TestHookWithEarlyFromImport(EarlyFromImportTestCase):
+    """A consumer that from-imported pickle before run_hook() keeps the unpatched functions"""
+
+    # Known gap: the hook rebinds pickle's namespace, which cannot reach references already
+    # copied elsewhere. run_hook() only warns about these; see TestStaleReferenceWarning.
+    @unittest.expectedFailure
+    def test_early_from_import_is_still_hooked(self):
+        hook.run_hook()
+        data = pickle.dumps(Payload())
+        cases = {
+            "from pickle import load": lambda: self.consumer.read_file(io.BytesIO(data)),
+            "from pickle import loads": lambda: self.consumer.read_bytes(data),
+            "from pickle import Unpickler": lambda: self.consumer.read_unpickler(io.BytesIO(data)),
+        }
+        for name, call in cases.items():
+            with self.assertRaises(UnsafeFileError, msg=f"{name} was not intercepted"):
+                call()
