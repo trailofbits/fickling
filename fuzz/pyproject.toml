@@ -1,0 +1,60 @@
+# A separate uv project, deliberately not a workspace member of the parent: a workspace
+# shares one lockfile and one venv, and syncing a 3.14-pinned fuzzer into the shared venv
+# would clobber `make dev`. Nothing in the parent references this file.
+#
+# Needs clang, cargo and the Python dev headers; see README.md.
+
+[project]
+name = "fickling-fuzz"
+version = "0"
+description = "Coverage-guided fuzzing harness for fickling's pickle scanner"
+# One interpreter, not a range: atheris hard-gates on the versions it knows and both
+# dependencies are source builds, so pinning keeps that combination reproducible. Stating it
+# here is the point of the split -- the parent's >=3.10 range no longer has to stay
+# resolvable against atheris.
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "fickling[archive]",
+  # From git, not PyPI: atheris ships manylinux x86_64 wheels only, and the 3.1.0 release
+  # that supports 3.14 has no sdist, so PyPI cannot serve it off x86_64 at all.
+  #
+  # Pinned to a commit so a rebuild resolves what was tested. A tag would be better, but
+  # upstream's newest is 3.0.0 and predates 3.14 support; 3.1.0 exists only as untagged main.
+  "atheris @ git+https://github.com/google/atheris@e36da74cf42b5834c4e31d7cabb58d796695d29f",
+  # Upstream's requires-python of ">=3.11,<3.12" is stale metadata, not a real limit: it is a
+  # pyo3 0.29 extension and builds and runs fine on 3.14.
+  "cisco-ai-defense-pickle-fuzzer @ git+https://github.com/cisco-ai-defense/pickle-fuzzer@v1.0.1",
+  "pytest >= 8.0.0",
+  "coverage[toml] >= 7.0.0",  # make coverage
+]
+
+[tool.coverage.run]
+branch = true
+source = ["fickling"]
+# The oracles never invoke the CLI, so counting it would only dilute the percentage.
+omit = ["*/fickling/__main__.py", "*/fickling/cli.py"]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.report]
+skip_empty = true
+
+[tool.uv]
+# Virtual project: the harness modules are imported by path, so there is nothing to build.
+package = false
+
+[tool.uv.sources]
+# Always the working tree, never PyPI: the point is to fuzz the code under edit.
+fickling = { path = "..", editable = true }
+
+[tool.ruff]
+# Inherits the parent's line length, rules and format settings. Not its target-version:
+# ruff infers py314 from requires-python above, which is what we want here -- this project
+# never has to import under the parent's 3.10+ range.
+extend = "../pyproject.toml"
+
+[tool.ruff.lint]
+# The harness reports findings to the operator (T20), and its modules are imported by path
+# after atheris' instrumentation hook runs (E402).
+extend-ignore = ["T20", "E402"]
