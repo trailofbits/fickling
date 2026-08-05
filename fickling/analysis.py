@@ -446,6 +446,23 @@ class OvertlyBadEvals(Analysis):
                 )
 
 
+class ShadowedStdlibImports(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.shadowed_stdlib_imports():
+            shortened = context.shorten_code(node)
+            if context.mark_reported(shortened):
+                yield AnalysisResult(
+                    Severity.SUSPICIOUS,
+                    f"`{shortened}` imports a module that was removed from the "
+                    "Python standard library in a recent version; on modern "
+                    "interpreters this name resolves to a third-party package "
+                    "of the same name, which can execute arbitrary code. "
+                    "Treat as unsafe unless explicitly allowlisted",
+                    "ShadowedStdlibImports",
+                    trigger=shortened,
+                )
+
+
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
