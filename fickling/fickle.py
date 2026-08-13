@@ -807,6 +807,7 @@ class Pickled(OpcodeSequence):
     def insert_python_obj(self, index: int, obj: Any) -> int:
         """Insert an opcode sequence that constructs a python object on the stack.
         Returns the number of opcodes inserted"""
+        self.validate_frames()
         opcodes = self._encode_python_obj(obj)
         for i, opcode in enumerate(opcodes):
             self.insert(index + i, opcode)
@@ -822,6 +823,7 @@ class Pickled(OpcodeSequence):
     ) -> int:
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
         # we need to add the call to GLOBAL before the preexisting code, because the following code
         # can sometimes mess up module lookup (somehow? I, Evan, don't fully understand why yet).
         # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call
@@ -895,6 +897,7 @@ class Pickled(OpcodeSequence):
         a POP instruction if True"""
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
         # NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
         # of the pickle, but see comment in 'insert_python'
         self.insert(-1, Global.create(module, attr))
@@ -914,6 +917,7 @@ class Pickled(OpcodeSequence):
 
         :param magic: magic integer value to add
         :param index: index in opcodes list where to insert the magic"""
+        self.validate_frames()
         self.insert(index, Int(magic))
         self.insert(-1 if index == -1 else index + 1, Pop())
 
@@ -938,6 +942,7 @@ class Pickled(OpcodeSequence):
 
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
 
         # Get function name
         fn_match = list(re.match(r"def\s+(.*?)\s*\(", function_definition).groups())
@@ -1173,7 +1178,12 @@ class Pickled(OpcodeSequence):
         return None
 
     def validate_frames(self) -> None:
-        """Raise InterpretationError if any opcode crosses a FRAME boundary"""
+        """Raise InterpretationError if any opcode crosses a FRAME boundary.
+
+        Interpretation and the injection APIs both call this. Rewriting a pickle whose frames are
+        inconsistent would recompute the offending FRAME length and hand back a well-formed file,
+        laundering away the very divergence that makes it worth flagging.
+        """
         if self._frame_violation is _UNCHECKED:
             self._frame_violation = self._find_frame_violation()
         if self._frame_violation is not None:
