@@ -1122,7 +1122,7 @@ class Pickled(OpcodeSequence):
 
     def dump(self, file: BinaryIO, reframe: bool = True):
         """Serialize the opcode sequence to `file`. See `dumps()` for `reframe`."""
-        file.write(chunk for chunk in self._output_chunks(reframe))
+        file.writelines(self._output_chunks(reframe))
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
         """Dump bytecode only between two opcodes
