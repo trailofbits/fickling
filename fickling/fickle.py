@@ -752,9 +752,6 @@ class Pickled(OpcodeSequence):
         self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
         self._has_resource_exhaustion: bool = False
-        # Whether the opcode sequence was edited after being parsed. Editing invalidates the
-        # byte lengths declared by any FRAME opcodes, so they have to be recomputed on output.
-        self._was_edited: bool = False
         self._frame_violation: str | None | _Unchecked = _UNCHECKED
 
     def __len__(self) -> int:
@@ -770,7 +767,6 @@ class Pickled(OpcodeSequence):
         self._opcodes.insert(index, opcode)
         self._ast = None
         self._properties = None
-        self._was_edited = True
 
     def _is_constant_type(self, obj: Any) -> bool:
         return isinstance(obj, int | float | str | bytes)
@@ -1040,20 +1036,21 @@ class Pickled(OpcodeSequence):
         self._opcodes[index] = item
         self._ast = None
         self._properties = None
-        self._was_edited = True
 
     def __delitem__(self, index: int):
         del self._opcodes[index]
         self._ast = None
         self._properties = None
-        self._was_edited = True
 
     def _reframed_opcodes(self) -> Iterator[bytes]:
         """Yield the serialization of each opcode, recomputing FRAME lengths as needed.
 
-        FRAME declares how many bytes follow it. Inserting opcodes invalidates that count, and the
-        result no longer loads. CPython 3.14.7 and 3.13.15 enforce this in the C unpickler, and the
-        pure-Python unpickler always has.
+        FRAME declares how many bytes follow it. Editing the opcode sequence invalidates that
+        count, and the result no longer loads. CPython 3.14.7 and 3.13.15 enforce this in the C
+        unpickler, and the pure-Python unpickler always has.
+
+        For an unedited pickle every recomputed length matches the one already there, so this is
+        also the identity transform on anything that came out of `Pickled.load()`.
 
         Frame membership uses each frame's original extent, not everything up to the next FRAME.
         Frames are not necessarily contiguous: CPython writes large objects outside any frame, so a
@@ -1084,19 +1081,28 @@ class Pickled(OpcodeSequence):
             yield from body
             i = j
 
-    def _output_chunks(self) -> Iterator[bytes]:
-        if not self._was_edited:
+    def _output_chunks(self, reframe: bool) -> Iterator[bytes]:
+        if not reframe:
             return (opcode.data for opcode in self)
         return self._reframed_opcodes()
 
-    def dumps(self) -> bytes:
+    def dumps(self, reframe: bool = True) -> bytes:
+        """Serialize the opcode sequence back to bytes.
+
+        :arg reframe: recompute the byte lengths declared by FRAME opcodes. Any edit to the
+            opcode sequence invalidates those lengths, and a pickle carrying a stale one no
+            longer loads. Recomputing is the identity transform on an unedited pickle, so it is
+            on by default. Pass False to emit each opcode's bytes verbatim, which preserves the
+            input exactly even when its frames are inconsistent.
+        """
         b = bytearray()
-        for chunk in self._output_chunks():
+        for chunk in self._output_chunks(reframe):
             b.extend(chunk)
         return bytes(b)
 
-    def dump(self, file: BinaryIO):
-        for chunk in self._output_chunks():
+    def dump(self, file: BinaryIO, reframe: bool = True):
+        """Serialize the opcode sequence to `file`. See `dumps()` for `reframe`."""
+        for chunk in self._output_chunks(reframe):
             file.write(chunk)
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
