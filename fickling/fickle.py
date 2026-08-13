@@ -733,6 +733,13 @@ class InterpretationError(PickleDecodeError):
     pass
 
 
+class _Unchecked:
+    """Sentinel distinguishing "no frame violation" from "not looked for one yet" """
+
+
+_UNCHECKED = _Unchecked()
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode], has_invalid_opcode: bool = False):
         self._opcodes: list[Opcode] = list(opcodes)
@@ -748,6 +755,7 @@ class Pickled(OpcodeSequence):
         # Whether the opcode sequence was edited after being parsed. Editing invalidates the
         # byte lengths declared by any FRAME opcodes, so they have to be recomputed on output.
         self._was_edited: bool = False
+        self._frame_violation: str | None | _Unchecked = _UNCHECKED
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -1118,6 +1126,59 @@ class Pickled(OpcodeSequence):
         _ = self.ast  # Ensure interpretation ran
         return self._has_resource_exhaustion
 
+    def _find_frame_violation(self) -> str | None:
+        """Describe the first FRAME boundary violation in the parsed byte stream, if any.
+
+        Two shapes count as violations, the same two CPython 3.14.7 and 3.13.15 now reject:
+        - an opcode whose bytes run past the end of its frame
+        - a FRAME opening before the previous one closed
+
+        Before those versions the C unpickler read straight past a frame end and executed whatever
+        followed. A linear reader such as this parser or `pickletools` instead counts those bytes
+        as part of the oversized argument, so an undersized frame hides the opcodes a pickle really
+        runs. See python/cpython#154848.
+
+        One case here is deliberately stricter than CPython, which checks per read rather than per
+        opcode and so allows a frame to end exactly between an opcode's header and its payload.
+        That case is benign, since the payload read falls through to the file and returns the same
+        bytes a linear reader takes. It is still reported, for two reasons:
+        - matching it means modelling per-opcode read granularity, which differs between CPython's
+          two unpickler implementations
+        - no pickler emits it, because `_Framer.write_large_bytes()` commits the frame before
+          writing an opcode header, so emitted frames always end on an opcode boundary
+
+        Inserted opcodes have no position and are skipped. They are not part of the byte stream
+        under validation, and `_reframed_opcodes()` recomputes their lengths on output.
+        """
+        frame_end: int | None = None
+        for opcode in self._opcodes:
+            if opcode.pos is None:
+                continue
+            start = opcode.pos
+            end = start + (len(opcode.data) if opcode.has_data() else len(opcode.info.code))
+            if frame_end is not None:
+                if start >= frame_end:
+                    frame_end = None  # The frame ended cleanly before this opcode.
+                elif end > frame_end:
+                    return (
+                        f"opcode {opcode.info.name} at offset {start} spans {end - start} bytes "
+                        f"and runs past the end of its frame at offset {frame_end}"
+                    )
+            if isinstance(opcode, Frame) and opcode.arg is not None:
+                if frame_end is not None:
+                    return (
+                        f"a new frame begins at offset {start} before the one ending at {frame_end}"
+                    )
+                frame_end = end + opcode.arg
+        return None
+
+    def validate_frames(self) -> None:
+        """Raise InterpretationError if any opcode crosses a FRAME boundary"""
+        if self._frame_violation is _UNCHECKED:
+            self._frame_violation = self._find_frame_violation()
+        if self._frame_violation is not None:
+            raise InterpretationError(self._frame_violation)
+
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
         if isinstance(data, bytes | bytearray | Buffer):
@@ -1428,6 +1489,7 @@ class Interpreter:
         self._opcodes = iter(())
 
     def run(self):
+        self.pickled.validate_frames()
         while True:
             try:
                 self.step()

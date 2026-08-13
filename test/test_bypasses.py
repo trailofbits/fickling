@@ -1,4 +1,6 @@
 import marshal
+import pickle
+import struct
 from unittest import TestCase
 
 import fickling.fickle as op
@@ -784,6 +786,86 @@ class TestBypasses(TestCase):
             "from __future__ import _ssl.RAND_bytes",
         )
         self.assertGreaterEqual(res.severity, Severity.LIKELY_UNSAFE)
+
+    # https://github.com/python/cpython/issues/154848
+    def test_frame_boundary_divergence(self):
+        # BINBYTES declares 0x107 bytes inside a frame holding 2, so `pickle.load(file)` reads
+        # past the frame and runs the buried GLOBAL/REDUCE while fickling sees only a long
+        # bytestring. Hand-assembled because the opcode API cannot express a mismatched FRAME.
+        hidden = (
+            pickle.GLOBAL
+            + b"os\nsystem\n"
+            + pickle.UNICODE
+            + b"echo pwned\n"
+            + pickle.TUPLE1
+            + pickle.REDUCE
+        )
+        payload = (
+            pickle.PROTO
+            + b"\x05"
+            + pickle.NONE
+            + pickle.UNICODE
+            + b"a" * (8192 * 16 - 17)
+            + b"\n"  # push the frame past the read buffer
+            + pickle.POP
+            + pickle.MARK
+            + pickle.FRAME
+            + struct.pack("<Q", 2)  # frame claims 2 bytes...
+            + pickle.BINBYTES
+            + b"\x07\x01\x00\x00"  # ...but BINBYTES reads 0x107 of them
+            + b"\x00\x00"
+            + (hidden + pickle.MARK).ljust(256 + 5, pickle.NONE)
+            + pickle.POP_MARK
+            + pickle.STOP
+        )
+        parsed = Pickled.load(payload)
+        self.assertEqual([], [o for o in parsed if isinstance(o, op.Global)])
+        self.assertGreater(check_safety(parsed).severity, Severity.LIKELY_SAFE)
+
+    # https://github.com/python/cpython/issues/154848
+    def test_frame_boundary_straddle_variants(self):
+        def framed(body, declared_length):
+            return pickle.PROTO + b"\x05" + pickle.FRAME + struct.pack("<Q", declared_length) + body
+
+        for description, payload in (
+            ("BINBYTES", framed(pickle.BINBYTES + struct.pack("<I", 20) + b"A" * 20, 5)),
+            ("SHORT_BINUNICODE", framed(b"\x8c\x14" + b"A" * 20, 3)),
+            ("GLOBAL module", framed(pickle.GLOBAL + b"macos\nsystem\n", 4)),
+            ("GLOBAL attr", framed(pickle.GLOBAL + b"os\nsystem\n", 7)),
+            ("UNICODE", framed(pickle.UNICODE + b"hello world\n", 5)),
+            ("BININT", framed(pickle.BININT + struct.pack("<i", 7), 2)),
+            (
+                "frame opening inside another frame",
+                pickle.PROTO
+                + b"\x05"
+                + pickle.FRAME
+                + struct.pack("<Q", 30)
+                + pickle.NONE
+                + pickle.FRAME
+                + struct.pack("<Q", 2)
+                + pickle.NONE,
+            ),
+        ):
+            with self.subTest(description):
+                parsed = Pickled.load(payload + pickle.STOP)
+                self.assertGreater(check_safety(parsed).severity, Severity.LIKELY_SAFE)
+
+    def test_well_formed_frames_are_not_flagged(self):
+        # Guards the frame check against false positives. The interleaved case matters most, since
+        # CPython writes large objects outside any frame: those bytes legitimately sit between two
+        # frames rather than inside one.
+        for description, obj in (
+            ("small list", [1, 2, 3, 4]),
+            ("large unframed bytes", b"x" * 100000),
+            ("interleaved framed and unframed", [1, b"y" * 100000, 2]),
+            ("several full frames", list(range(200000))),
+            ("nested containers", {"a": [1, 2, {"b": (3, 4)}], "c": [5, 6]}),
+        ):
+            for protocol in (2, 4, 5):
+                with self.subTest(f"{description}, protocol {protocol}"):
+                    parsed = Pickled.load(pickle.dumps(obj, protocol=protocol))
+                    self.assertIsNone(parsed._find_frame_violation())
+                    self.assertEqual(Severity.LIKELY_SAFE, check_safety(parsed).severity)
 
 
 class TestUnsafeModuleCoverage(TestCase):
