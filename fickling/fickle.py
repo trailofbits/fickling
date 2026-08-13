@@ -733,6 +733,40 @@ class InterpretationError(PickleDecodeError):
     pass
 
 
+@dataclass(frozen=True)
+class OpcodeCrossesFrame:
+    """An opcode whose bytes run past the end of the frame containing it."""
+
+    opcode_name: str
+    offset: int
+    span: int
+    frame_end: int
+
+    def __str__(self) -> str:
+        return (
+            f"opcode {self.opcode_name} at offset {self.offset} spans {self.span} bytes "
+            f"and runs past the end of its frame at offset {self.frame_end}"
+        )
+
+
+@dataclass(frozen=True)
+class FrameReopened:
+    """A FRAME opcode that begins before the preceding frame ended."""
+
+    offset: int
+    frame_end: int
+
+    def __str__(self) -> str:
+        return (
+            f"a new frame begins at offset {self.offset} before the one ending at {self.frame_end}"
+        )
+
+
+# The two shapes CPython 3.14.7 and 3.13.15 reject. They carry the offsets rather than a
+# rendered sentence so callers can report them however they like; `str()` gives the sentence.
+FrameViolation = OpcodeCrossesFrame | FrameReopened
+
+
 class Pickled(OpcodeSequence):
     def __init__(self, opcodes: Iterable[Opcode], has_invalid_opcode: bool = False):
         self._opcodes: list[Opcode] = list(opcodes)
@@ -795,6 +829,7 @@ class Pickled(OpcodeSequence):
     def insert_python_obj(self, index: int, obj: Any) -> int:
         """Insert an opcode sequence that constructs a python object on the stack.
         Returns the number of opcodes inserted"""
+        self.validate_frames()
         opcodes = self._encode_python_obj(obj)
         for i, opcode in enumerate(opcodes):
             self.insert(index + i, opcode)
@@ -810,6 +845,7 @@ class Pickled(OpcodeSequence):
     ) -> int:
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
         # we need to add the call to GLOBAL before the preexisting code, because the following code
         # can sometimes mess up module lookup (somehow? I, Evan, don't fully understand why yet).
         # So we set up the "import" of `__builtin__.eval` first, then set up the stack for a call
@@ -883,6 +919,7 @@ class Pickled(OpcodeSequence):
         a POP instruction if True"""
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
         # NOTE(boyan): this seems to work even without insert GLOBAL at the beginning
         # of the pickle, but see comment in 'insert_python'
         self.insert(-1, Global.create(module, attr))
@@ -902,6 +939,7 @@ class Pickled(OpcodeSequence):
 
         :param magic: magic integer value to add
         :param index: index in opcodes list where to insert the magic"""
+        self.validate_frames()
         self.insert(index, Int(magic))
         self.insert(-1 if index == -1 else index + 1, Pop())
 
@@ -926,6 +964,7 @@ class Pickled(OpcodeSequence):
 
         if not isinstance(self[-1], Stop):
             raise ValueError("Expected the last opcode to be STOP")
+        self.validate_frames()
 
         # Get function name
         fn_match = list(re.match(r"def\s+(.*?)\s*\(", function_definition).groups())
@@ -1029,15 +1068,68 @@ class Pickled(OpcodeSequence):
         self._ast = None
         self._properties = None
 
-    def dumps(self) -> bytes:
+    def _reframed_opcodes(self) -> Iterator[bytes]:
+        """Yield the serialization of each opcode, recomputing FRAME lengths as needed.
+
+        FRAME declares how many bytes follow it. Editing the opcode sequence invalidates that
+        count, and the result no longer loads. CPython 3.14.7 and 3.13.15 enforce this in the C
+        unpickler, and the pure-Python unpickler always has.
+
+        For an unedited pickle every recomputed length matches the one already there, so this is
+        also the identity transform on anything that came out of `Pickled.load()`.
+
+        Frame membership uses each frame's original extent, not everything up to the next FRAME.
+        Frames are not necessarily contiguous: CPython writes large objects outside any frame, so a
+        pickle can be framed, then unframed, then framed again.
+
+        Two kinds of opcode land in a frame:
+        - a parsed opcode, if its position precedes the frame's original end
+        - an inserted opcode, which has no position, if the frame encloses it
+        """
+        opcodes = self._opcodes
+        i = 0
+        while i < len(opcodes):
+            opcode = opcodes[i]
+            if not isinstance(opcode, Frame) or opcode.pos is None or opcode.arg is None:
+                yield opcode.data
+                i += 1
+                continue
+            frame_end = opcode.pos + len(opcode.data) + opcode.arg
+            body: list[bytes] = []
+            j = i + 1
+            while j < len(opcodes):
+                member = opcodes[j]
+                if member.pos is not None and member.pos >= frame_end:
+                    break
+                body.append(member.data)
+                j += 1
+            yield Frame.create(sum(len(b) for b in body)).data
+            yield from body
+            i = j
+
+    def _output_chunks(self, reframe: bool) -> Iterator[bytes]:
+        if not reframe:
+            return (opcode.data for opcode in self)
+        return self._reframed_opcodes()
+
+    def dumps(self, reframe: bool = True) -> bytes:
+        """Serialize the opcode sequence back to bytes.
+
+        :arg reframe: recompute the byte lengths declared by FRAME opcodes. Any edit to the
+            opcode sequence invalidates those lengths, and a pickle carrying a stale one no
+            longer loads. Recomputing is the identity transform on an unedited pickle, so it is
+            on by default. Pass False to emit each opcode's bytes verbatim, which preserves the
+            input exactly even when its frames are inconsistent.
+        """
         b = bytearray()
-        for opcode in self:
-            b.extend(opcode.data)
+        for chunk in self._output_chunks(reframe):
+            b.extend(chunk)
         return bytes(b)
 
-    def dump(self, file: BinaryIO):
-        for opcode in self:
-            file.write(opcode.data)
+    def dump(self, file: BinaryIO, reframe: bool = True):
+        """Serialize the opcode sequence to `file`. See `dumps()` for `reframe`."""
+        for chunk in self._output_chunks(reframe):
+            file.write(chunk)
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
         """Dump bytecode only between two opcodes
@@ -1070,6 +1162,63 @@ class Pickled(OpcodeSequence):
     def has_resource_exhaustion(self) -> bool:
         _ = self.ast  # Ensure interpretation ran
         return self._has_resource_exhaustion
+
+    def _find_frame_violation(self) -> FrameViolation | None:
+        """Return the first FRAME boundary violation in the parsed byte stream, or None.
+
+        Two shapes count as violations, the same two CPython 3.14.7 and 3.13.15 now reject:
+        - an opcode whose bytes run past the end of its frame (`OpcodeCrossesFrame`)
+        - a FRAME opening before the previous one closed (`FrameReopened`)
+
+        Before those versions the C unpickler read straight past a frame end and executed whatever
+        followed. A linear reader such as this parser or `pickletools` instead counts those bytes
+        as part of the oversized argument, so an undersized frame hides the opcodes a pickle really
+        runs. See python/cpython#154848.
+
+        One case here is deliberately stricter than CPython, which checks per read rather than per
+        opcode and so allows a frame to end exactly between an opcode's header and its payload.
+        That case is benign, since the payload read falls through to the file and returns the same
+        bytes a linear reader takes. It is still reported, for two reasons:
+        - matching it means modelling per-opcode read granularity, which differs between CPython's
+          two unpickler implementations
+        - no pickler emits it, because `_Framer.write_large_bytes()` commits the frame before
+          writing an opcode header, so emitted frames always end on an opcode boundary
+
+        Inserted opcodes have no position and are skipped. They are not part of the byte stream
+        under validation, and `_reframed_opcodes()` recomputes their lengths on output.
+        """
+        frame_end: int | None = None
+        for opcode in self._opcodes:
+            if opcode.pos is None:
+                continue
+            start = opcode.pos
+            end = start + (len(opcode.data) if opcode.has_data() else len(opcode.info.code))
+            if frame_end is not None:
+                if start >= frame_end:
+                    frame_end = None  # The frame ended cleanly before this opcode.
+                elif end > frame_end:
+                    return OpcodeCrossesFrame(
+                        opcode_name=opcode.info.name,
+                        offset=start,
+                        span=end - start,
+                        frame_end=frame_end,
+                    )
+            if isinstance(opcode, Frame) and opcode.arg is not None:
+                if frame_end is not None:
+                    return FrameReopened(offset=start, frame_end=frame_end)
+                frame_end = end + opcode.arg
+        return None
+
+    def validate_frames(self) -> None:
+        """Raise InterpretationError if any opcode crosses a FRAME boundary.
+
+        Interpretation and the injection APIs both call this. Rewriting a pickle whose frames are
+        inconsistent would recompute the offending FRAME length and hand back a well-formed file,
+        laundering away the very divergence that makes it worth flagging.
+        """
+        violation = self._find_frame_violation()
+        if violation is not None:
+            raise InterpretationError(str(violation))
 
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
@@ -1381,6 +1530,7 @@ class Interpreter:
         self._opcodes = iter(())
 
     def run(self):
+        self.pickled.validate_frames()
         while True:
             try:
                 self.step()
@@ -2082,6 +2232,15 @@ class Stop(Opcode):
 
 class Frame(NoOp):
     name = "FRAME"
+
+    @staticmethod
+    def create(length: int) -> Frame:
+        return Frame(length)
+
+    def encode_body(self) -> bytes:
+        if self.arg is None:
+            raise ValueError("Cannot encode a FRAME opcode without a length")
+        return int(self.arg).to_bytes(8, "little", signed=False)
 
 
 class BinInt1(ConstantInt):
