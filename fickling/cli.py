@@ -318,11 +318,19 @@ def main(argv: list[str] | None = None) -> int:
                     "Warning: The last opcode of the input file was expected to be STOP, but was "
                     f"in fact {pickled[-1].info.name}"
                 )
-            pickled.insert_python_eval(
-                args.inject,
-                run_first=not args.run_last,
-                use_output_as_unpickle_result=args.replace_result,
-            )
+            try:
+                pickled.insert_python_eval(
+                    args.inject,
+                    run_first=not args.run_last,
+                    use_output_as_unpickle_result=args.replace_result,
+                )
+            except fickle.InterpretationError as e:
+                sys.stderr.write(
+                    f"Error: refusing to inject into this file. {e!s}\n"
+                    "Rewriting it would recompute the FRAME length and produce a well-formed "
+                    "pickle, hiding the inconsistency. Use --check-safety to analyze it.\n"
+                )
+                return EXIT_ERROR
             pickled.dump(buffer)
             for pickled in stacked_pickled[args.inject_target + 1 :]:
                 pickled.dump(buffer)
@@ -363,7 +371,14 @@ def main(argv: list[str] | None = None) -> int:
                         "This pickle file may contain an expansion attack. "
                         "Use --check-safety to analyze it.\n"
                     )
-                    return 1
+                    return EXIT_UNSAFE
+                except fickle.InterpretationError as e:
+                    sys.stderr.write(
+                        f"Error: this pickle file cannot be interpreted. {e!s}\n"
+                        "It may be malformed, or crafted so that what unpickling runs differs "
+                        "from what a linear reader sees. Use --check-safety to analyze it.\n"
+                    )
+                    return EXIT_UNSAFE
                 var_id = interpreter.next_variable_id
     else:
         pickled = fickle.Pickled(
