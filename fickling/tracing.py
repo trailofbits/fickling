@@ -38,6 +38,9 @@ class Trace:
         print(opcode.name)
 
     def run(self) -> ast.AST:
+        # `Interpreter.run()` validates before stepping, but this drives `step()` itself, so it
+        # has to do the same or a frame-straddling pickle would trace as though it were benign.
+        self.interpreter.pickled.validate_frames()
         while True:
             memory_before = dict(self.interpreter.memory)
             stack_before = Stack(self.interpreter.stack)
