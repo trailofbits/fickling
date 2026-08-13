@@ -745,6 +745,9 @@ class Pickled(OpcodeSequence):
         self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
         self._has_resource_exhaustion: bool = False
+        # Whether the opcode sequence was edited after being parsed. Editing invalidates the
+        # byte lengths declared by any FRAME opcodes, so they have to be recomputed on output.
+        self._was_edited: bool = False
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -759,6 +762,7 @@ class Pickled(OpcodeSequence):
         self._opcodes.insert(index, opcode)
         self._ast = None
         self._properties = None
+        self._was_edited = True
 
     def _is_constant_type(self, obj: Any) -> bool:
         return isinstance(obj, int | float | str | bytes)
@@ -1023,21 +1027,64 @@ class Pickled(OpcodeSequence):
         self._opcodes[index] = item
         self._ast = None
         self._properties = None
+        self._was_edited = True
 
     def __delitem__(self, index: int):
         del self._opcodes[index]
         self._ast = None
         self._properties = None
+        self._was_edited = True
+
+    def _reframed_opcodes(self) -> Iterator[bytes]:
+        """Yield the serialization of each opcode, recomputing FRAME lengths as needed.
+
+        FRAME declares how many bytes follow it. Inserting opcodes invalidates that count, and the
+        result no longer loads. CPython 3.14.7 and 3.13.15 enforce this in the C unpickler, and the
+        pure-Python unpickler always has.
+
+        Frame membership uses each frame's original extent, not everything up to the next FRAME.
+        Frames are not necessarily contiguous: CPython writes large objects outside any frame, so a
+        pickle can be framed, then unframed, then framed again.
+
+        Two kinds of opcode land in a frame:
+        - a parsed opcode, if its position precedes the frame's original end
+        - an inserted opcode, which has no position, if the frame encloses it
+        """
+        opcodes = self._opcodes
+        i = 0
+        while i < len(opcodes):
+            opcode = opcodes[i]
+            if not isinstance(opcode, Frame) or opcode.pos is None or opcode.arg is None:
+                yield opcode.data
+                i += 1
+                continue
+            frame_end = opcode.pos + len(opcode.data) + opcode.arg
+            body: list[bytes] = []
+            j = i + 1
+            while j < len(opcodes):
+                member = opcodes[j]
+                if member.pos is not None and member.pos >= frame_end:
+                    break
+                body.append(member.data)
+                j += 1
+            yield Frame.create(sum(len(b) for b in body)).data
+            yield from body
+            i = j
+
+    def _output_chunks(self) -> Iterator[bytes]:
+        if not self._was_edited:
+            return (opcode.data for opcode in self)
+        return self._reframed_opcodes()
 
     def dumps(self) -> bytes:
         b = bytearray()
-        for opcode in self:
-            b.extend(opcode.data)
+        for chunk in self._output_chunks():
+            b.extend(chunk)
         return bytes(b)
 
     def dump(self, file: BinaryIO):
-        for opcode in self:
-            file.write(opcode.data)
+        for chunk in self._output_chunks():
+            file.write(chunk)
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
         """Dump bytecode only between two opcodes
@@ -2082,6 +2129,15 @@ class Stop(Opcode):
 
 class Frame(NoOp):
     name = "FRAME"
+
+    @staticmethod
+    def create(length: int) -> Frame:
+        return Frame(length)
+
+    def encode_body(self) -> bytes:
+        if self.arg is None:
+            raise ValueError("Cannot encode a FRAME opcode without a length")
+        return int(self.arg).to_bytes(8, "little", signed=False)
 
 
 class BinInt1(ConstantInt):

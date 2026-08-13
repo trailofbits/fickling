@@ -1,3 +1,4 @@
+import pickle
 from ast import unparse
 from contextlib import redirect_stdout
 from functools import wraps
@@ -249,6 +250,58 @@ class TestInterpreter(TestCase):
         )
         self.assertEqual(len(Interpreter(pickled).unused_variables()), 0)
         self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
+
+    def test_injection_recomputes_frame_lengths(self):
+        # `pickle._loads` is the pure-Python unpickler, which enforces frames on every version;
+        # the C one only started doing so in CPython 3.14.7 / 3.13.15.
+        for description, inject, expected in (
+            (
+                "insert_python_eval",
+                lambda p: p.insert_python_eval("[5, 6, 7, 8]", use_output_as_unpickle_result=True),
+                [5, 6, 7, 8],
+            ),
+            (
+                "insert_python run last",
+                lambda p: p.insert_python_eval(
+                    "[5, 6, 7, 8]", run_first=False, use_output_as_unpickle_result=False
+                ),
+                [1, 2, 3, 4],
+            ),
+            (
+                "append_python",
+                lambda p: p.append_python("[9]", pop_result=True),
+                [1, 2, 3, 4],
+            ),
+            (
+                "insert_magic_int",
+                lambda p: p.insert_magic_int(0xDEADBEEF),
+                [1, 2, 3, 4],
+            ),
+        ):
+            with self.subTest(description):
+                loaded = Pickled.load(dumps([1, 2, 3, 4], protocol=5))
+                inject(loaded)
+                self.assertEqual(expected, pickle._loads(loaded.dumps()))
+
+    def test_dumps_is_byte_identical_without_edits(self):
+        for description, obj in (
+            ("small list", [1, 2, 3, 4]),
+            ("large unframed bytes", b"x" * 100000),
+            # Framed, then unframed, then framed again: CPython puts large objects outside frames.
+            ("interleaved framed and unframed", [1, b"y" * 100000, 2]),
+            ("several full frames", list(range(200000))),
+        ):
+            for protocol in (2, 4, 5):
+                with self.subTest(f"{description}, protocol {protocol}"):
+                    original = dumps(obj, protocol=protocol)
+                    self.assertEqual(original, Pickled.load(original).dumps())
+
+    def test_injection_preserves_unframed_regions(self):
+        # Same interleaved shape as above, but edited, so the frames get recomputed.
+        obj = [1, b"y" * 100000, 2]
+        loaded = Pickled.load(dumps(obj, protocol=5))
+        loaded.insert_python_eval("None", run_first=False, use_output_as_unpickle_result=False)
+        self.assertEqual(obj, pickle._loads(loaded.dumps()))
 
     @stacked_correctness_test([1, 2, 3, 4], [5, 6, 7, 8])
     def test_stacked_pickles(self):
