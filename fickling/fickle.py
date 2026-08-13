@@ -733,11 +733,38 @@ class InterpretationError(PickleDecodeError):
     pass
 
 
-class _Unchecked:
-    """Sentinel distinguishing "no frame violation" from "not looked for one yet" """
+@dataclass(frozen=True)
+class OpcodeCrossesFrame:
+    """An opcode whose bytes run past the end of the frame containing it."""
+
+    opcode_name: str
+    offset: int
+    span: int
+    frame_end: int
+
+    def __str__(self) -> str:
+        return (
+            f"opcode {self.opcode_name} at offset {self.offset} spans {self.span} bytes "
+            f"and runs past the end of its frame at offset {self.frame_end}"
+        )
 
 
-_UNCHECKED = _Unchecked()
+@dataclass(frozen=True)
+class FrameReopened:
+    """A FRAME opcode that begins before the preceding frame ended."""
+
+    offset: int
+    frame_end: int
+
+    def __str__(self) -> str:
+        return (
+            f"a new frame begins at offset {self.offset} before the one ending at {self.frame_end}"
+        )
+
+
+# The two shapes CPython 3.14.7 and 3.13.15 reject. They carry the offsets rather than a
+# rendered sentence so callers can report them however they like; `str()` gives the sentence.
+FrameViolation = OpcodeCrossesFrame | FrameReopened
 
 
 class Pickled(OpcodeSequence):
@@ -752,7 +779,6 @@ class Pickled(OpcodeSequence):
         self._has_cycles: bool = False
         self._has_interpretation_error: bool = False
         self._has_resource_exhaustion: bool = False
-        self._frame_violation: str | None | _Unchecked = _UNCHECKED
 
     def __len__(self) -> int:
         return len(self._opcodes)
@@ -1137,12 +1163,12 @@ class Pickled(OpcodeSequence):
         _ = self.ast  # Ensure interpretation ran
         return self._has_resource_exhaustion
 
-    def _find_frame_violation(self) -> str | None:
-        """Describe the first FRAME boundary violation in the parsed byte stream, if any.
+    def _find_frame_violation(self) -> FrameViolation | None:
+        """Return the first FRAME boundary violation in the parsed byte stream, or None.
 
         Two shapes count as violations, the same two CPython 3.14.7 and 3.13.15 now reject:
-        - an opcode whose bytes run past the end of its frame
-        - a FRAME opening before the previous one closed
+        - an opcode whose bytes run past the end of its frame (`OpcodeCrossesFrame`)
+        - a FRAME opening before the previous one closed (`FrameReopened`)
 
         Before those versions the C unpickler read straight past a frame end and executed whatever
         followed. A linear reader such as this parser or `pickletools` instead counts those bytes
@@ -1171,15 +1197,15 @@ class Pickled(OpcodeSequence):
                 if start >= frame_end:
                     frame_end = None  # The frame ended cleanly before this opcode.
                 elif end > frame_end:
-                    return (
-                        f"opcode {opcode.info.name} at offset {start} spans {end - start} bytes "
-                        f"and runs past the end of its frame at offset {frame_end}"
+                    return OpcodeCrossesFrame(
+                        opcode_name=opcode.info.name,
+                        offset=start,
+                        span=end - start,
+                        frame_end=frame_end,
                     )
             if isinstance(opcode, Frame) and opcode.arg is not None:
                 if frame_end is not None:
-                    return (
-                        f"a new frame begins at offset {start} before the one ending at {frame_end}"
-                    )
+                    return FrameReopened(offset=start, frame_end=frame_end)
                 frame_end = end + opcode.arg
         return None
 
@@ -1190,10 +1216,9 @@ class Pickled(OpcodeSequence):
         inconsistent would recompute the offending FRAME length and hand back a well-formed file,
         laundering away the very divergence that makes it worth flagging.
         """
-        if self._frame_violation is _UNCHECKED:
-            self._frame_violation = self._find_frame_violation()
-        if self._frame_violation is not None:
-            raise InterpretationError(self._frame_violation)
+        violation = self._find_frame_violation()
+        if violation is not None:
+            raise InterpretationError(str(violation))
 
     @staticmethod
     def make_stream(data: Buffer | BinaryIO) -> BinaryIO:
