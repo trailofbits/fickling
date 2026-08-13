@@ -1,11 +1,9 @@
 import argparse
 import json
-import os
 import shutil
 import zipfile
 from pathlib import Path
 from pprint import pprint
-from typing import Optional
 
 import logger
 import requests
@@ -13,7 +11,7 @@ import requests
 
 def hf_download_pickle_files(
     infile: Path,
-    outdir: Optional[Path] = None,
+    outdir: Path | None = None,
     n: int = 10,  # number of files to download
     mode: str = "default",  # default, overwrite, add
     maxsize: int = 500000000,  # in bytes
@@ -24,7 +22,7 @@ def hf_download_pickle_files(
     if mode not in ["default", "overwrite", "add"]:
         raise ValueError(f"Invalid mode: '{mode}'")
     if outdir is None:
-        outdir = Path(os.getcwd()) / "pickle_dataset"
+        outdir = Path.cwd() / "pickle_dataset"
     index = []
     if outdir.exists():
         if mode == "overwrite":

@@ -9,9 +9,9 @@ from pathlib import Path
 import numpy as np
 import py7zr
 import torch
-import torchvision.models as models
+from torchvision import models
 
-import fickling.polyglot as polyglot
+from fickling import polyglot
 from fickling.polyglot import FileProperties
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

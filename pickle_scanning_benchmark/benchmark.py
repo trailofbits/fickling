@@ -8,9 +8,9 @@ import random
 import sys
 import traceback
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Optional
 
 import logger
 import picklescan.scanner as ps_scanner
@@ -29,7 +29,7 @@ class ModelUnpickler(SafeUnpickler):
         return None
 
 
-setattr(pickle, "Unpickler", SafeUnpickler)
+pickle.Unpickler = SafeUnpickler
 
 # Logging
 ps_scanner._log.propagate = False
@@ -38,7 +38,7 @@ DEVNULL = open(os.devnull, "w")
 
 # TODO(boyan): do this when downloading the files
 def is_valid(filepath, filetype):
-    if not os.path.isfile(filepath):
+    if not Path(filepath).is_file():
         return False
     with open(filepath, "rb") as f:
         if f.read(100).startswith(b"Access to model"):
@@ -64,7 +64,7 @@ def load_index(filepath):
         return json.load(f)
 
 
-def run_fickling(filepath, filetype):
+def run_fickling(filepath, filetype) -> bool:
     analysis = [
         MLAllowlist(),  # Import non standard non whitelisted stuff
         UnsafeImportsML(),  # Importing from unsafe modules
@@ -72,8 +72,9 @@ def run_fickling(filepath, filetype):
     ]
     if filetype == "pickle":
         return run_fickling_pickle(filepath, analysis)
-    elif filetype == "pytorch":
+    if filetype == "pytorch":
         return run_fickling_pytorch(filepath, analysis)
+    raise Exception("Unsupported file type")
 
 
 def run_fickling_pickle(filepath, analysis) -> bool:
@@ -95,9 +96,7 @@ def run_fickling_pytorch(filepath, analysis) -> bool:
 def run_modelscan(filepath, filetype):
     ms = ModelScan()
     res = ms.scan(filepath)
-    if res["issues"]:
-        return False
-    return True
+    return not res["issues"]
 
 
 def run_modelunpickler(filepath, filetype):
@@ -118,19 +117,16 @@ def run_picklescan(filepath, filetype):
     results = ps_scanner.scan_file_path(filepath)
     if results.scan_err:
         raise Exception("Failed to analyze file with picklescan. res.scan_err = True")
-    if results.issues_count == 0:
-        return True  # Safe
-    else:
-        return False  # Unsafe
+    return results.issues_count == 0  # True if safe
 
 
 def _analyze_file(
     toolname: str,
     run_tool_func: Callable,
-    fileinfo: Dict,
-    results: Dict[str, "BenchmarkResults"],
+    fileinfo: dict,
+    results: dict[str, "BenchmarkResults"],
     expected_scan_result: bool,  # True for clean files, False for malicious files
-    payload: Optional[str] = None,
+    payload: str | None = None,
 ):
     logger.info(f"Running {toolname} on {fileinfo['file']}")
     # Run tool
@@ -142,8 +138,8 @@ def _analyze_file(
             else:
                 results.tools[toolname].add_fp()
                 logger.warning(f"Clean file mislabeled by {toolname}: {fileinfo['file']}")
-        except KeyboardInterrupt as e:
-            raise e
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             print(traceback.format_exc())
             logger.error(f"Failed to analyze file: {e}")
@@ -158,8 +154,8 @@ def _analyze_file(
                 )
             else:
                 results.tools[toolname].add_tp()
-        except KeyboardInterrupt as e:
-            raise e
+        except KeyboardInterrupt:
+            raise
         except Exception as e:
             print(traceback.format_exc())
             logger.error(f"Failed to analyze file: {e}")
@@ -227,7 +223,7 @@ class ToolResults:
     nb_scanned_files: int = 0  # Files scanned without errors
     nb_failed_files: int = 0  # The tool failed to scan the files
 
-    fn_payload_types: Dict[str, int] = field(default_factory=dict)  # <payload type> --> how many
+    fn_payload_types: dict[str, int] = field(default_factory=dict)  # <payload type> --> how many
 
     @property
     def total_files(self) -> int:
@@ -241,7 +237,7 @@ class ToolResults:
         self.fp_clean += n
         self.nb_scanned_files += n
 
-    def add_fn(self, n=1, payload: Optional[str] = None):
+    def add_fn(self, n=1, payload: str | None = None):
         self.fn_malicious += n
         self.nb_scanned_files += n
         if payload:
@@ -284,7 +280,7 @@ class BenchmarkResults:
     nb_malicious_files: int = 0  # Total seen malicious files
     nb_invalid_files: int = 0  # Files where even pickletools fail
 
-    tools: Dict[str, ToolResults] = field(default_factory=dict)
+    tools: dict[str, ToolResults] = field(default_factory=dict)
 
     @staticmethod
     def new(*tools):

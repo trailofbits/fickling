@@ -26,6 +26,9 @@ classifiers = [
   "Topic :: Utilities",
 ]
 requires-python = ">=3.10"
+dependencies = [
+  "typing-extensions >= 4.6.0; python_version < '3.12'",
+]
 
 [project.optional-dependencies]
 torch = [
@@ -35,10 +38,8 @@ torch = [
     "numpy >= 2.3.5; python_version >= '3.11'",
 ]
 lint = [
-  "ruff >= 0.8.0",
-  "ty >= 0.0.12",
-  # for the Buffer ABC before Python 3.12
-  "typing-extensions; python_version < '3.12'",
+  "ruff >= 0.16.0",
+  "ty >= 0.0.60",
 ]
 test = [
   "pytest >= 8.0.0",
@@ -100,15 +101,14 @@ line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
-select = [
+# Only prefixes whose rules the defaults do not already cover in full are listed.
+extend-select = [
   "E",     # pycodestyle errors
   "F",     # pyflakes
   "W",     # pycodestyle warnings
   "I",     # isort
   "N",     # pep8-naming
   "UP",    # pyupgrade
-  "YTT",   # flake8-2020
-  "BLE",   # flake8-blind-except
   "B",     # flake8-bugbear
   "C4",    # flake8-comprehensions
   "T20",   # flake8-print
@@ -121,36 +121,21 @@ select = [
 ignore = [
   "E501",  # line too long (handled by formatter)
   "T201",  # print statements (needed for CLI)
-  "T203",  # pprint statements
-  # Pre-existing issues to fix in future PRs
-  "PTH123",  # open() should be replaced by Path.open()
-  "PTH107",  # os.remove should be replaced by Path.unlink
-  "PTH118",  # os.path.join should be replaced by Path
-  "PTH119",  # os.path.basename should be replaced by Path.name
-  "RUF012",  # Mutable class attributes should use ClassVar
-  "RUF013",  # PEP 484 prohibits implicit Optional
-  "B028",   # No explicit stacklevel in warnings
-  "B904",   # Use raise ... from within except blocks
-  "SIM102",  # Use single if instead of nested if
-  "SIM108",  # Use ternary operator instead of if-else
-  "SIM114",  # Combine if branches with same body
-  "SIM115",  # Use context handler for opening files
-  "SIM117",  # Use single with statement for multiple contexts
-  "SIM118",  # Use `key in dict` instead of `key in dict.keys()`
-  "SIM201",  # Use `!=` instead of `not ==`
-  "PERF203", # try-except in loop could be moved outside
-  "RET503",  # Missing explicit return
-  "RET504",  # Unnecessary assignment before return
-  "RUF015",  # Prefer next() over list indexing
+  # builtin open() is fine; Path.open() is a style preference with no behavioral gain
+  "PTH123",
+  # several call sites intentionally manage the handle themselves: the temporary files in
+  # polyglot.py must be closed before their path is reopened by the recursive scan, and cli.py
+  # binds either a stdio stream or an opened file to the same variable
+  "SIM115",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Ignore various checks for benchmark and example code
-"pickle_scanning_benchmark/*.py" = ["BLE", "T20", "N806"]
+"fickling/fickle.py" = ["TRY004"]
+"pickle_scanning_benchmark/*.py" = ["BLE", "LOG015", "T20", "TRY002"]
 "example/*.py" = ["T20"]
 "test/*.py" = ["T20"]
+"test/test_pickle.py" = ["S102"]
 "fickling/hook.py" = ["N816"]
-"fickling/fickle.py" = ["N802"]  # AST visitor methods must be named visit_*
 
 [tool.ruff.lint.isort]
 known-first-party = ["fickling"]

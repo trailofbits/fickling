@@ -1,4 +1,4 @@
-import fickling.hook as hook
+from fickling import hook
 
 
 class FicklingContextManager:

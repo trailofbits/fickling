@@ -2,12 +2,11 @@ import json
 import sys
 from pathlib import Path
 from pprint import pprint
-from typing import Optional
 
 from huggingface_hub import HfApi
 
 
-def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
+def hf_get_candidate_files_list(n: int = 100, outfile: Path | None = None):
     """Get a list of pickle files currently hosted on HuggingFace.
     :n: the number of files to get"""
     api = HfApi()
@@ -20,10 +19,12 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
     files = []
     for model in models:
         if model.siblings:
-            for s in model.siblings:
-                if s.rfilename.endswith((".pkl", ".pt", ".pth", ".bin", "pickle", ".pk")):
-                    # TODO(boyan): more filtering here?
-                    files.append({"filename": s.rfilename, "project": model.id})
+            # TODO(boyan): more filtering here?
+            files.extend(
+                {"filename": s.rfilename, "project": model.id}
+                for s in model.siblings
+                if s.rfilename.endswith((".pkl", ".pt", ".pth", ".bin", "pickle", ".pk"))
+            )
         if len(files) >= n:
             break
 
@@ -38,7 +39,7 @@ def hf_get_candidate_files_list(n: int = 100, outfile: Optional[Path] = None):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <outfile> <nbfiles>")
-        exit(0)
+        sys.exit(0)
     outfile = sys.argv[1]
     n = int(sys.argv[2])
     hf_get_candidate_files_list(n=n, outfile=outfile)

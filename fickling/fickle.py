@@ -15,6 +15,7 @@ from pickletools import OpcodeInfo, genops, opcodes
 from typing import (
     Any,
     BinaryIO,
+    ClassVar,
     Generic,
     TypeVar,
     overload,
@@ -25,9 +26,10 @@ from fickling.exception import ExpansionAttackError, ResourceExhaustionError, Wr
 T = TypeVar("T")
 
 if sys.version_info < (3, 12):
-    from typing_extensions import Buffer
+    from typing_extensions import Buffer, Self
 else:
     from collections.abc import Buffer
+    from typing import Self
 
 
 @dataclass(frozen=True)
@@ -457,14 +459,8 @@ class Opcode:
         return super().__init_subclass__(**kwargs)
 
     def __repr__(self):
-        if self.pos is None:
-            p = ""
-        else:
-            p = f", position={self.pos!r}"
-        if self.has_data():
-            d = f", data={self.data!r}"
-        else:
-            d = ""
+        p = "" if self.pos is None else f", position={self.pos!r}"
+        d = f", data={self.data!r}" if self.has_data() else ""
         return f"{self.__class__.__name__}(info={self.info!r}, argument={self.arg!r}{d}{p})"
 
 
@@ -477,7 +473,7 @@ class DynamicLength(Opcode, ABC):
     length_signed: bool = False
     length_bytes: int = 4
     length_endianness: Endianness = Endianness.Little
-    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
+    struct_types: ClassVar[dict[int, str]] = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -548,7 +544,7 @@ def raw_unicode_escape(byte_string: bytes) -> str:
 
 
 class ConstantOpcode(Opcode):
-    ConstantOpcodePriorities: dict[type[ConstantOpcode], int] = {}
+    ConstantOpcodePriorities: ClassVar[dict[type[ConstantOpcode], int]] = {}
     priority: int
 
     def run(self, interpreter: Interpreter):
@@ -556,7 +552,7 @@ class ConstantOpcode(Opcode):
 
     def __init_subclass__(cls, **kwargs):
         ret = super().__init_subclass__(**kwargs)
-        if not cls.__name__ == "ConstantInt":
+        if cls.__name__ != "ConstantInt":
             if cls.validate.__code__ == ConstantOpcode.validate.__code__:
                 raise TypeError(f"{cls.__name__} must implement the validate method")
             if (
@@ -582,7 +578,7 @@ class ConstantOpcode(Opcode):
         raise NotImplementedError()
 
     @classmethod
-    def new(cls: type[T], obj) -> T:
+    def new(cls, obj) -> Self:
         for subclass, _ in sorted(
             ConstantOpcode.ConstantOpcodePriorities.items(), key=lambda kv: kv[1]
         ):
@@ -602,7 +598,7 @@ class ConstantInt(ConstantOpcode, ABC):
     signed: bool = False
     num_bytes: int = 4
     endianness: Endianness = Endianness.Little
-    struct_types = {1: "b", 2: "h", 4: "i", 8: "q"}
+    struct_types: ClassVar[dict[int, str]] = {1: "b", 2: "h", 4: "i", 8: "q"}
     min_value: int
     max_value: int
 
@@ -729,8 +725,6 @@ class EmptyPickleError(PickleDecodeError):
 
 class InterpretationError(PickleDecodeError):
     """Raised when pickle interpretation fails due to malformed opcode sequences."""
-
-    pass
 
 
 @dataclass(frozen=True)
@@ -1128,8 +1122,7 @@ class Pickled(OpcodeSequence):
 
     def dump(self, file: BinaryIO, reframe: bool = True):
         """Serialize the opcode sequence to `file`. See `dumps()` for `reframe`."""
-        for chunk in self._output_chunks(reframe):
-            file.write(chunk)
+        file.writelines(self._output_chunks(reframe))
 
     def dumps_partial(self, from_idx: int, to_idx: int) -> bytes:
         """Dump bytecode only between two opcodes
@@ -1258,10 +1251,7 @@ class Pickled(OpcodeSequence):
                     if pos is not None:
                         pickled.seek(pos)
                     if info.arg is None or info.arg.n == 0:
-                        if pos is not None:
-                            data = None
-                        else:
-                            data = info.code.encode("utf-8")
+                        data = info.code.encode("utf-8") if pos is None else None
                     elif info.arg.n > 0 and pos is not None:
                         data = pickled.read(len(info.code) + info.arg.n)
                         if len(data) != len(info.code) + info.arg.n:
@@ -1279,10 +1269,10 @@ class Pickled(OpcodeSequence):
         except ValueError as e:
             if opcodes:
                 if fail_on_decode_error:
-                    raise PickleDecodeError(e)
+                    raise PickleDecodeError(e) from e
                 has_invalid_opcode = True
             else:
-                raise EmptyPickleError()
+                raise EmptyPickleError() from e
         if opcodes:
             if opcodes[-1].pos is not None:
                 if opcodes[-1].has_data():
@@ -1330,9 +1320,9 @@ on the Pickled object instead"""
 
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if any(c in UNSAFE_IMPORTS for c in import_name_components(node)):
-                yield node
-            elif "eval" in (n.name for n in node.names):
+            unsafe_module = any(c in UNSAFE_IMPORTS for c in import_name_components(node))
+            imports_eval = "eval" in (n.name for n in node.names)
+            if unsafe_module or imports_eval:
                 yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
@@ -1531,11 +1521,11 @@ class Interpreter:
 
     def run(self):
         self.pickled.validate_frames()
-        while True:
-            try:
+        try:
+            while True:
                 self.step()
-            except StopIteration:
-                break
+        except StopIteration:
+            pass
 
     def step(self) -> Opcode:
         try:
@@ -1856,10 +1846,10 @@ class AddItems(Opcode):
         else:
             raise InterpretationError("Exhausted the stack while searching for a MarkObject!")
         if not interpreter.stack:
-            raise ValueError("Stack was empty; expected a pyset")
+            raise InterpretationError("Stack was empty; expected a pyset")
         pyset = interpreter.stack[-1]
         if not isinstance(pyset, ast.Set):
-            raise ValueError(
+            raise InterpretationError(
                 f"{pyset!r} was expected to be a set-like object with an `add` function"
             )
         # Check for cyclic references - sets cannot contain themselves (unhashable)
@@ -2303,7 +2293,9 @@ class Append(Opcode):
                 interpreter._has_cycle = True
             list_obj.elts.append(value)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise InterpretationError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class Appends(StackSliceOpcode):
@@ -2318,7 +2310,9 @@ class Appends(StackSliceOpcode):
                     interpreter._has_cycle = True
             list_obj.elts.extend(stack_slice)
         else:
-            raise ValueError(f"Expected a list on the stack, but instead found {list_obj!r}")
+            raise InterpretationError(
+                f"Expected a list on the stack, but instead found {list_obj!r}"
+            )
 
 
 class BinFloat(ConstantOpcode):

@@ -1,7 +1,7 @@
 import torch
-import torchvision.models as models
+from torchvision import models
 
-import fickling.polyglot as polyglot
+from fickling import polyglot
 
 model = models.mobilenet_v2()
 torch.save(model, "mobilenet.pth")
