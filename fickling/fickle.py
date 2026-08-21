@@ -2386,6 +2386,29 @@ class BinBytes8(BinBytes):
     length_bytes = 8
 
 
+class Bytearray8(DynamicLength, ConstantOpcode):
+    name = "BYTEARRAY8"
+    priority = BinBytes8.priority + 1
+    length_bytes = 8
+
+    def encode_body(self) -> bytes:
+        arg = self.arg
+        return arg if isinstance(arg, bytes) else bytes(arg)
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, bytearray):
+            raise ValueError(f"{cls.__name__} must be instantiated with a bytearray, not {obj!r}")
+        return super().validate(obj)
+
+    def run(self, interpreter: Interpreter):
+        arg = self.arg
+        data = arg if isinstance(arg, bytes) else bytes(arg)
+        interpreter.stack.append(
+            ast.Call(ast.Name("bytearray", ast.Load()), [make_constant(data)], [])
+        )
+
+
 class Long1(ConstantInt):
     name = "LONG1"
     num_bytes = 1
