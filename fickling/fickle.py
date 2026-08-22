@@ -291,6 +291,25 @@ def is_private_or_dunder_stdlib_module(name: str) -> bool:
     return name.startswith("_") and name in stdlib_names.STDLIB_MODULE_NAMES
 
 
+# User extension point: add top-level module names here (e.g. `distutils` for
+# a scanner that knows its targets run setuptools' shim) to treat imports of
+# removed-and-shadowable stdlib names as plain stdlib again — use only when
+# you know no third-party package can shadow them on the loading interpreter.
+SHADOWED_STDLIB_IMPORT_ALLOWLIST: frozenset[str] = frozenset()
+
+
+def is_shadowed_stdlib_module(module_name: str) -> bool:
+    """True for names stdlib somewhere in the support matrix but removed from
+    recent releases, where third-party PyPI packages of the same name can
+    shadow them (see fickling.stdlib_names.SHADOWED_STDLIB_MODULE_NAMES).
+    """
+    root = module_name.partition(".")[0]
+    return (
+        root in stdlib_names.current_shadowed_names()
+        and root not in SHADOWED_STDLIB_IMPORT_ALLOWLIST
+    )
+
+
 def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
     """Yield every dotted component of an import's module and imported names.
 
@@ -690,6 +709,7 @@ class ASTProperties(ast.NodeVisitor):
             isinstance(node, ast.ImportFrom)
             and node.module is not None
             and is_std_module(node.module)
+            and not is_shadowed_stdlib_module(node.module)
             and (
                 not any(is_private_or_dunder_stdlib_module(c) for c in node.module.split("."))
                 or _is_allowed_private_import(node)
@@ -1344,6 +1364,33 @@ on the Pickled object instead"""
                 continue
             if any(is_private_or_dunder_stdlib_module(c) for c in import_name_components(node)):
                 yield node
+
+    def shadowed_stdlib_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
+        """Imports of modules removed from the stdlib in a recent version.
+
+        These names can be shadowed by third-party PyPI packages on modern
+        interpreters, so they are reported separately (ShadowedStdlibImports)
+        instead of being treated as plain stdlib.
+        """
+        for node in self.properties.imports:
+            if isinstance(node, ast.ImportFrom):
+                if node.module is None:
+                    continue
+                root = node.module.partition(".")[0]
+                if (
+                    root in stdlib_names.current_shadowed_names()
+                    and root not in SHADOWED_STDLIB_IMPORT_ALLOWLIST
+                ):
+                    yield node
+            else:
+                for alias in node.names:
+                    root = alias.name.partition(".")[0]
+                    if (
+                        root in stdlib_names.current_shadowed_names()
+                        and root not in SHADOWED_STDLIB_IMPORT_ALLOWLIST
+                    ):
+                        yield node
+                        break
 
     @property
     def ast(self) -> ast.Module:

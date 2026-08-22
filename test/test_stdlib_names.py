@@ -85,3 +85,66 @@ class TestStdlibNameUnion(TestCase):
     def test_use_stdlib_of_rejects_unknown_versions(self):
         with self.assertRaises(KeyError):
             stdlib_names.use_stdlib_of("9.9")
+
+
+class TestShadowedStdlibImports(TestCase):
+    @staticmethod
+    def _pickled_importing(module: str):
+        import fickling.fickle as op
+        from fickling.fickle import Pickled
+
+        return Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode(module),
+                op.ShortBinUnicode("attr"),
+                op.StackGlobal(),
+                op.Stop(),
+            ]
+        )
+
+    def test_removed_name_import_is_shadow_flagged(self):
+        from fickling.analysis import Severity, check_safety
+
+        result = check_safety(self._pickled_importing("asynchat"))
+        self.assertEqual(result.severity, Severity.SUSPICIOUS)
+
+    def test_live_stdlib_name_not_shadow_flagged(self):
+        from fickling.analysis import Severity, check_safety
+
+        result = check_safety(self._pickled_importing("collections"))
+        self.assertEqual(result.severity, Severity.LIKELY_SAFE)
+
+    def test_current_target_ships_removed_module(self):
+        """Narrowing to a version that still ships the module silences the
+        shadow warning."""
+        from fickling.analysis import Severity, check_safety
+        from fickling.fickle import is_shadowed_stdlib_module
+
+        try:
+            stdlib_names.use_stdlib_of("3.10")
+            self.assertFalse(is_shadowed_stdlib_module("asynchat"))
+            self.assertEqual(
+                check_safety(self._pickled_importing("asynchat")).severity,
+                Severity.LIKELY_SAFE,
+            )
+        finally:
+            stdlib_names.use_stdlib_of()
+        self.assertTrue(is_shadowed_stdlib_module("asynchat"))
+
+    def test_allowlist_restores_benign_classification(self):
+        import fickling.fickle as fickle_module
+        from fickling.analysis import Severity, check_safety
+
+        try:
+            # chunk is shadowable but not on the hard UNSAFE_IMPORTS list,
+            # so the allowlist alone flips it back to benign.
+            fickle_module.SHADOWED_STDLIB_IMPORT_ALLOWLIST = frozenset({"chunk"})
+            self.assertFalse(fickle_module.is_shadowed_stdlib_module("chunk"))
+            self.assertTrue(fickle_module.is_shadowed_stdlib_module("imp"))
+            self.assertEqual(
+                check_safety(self._pickled_importing("chunk")).severity,
+                Severity.LIKELY_SAFE,
+            )
+        finally:
+            fickle_module.SHADOWED_STDLIB_IMPORT_ALLOWLIST = frozenset()

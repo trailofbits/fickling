@@ -56,6 +56,7 @@ __all__ = [
     "PYTHON_VERSIONS",
     "STDLIB_MODULE_NAMES",
     "STDLIB_MODULE_NAMES_BY_VERSION",
+    "current_shadowed_names",
     "use_stdlib_of",
 ]
 
@@ -98,19 +99,55 @@ def main() -> None:
         names = ", ".join(repr(n) for n in by_version[version])
         lines.append(f"    {version!r}: frozenset({{{names}}}),")
     lines.append("}\n")
+    latest = SUPPORTED_PYTHONS[-1]
+    # Only public top-level names: underscore-prefixed entries differ across
+    # platform builds without being real removals, and imports of private
+    # stdlib modules are already surfaced separately.
+    shadowed = sorted(
+        n for n in (union - set(by_version[latest])) if not n.startswith("_")
+    )
+    lines.append(
+        "# Names stdlib somewhere in the support matrix but absent from the\n"
+        f"# newest listed release ({latest}): removable dead batteries plus\n"
+        "# future-only additions. On interpreters lacking them these names can\n"
+        "# be shadowed by third-party PyPI packages, so imports are surfaced by\n"
+        "# the ShadowedStdlibImports analysis instead of being trusted.\n"
+    )
+    names = ", ".join(repr(n) for n in shadowed)
+    lines.append(f"SHADOWED_STDLIB_MODULE_NAMES: frozenset[str] = frozenset({{{names}}})\n")
 
     text = "\n".join(lines)
     # Append runtime augmentation and override API verbatim (not regenerated).
     text += '''
-def _with_running_interpreter() -> frozenset[str]:
-    """Union the table with the running interpreter's own stdlib names."""
-    return STDLIB_MODULE_NAMES_UNION | sys.stdlib_module_names
-
+_SELECTED_VERSIONS: tuple[str, ...] | None = None
 
 STDLIB_MODULE_NAMES_UNION: frozenset[str] = frozenset().union(
     *STDLIB_MODULE_NAMES_BY_VERSION.values()
 )
-STDLIB_MODULE_NAMES: frozenset[str] = _with_running_interpreter()
+
+
+def _compute_default_stdlib() -> frozenset[str]:
+    """Union the table with the running interpreter's own stdlib names."""
+    return STDLIB_MODULE_NAMES_UNION | sys.stdlib_module_names
+
+
+STDLIB_MODULE_NAMES: frozenset[str] = _compute_default_stdlib()
+
+
+def current_shadowed_names() -> frozenset[str]:
+    """Names that are not stdlib under the currently selected target(s).
+
+    Default (no :func:`use_stdlib_of` selection): names absent from the
+    newest supported release. With a selection: names absent from *every*
+    selected version, so known-good targets stop warning about names they
+    genuinely ship.
+    """
+    if _SELECTED_VERSIONS is None:
+        return SHADOWED_STDLIB_MODULE_NAMES
+    present: set[str] = set()
+    for version in _SELECTED_VERSIONS:
+        present |= STDLIB_MODULE_NAMES_BY_VERSION[version]
+    return SHADOWED_STDLIB_MODULE_NAMES - present
 
 
 def use_stdlib_of(*versions: str) -> frozenset[str]:
@@ -121,9 +158,10 @@ def use_stdlib_of(*versions: str) -> frozenset[str]:
     names as standard. Pass no arguments to restore the default union.
     Unknown versions raise ``KeyError``.
     """
-    global STDLIB_MODULE_NAMES
+    global STDLIB_MODULE_NAMES, _SELECTED_VERSIONS
     if not versions:
-        STDLIB_MODULE_NAMES = _with_running_interpreter()
+        _SELECTED_VERSIONS = None
+        STDLIB_MODULE_NAMES = _compute_default_stdlib()
     else:
         unknown = [v for v in versions if v not in STDLIB_MODULE_NAMES_BY_VERSION]
         if unknown:
@@ -131,8 +169,9 @@ def use_stdlib_of(*versions: str) -> frozenset[str]:
                 f"Unsupported Python versions {unknown}; "
                 f"known: {sorted(STDLIB_MODULE_NAMES_BY_VERSION)}"
             )
-        STDLIB_MODULE_NAMES = frozenset(
-            name for v in versions for name in STDLIB_MODULE_NAMES_BY_VERSION[v]
+        _SELECTED_VERSIONS = tuple(versions)
+        STDLIB_MODULE_NAMES = frozenset().union(
+            *(STDLIB_MODULE_NAMES_BY_VERSION[v] for v in versions)
         )
     return STDLIB_MODULE_NAMES
 '''
