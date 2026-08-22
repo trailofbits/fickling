@@ -301,6 +301,24 @@ class NonStandardImports(Analysis):
                     )
 
 
+class ShadowedStdlibImports(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.shadowed_stdlib_imports():
+            shortened = context.shorten_code(node)
+            if context.mark_reported(shortened):
+                yield AnalysisResult(
+                    Severity.SUSPICIOUS,
+                    f"`{shortened}` imports a module that was removed from the "
+                    "Python standard library in a recent version; on modern "
+                    "interpreters this name resolves to a third-party package "
+                    "of the same name, which can execute arbitrary code. "
+                    "Treat as unsafe unless explicitly allowlisted "
+                    "(fickling.fickle.SHADOWED_STDLIB_IMPORT_ALLOWLIST)",
+                    "ShadowedStdlibImports",
+                    trigger=shortened,
+                )
+
+
 class UnsafeImportsML(Analysis):
     # ML-specific unsafe modules only; general-purpose modules (os, subprocess,
     # socket, pickle, etc.) are already covered by fickle.py's UNSAFE_IMPORTS
