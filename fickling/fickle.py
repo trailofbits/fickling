@@ -21,6 +21,7 @@ from typing import (
     overload,
 )
 
+from fickling import stdlib_names
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError, WrongMethodError
 
 T = TypeVar("T")
@@ -55,8 +56,6 @@ DEFAULT_INTERPRETER_LIMITS = InterpreterLimits()
 OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
-
-BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
 
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
@@ -279,7 +278,9 @@ PRIVATE_STDLIB_MODULE_ALLOWLIST: frozenset[str] = frozenset({"__future__"})
 
 
 def is_std_module(module_name: str) -> bool:
-    return module_name.partition(".")[0] in BUILTIN_STDLIB_MODULE_NAMES
+    # Looked up through the module so runtime retargeting via
+    # stdlib_names.use_stdlib_of() takes effect (issue #311).
+    return module_name.partition(".")[0] in stdlib_names.STDLIB_MODULE_NAMES
 
 
 def is_private_or_dunder_stdlib_module(name: str) -> bool:
@@ -287,7 +288,7 @@ def is_private_or_dunder_stdlib_module(name: str) -> bool:
     `__future__`, …): internal or non-public, so it should never appear in a
     pickle. Benign exceptions are handled in _is_allowed_private_import.
     """
-    return name.startswith("_") and name in BUILTIN_STDLIB_MODULE_NAMES
+    return name.startswith("_") and name in stdlib_names.STDLIB_MODULE_NAMES
 
 
 def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
