@@ -22,6 +22,7 @@ from typing import (
 )
 
 from fickling.exception import ExpansionAttackError, ResourceExhaustionError, WrongMethodError
+from fickling.stdlib import STDLIB_MODULE_NAMES
 
 T = TypeVar("T")
 
@@ -56,7 +57,40 @@ OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
 
-BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
+BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = STDLIB_MODULE_NAMES
+"""Default stdlib module set: the union of ``sys.stdlib_module_names`` across
+all supported Python versions (see ``fickling.stdlib``). Kept under its
+historic name for backwards compatibility; it is a snapshot of the default,
+not a live view -- use :func:`set_stdlib_module_names` to change the set the
+checks actually consult."""
+
+# The set consulted by is_std_module() and is_private_or_dunder_stdlib_module().
+# Module-global (not thread-safe to mutate mid-scan); see set_stdlib_module_names.
+_ACTIVE_STDLIB_MODULE_NAMES: frozenset[str] = STDLIB_MODULE_NAMES
+
+
+def set_stdlib_module_names(names: Iterable[str]) -> None:
+    """Override the stdlib module set used by the import checks.
+
+    Pass ``STDLIB_MODULE_NAMES_BY_VERSION["<major>.<minor>"]`` to scan against
+    one specific Python version instead of the default union. This is
+    process-global; call :func:`reset_stdlib_module_names` to restore the
+    default.
+    """
+    if isinstance(names, str):
+        raise TypeError(
+            "set_stdlib_module_names() takes an iterable of module names, not a "
+            "version string; pass STDLIB_MODULE_NAMES_BY_VERSION[<version>]"
+        )
+    global _ACTIVE_STDLIB_MODULE_NAMES
+    _ACTIVE_STDLIB_MODULE_NAMES = frozenset(names)
+
+
+def reset_stdlib_module_names() -> None:
+    """Restore the default (union across supported versions) stdlib module set."""
+    global _ACTIVE_STDLIB_MODULE_NAMES
+    _ACTIVE_STDLIB_MODULE_NAMES = STDLIB_MODULE_NAMES
+
 
 OPCODES_BY_NAME: dict[str, type[Opcode]] = {}
 OPCODE_INFO_BY_NAME: dict[str, OpcodeInfo] = {opcode.name: opcode for opcode in opcodes}
@@ -279,7 +313,7 @@ PRIVATE_STDLIB_MODULE_ALLOWLIST: frozenset[str] = frozenset({"__future__"})
 
 
 def is_std_module(module_name: str) -> bool:
-    return module_name.partition(".")[0] in BUILTIN_STDLIB_MODULE_NAMES
+    return module_name.partition(".")[0] in _ACTIVE_STDLIB_MODULE_NAMES
 
 
 def is_private_or_dunder_stdlib_module(name: str) -> bool:
@@ -287,7 +321,7 @@ def is_private_or_dunder_stdlib_module(name: str) -> bool:
     `__future__`, …): internal or non-public, so it should never appear in a
     pickle. Benign exceptions are handled in _is_allowed_private_import.
     """
-    return name.startswith("_") and name in BUILTIN_STDLIB_MODULE_NAMES
+    return name.startswith("_") and name in _ACTIVE_STDLIB_MODULE_NAMES
 
 
 def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
