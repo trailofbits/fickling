@@ -2066,6 +2066,24 @@ class NewFalse(Opcode):
         interpreter.stack.append(make_constant(False))
 
 
+class NextBuffer(Opcode):
+    name = "NEXT_BUFFER"
+
+    def run(self, interpreter: Interpreter):
+        # The buffer contents are out-of-band: they are not part of the pickle
+        # stream, so the analysis models them as an opaque value.
+        interpreter.stack.append(ast.Name("out_of_band_buffer", ast.Load()))
+
+
+class ReadOnlyBuffer(Opcode):
+    name = "READONLY_BUFFER"
+
+    def run(self, interpreter: Interpreter):
+        # Marks the buffer on the top of the stack read-only; the value itself
+        # is unchanged, so this is a no-op for the AST.
+        pass
+
+
 class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
@@ -2386,6 +2404,22 @@ class BinBytes8(BinBytes):
     length_bytes = 8
 
 
+class ByteArray8(BinBytes8):
+    name = "BYTEARRAY8"
+    priority = BinBytes8.priority + 1
+
+    def encode_body(self) -> bytes:
+        return bytes(self.arg)
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, bytearray):
+            raise ValueError(
+                f"{cls.__name__} must be instantiated with an object of type bytearray, not {obj!r}"
+            )
+        return super().validate(obj)
+
+
 class Long1(ConstantInt):
     name = "LONG1"
     num_bytes = 1
@@ -2416,6 +2450,20 @@ class Int(ConstantOpcode):
 class Long(Int):
     name = "LONG"
     priority = Int.priority + 1
+
+
+class Float(ConstantOpcode):
+    name = "FLOAT"
+    priority = Long.priority + 1
+
+    def encode_body(self) -> bytes:
+        return f"{self.arg}\n".encode()
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, float):
+            raise ValueError(f"{cls.__name__} expects a float, but received {obj!r}")
+        return obj
 
 
 class Dict(Opcode):
