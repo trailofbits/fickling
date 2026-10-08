@@ -10,6 +10,7 @@ from .analysis import Severity, check_safety
 from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 from .exception import ResourceExhaustionError
 from .loader import scan_file, scan_zip_archive
+from .stdlib import STDLIB_MODULE_NAMES_BY_VERSION
 
 HF_RAW_PICKLE_EXTENSIONS = frozenset({".bin", ".pkl", ".pickle"})
 HF_ZIP_PICKLE_EXTENSIONS = frozenset({".pt", ".pth"})
@@ -257,7 +258,29 @@ def main(argv: list[str] | None = None) -> int:
         "process listings",
     )
 
+    parser.add_argument(
+        "--target-python-version",
+        type=str,
+        default=None,
+        metavar="X.Y",
+        help="Python version the pickle will be loaded with (e.g. '3.11'). "
+        "Stdlib-membership checks are evaluated against that version's stdlib "
+        "instead of the default union across all supported versions. "
+        f"Choices: {', '.join(sorted(STDLIB_MODULE_NAMES_BY_VERSION))}.",
+    )
+
     args = parser.parse_args(argv[1:])
+
+    if args.target_python_version is not None:
+        try:
+            fickle.set_stdlib_module_names(
+                STDLIB_MODULE_NAMES_BY_VERSION[args.target_python_version]
+            )
+        except KeyError:
+            parser.error(
+                f"unsupported --target-python-version {args.target_python_version!r}; "
+                f"choices: {', '.join(sorted(STDLIB_MODULE_NAMES_BY_VERSION))}"
+            )
 
     if args.version:
         if sys.stdout.isatty():
