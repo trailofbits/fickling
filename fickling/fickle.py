@@ -267,6 +267,155 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
     ]
 )
 
+# Adding in the whitelist from PyTorch's weights_only unpickler
+WEIGHTS_ONLY_WHITELIST: frozenset[str]= frozenset(
+    [
+        "collections.OrderedDict",
+        "collections.Counter",
+        "torch.nn.parameter.Parameter",
+        "torch.serialization._get_layout",
+        "torch.Size",
+        "torch.Tensor",
+        "torch.device",
+        "_codecs.encode",
+        "builtins.bytearray",
+        "builtins.set",
+        "builtins.complex",
+        "torch.float64",
+        "torch.float32",
+        "torch.float16",
+        "torch.int64",
+        "torch.int32",
+        "torch.int16",
+        "torch.int8",
+        "torch.uint8",
+        "torch.bool",
+        "torch.bfloat16",
+        "torch.complex128",
+        "torch.complex64",
+        "torch.qint8",
+        "torch.qint32",
+        "torch.quint8",
+        "torch.quint4x2",
+        "torch.quint2x4",
+        "torch.uint16",
+        "torch.bits16",
+        "torch.float8_e8m0fnu",
+        "torch.uint32",
+        "torch.float8_e5m2",
+        "torch.bits1x8",
+        "torch.float4_e2m1fn_x2",
+        "torch.uint64",
+        "torch.float8_e4m3fn",
+        "torch.complex32",
+        "torch.bits2x4",
+        "torch.float8_e5m2fnuz",
+        "torch.bits4x2",
+        "torch.float8_e4m3fnuz",
+        "torch.bits8",
+        "torch.uint1",
+        "torch.uint2",
+        "torch.uint3",
+        "torch.uint4",
+        "torch.uint5",
+        "torch.uint6",
+        "torch.uint7",
+        "torch.int1",
+        "torch.int2",
+        "torch.int3",
+        "torch.int4",
+        "torch.int5",
+        "torch.int6",
+        "torch.int7",
+        "torch.cuda.LongTensor",
+        "torch.cuda.BFloat16Tensor",
+        "torch.sparse.FloatTensor",
+        "torch.sparse.BFloat16Tensor",
+        "torch.BoolTensor",
+        "torch.cuda.sparse.FloatTensor",
+        "torch.cuda.DoubleTensor",
+        "torch.cuda.sparse.HalfTensor",
+        "torch.cuda.ShortTensor",
+        "torch.DoubleTensor",
+        "torch.sparse.ByteTensor",
+        "torch.sparse.IntTensor",
+        "torch.IntTensor",
+        "torch.CharTensor",
+        "torch.sparse.LongTensor",
+        "torch.cuda.sparse.ByteTensor",
+        "torch.BFloat16Tensor",
+        "torch.cuda.sparse.IntTensor",
+        "torch.cuda.sparse.BFloat16Tensor",
+        "torch.cuda.FloatTensor",
+        "torch.cuda.HalfTensor",
+        "torch.sparse.CharTensor",
+        "torch.LongTensor",
+        "torch.sparse.ShortTensor",
+        "torch.cuda.sparse.CharTensor",
+        "torch.cuda.ByteTensor",
+        "torch.cuda.sparse.LongTensor",
+        "torch.ByteTensor",
+        "torch.cuda.IntTensor",
+        "torch.cuda.BoolTensor",
+        "torch.sparse.DoubleTensor",
+        "torch.ShortTensor",
+        "torch.HalfTensor",
+        "torch.sparse.HalfTensor",
+        "torch.cuda.sparse.DoubleTensor",
+        "torch.cuda.CharTensor",
+        "torch.cuda.sparse.ShortTensor",
+        "torch.FloatTensor",
+        "torch.cuda.ComplexFloatStorage",
+        "torch.ComplexFloatStorage",
+        "torch.cuda.HalfStorage",
+        "torch.storage.TypedStorage",
+        "torch.HalfStorage",
+        "torch.cuda.ComplexDoubleStorage",
+        "torch.ComplexDoubleStorage",
+        "torch.cuda.FloatStorage",
+        "torch.storage.UntypedStorage",
+        "torch.FloatStorage",
+        "torch.cuda.BFloat16Storage",
+        "torch.BFloat16Storage",
+        "torch.cuda.DoubleStorage",
+        "torch.DoubleStorage",
+        "torch.QUInt2x4Storage",
+        "torch.cuda.BoolStorage",
+        "torch.BoolStorage",
+        "torch.cuda.ByteStorage",
+        "torch.ByteStorage",
+        "torch.QUInt4x2Storage",
+        "torch.cuda.CharStorage",
+        "torch.CharStorage",
+        "torch.QInt32Storage",
+        "torch.cuda.ShortStorage",
+        "torch.ShortStorage",
+        "torch.QInt8Storage",
+        "torch.cuda.IntStorage",
+        "torch.IntStorage",
+        "torch.QUInt8Storage",
+        "torch.cuda.LongStorage",
+        "torch.LongStorage",
+        "torch.per_tensor_affine",
+        "torch.per_tensor_symmetric",
+        "torch.per_channel_affine",
+        "torch.per_channel_symmetric",
+        "torch.per_channel_affine_float_qparams",
+        "torch._utils._rebuild_parameter",
+        "torch._utils._rebuild_meta_tensor_no_storage",
+        "torch._utils._rebuild_nested_tensor",
+        "torch._utils._rebuild_tensor_v3",
+        "torch._utils._rebuild_parameter_with_state",
+        "torch._utils._rebuild_wrapper_subclass",
+        "torch._utils._rebuild_device_tensor_from_cpu_tensor",
+        "torch._utils._rebuild_tensor",
+        "torch._utils._rebuild_qtensor",
+        "torch._utils._rebuild_device_tensor_from_numpy",
+        "torch._utils._rebuild_sparse_tensor",
+        "torch._utils._rebuild_tensor_v2",
+        "torch._tensor._rebuild_from_type_v2",
+    ]
+)
 
 # Exact (module, name) private-stdlib imports that legitimate serializers emit.
 PRIVATE_STDLIB_IMPORT_ALLOWLIST: frozenset[tuple[str, str]] = frozenset({("_codecs", "encode")})
@@ -281,6 +430,42 @@ PRIVATE_STDLIB_MODULE_ALLOWLIST: frozenset[str] = frozenset({"__future__"})
 def is_std_module(module_name: str) -> bool:
     return module_name.partition(".")[0] in BUILTIN_STDLIB_MODULE_NAMES
 
+def is_in_weights_only(module_names: list[str]) -> bool:
+    return any(module_name in WEIGHTS_ONLY_WHITELIST for module_name in module_names)
+
+def create_full_import(node: ast.ImportFrom) -> list[str]:
+    """
+    Function to convert ImportFrom into module.function format
+    """
+    full_imports = []
+    for alias in node.names:
+        full_import = str(node.module) + "." + alias.name
+        full_imports.append(full_import)
+    return full_imports
+
+def is_sys_modules_tampered(module: str) -> bool:
+    """
+    Function which checks if the sys.modules file paths for a particular module has been tampered with.
+    """
+
+    try:
+        module_path = sys.modules[module]
+        module_file_path = getattr(module_path, "__file__", None)
+    except KeyError:
+        print(f"{module} is not present in the sys.modules. Skipping check for environment tampering.")
+        return False
+
+    if module_file_path is not None and is_std_module(module): 
+        print(f"This is for module: {module}, {module_file_path}")
+        # Basic detection method to see if the built-in module is being fetched from a place which it shouldn't be fetched from.
+        if "site-packages" in module_file_path:
+            return True
+        else:
+            print(f"{module}: no tampering detected.")
+            return False
+    else:
+        return False
+    
 
 def is_private_or_dunder_stdlib_module(name: str) -> bool:
     """A stdlib module with a leading underscore (`_socket`, `_pickle`,
@@ -1330,11 +1515,20 @@ on the Pickled object instead"""
             if isinstance(node, ast.ImportFrom):
                 # from module import x - check if module is standard
                 # module can be None for relative imports (from . import x)
-                if node.module is None or not is_std_module(node.module):
-                    yield node
+                # Also verify if the imported library has not been tampered with.
+                if node.module is not None:
+                    full_imports = create_full_import(node)
+                    if not is_sys_modules_tampered(node.module):
+                        if not is_std_module(node.module):
+                            if not is_in_weights_only(full_imports):
+                                yield node
+                    else:
+                        print(f"{full_imports} may have been overwritten with a custom implementation, and may have additional functionality that may compromise the environment. Please ensure the sys.modules path hasn't been tampered with: {sys.modules[node.module].__file__}")
+                        yield node
             else:
-                # import x, y, z - check if any name is non-standard
-                if any(not is_std_module(alias.name) for alias in node.names):
+                # import x, y, z - check if any name is non-standard or not part of the weights_only whitelist
+                # Also verify if the imported library has not been tampered with.
+                if any(is_sys_modules_tampered(alias.name) or (not is_std_module(alias.name) and not is_in_weights_only([alias.name])) for alias in node.names):
                     yield node
 
     def private_stdlib_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
