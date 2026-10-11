@@ -1768,7 +1768,7 @@ class Inst(StackSliceOpcode):
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
     def encode(self) -> bytes:
-        return f"i{self.module}\n{self.classname}\n".encode()
+        return f"i{self.module}\n{self.cls}\n".encode()
 
 
 class Put(Opcode):
