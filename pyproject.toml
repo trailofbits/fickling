@@ -67,6 +67,9 @@ Homepage = "https://pypi.org/project/fickling"
 Issues = "https://github.com/trailofbits/fickling/issues"
 Source = "https://github.com/trailofbits/fickling"
 
+[tool.uv]
+exclude-newer = "1 week"
+
 # Black configuration removed - using ruff format instead
 
 [tool.coverage.run]
