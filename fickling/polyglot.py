@@ -9,7 +9,15 @@ from typing import TypedDict
 
 import numpy.lib.format as npformat
 
+from fickling.exception import ResourceExhaustionError
 from fickling.fickle import Pickled, StackedPickle
+
+# Property scanning extracts archive members to temporary files so their
+# structure can be inspected. The cap bounds each member's extracted size so a
+# compressed-expansion bomb cannot exhaust the disk: declared sizes lie, so the
+# bound is enforced while streaming, not from archive metadata.
+MAX_MEMBER_EXTRACTION_SIZE = 1 << 30
+_EXTRACTION_CHUNK_SIZE = 1 << 20
 
 # Optional 7z support
 try:
@@ -258,16 +266,35 @@ def find_file_properties_recursively(file_path, print_properties=False):
                 mode = info.external_attr >> 16
                 if info.is_dir():
                     continue
-                if mode == 0 or stat.S_ISREG(mode):
-                    _tempfile = tempfile.NamedTemporaryFile(delete=False)
-                    try:
-                        _tempfile.write(zipped_file.read(fname))
-                        _tempfile.close()
-                        properties["children"][fname] = find_file_properties_recursively(
-                            _tempfile.name, print_properties
-                        )
-                    finally:
-                        Path(_tempfile.name).unlink()
+                # Entries written by zipfile.writestr carry permission bits
+                # without file-type bits (mode == 0o600, S_ISREG false) — skip
+                # only entries whose type bits name a non-regular type.
+                if mode & stat.S_IFMT(mode) and not stat.S_ISREG(mode):
+                    continue
+                _tempfile = tempfile.NamedTemporaryFile(delete=False)
+                try:
+                    with zipped_file.open(fname) as member:
+                        extracted = 0
+                        while chunk := member.read(_EXTRACTION_CHUNK_SIZE):
+                            _tempfile.write(chunk)
+                            extracted += len(chunk)
+                            if extracted > MAX_MEMBER_EXTRACTION_SIZE:
+                                raise ResourceExhaustionError(
+                                    "zip member extraction",
+                                    MAX_MEMBER_EXTRACTION_SIZE,
+                                    extracted,
+                                )
+                    _tempfile.close()
+                    properties["children"][fname] = find_file_properties_recursively(
+                        _tempfile.name, print_properties
+                    )
+                except ResourceExhaustionError:
+                    raise
+                except (zipfile.BadZipFile, OSError):
+                    # Graceful degradation on corrupt members, mirroring the 7z path
+                    properties["children"][fname] = None
+                finally:
+                    Path(_tempfile.name).unlink()
 
     # check tar
     if properties["is_tar"]:  # tar archive
@@ -280,11 +307,25 @@ def find_file_properties_recursively(file_path, print_properties=False):
                         continue
                     _tempfile = tempfile.NamedTemporaryFile(delete=False)
                     try:
-                        _tempfile.write(content.read())
+                        extracted = 0
+                        while chunk := content.read(_EXTRACTION_CHUNK_SIZE):
+                            _tempfile.write(chunk)
+                            extracted += len(chunk)
+                            if extracted > MAX_MEMBER_EXTRACTION_SIZE:
+                                raise ResourceExhaustionError(
+                                    "tar member extraction",
+                                    MAX_MEMBER_EXTRACTION_SIZE,
+                                    extracted,
+                                )
                         _tempfile.close()
                         properties["children"][fname.name] = find_file_properties_recursively(
                             _tempfile.name, print_properties
                         )
+                    except ResourceExhaustionError:
+                        raise
+                    except (tarfile.TarError, OSError):
+                        # Graceful degradation on corrupt members, mirroring the 7z path
+                        properties["children"][fname.name] = None
                     finally:
                         Path(_tempfile.name).unlink()
 
@@ -323,7 +364,6 @@ def check_if_legacy_format(file: str | os.PathLike[str]) -> bool:
     """PyTorch v0.1.1: Tar file with sys_info, pickle, storages, and tensors"""
     required_entries = {"pickle", "storages", "tensors"}
     found_entries = set()
-    print("check_if_legacy_format")
     try:
         with tarfile.open(file, mode="r:", format=tarfile.PAX_FORMAT) as tar:
             for member in iter(tar.next, None):
