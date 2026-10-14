@@ -81,6 +81,9 @@ omit = ["fickling/__main__.py", "fickling/cli.py"]
 # Most mypy options don't have direct equivalents yet
 # See: https://docs.astral.sh/ty/configuration/
 
+[tool.ty.environment]
+python-version = "3.11"
+
 [tool.hatch.version]
 path = "fickling/__init__.py"
 
