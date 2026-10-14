@@ -93,8 +93,8 @@ Build payloads using fickling's opcode API (`op.Proto`, `op.ShortBinUnicode`, `o
 
 ## Code style
 
-- **Formatter/linter:** ruff (line-length 100, double quotes, target py310)
-- **Type checker:** ty (CI runs with `continue-on-error`)
+- **Formatter/linter:** ruff (line-length 100, double quotes, target py311)
+- **Type checker:** ty (target Python 3.11; CI runs with `continue-on-error`)
 - **Imports:** `import fickling.fickle as op` is the convention for opcode access in tests
 - **AST visitor methods** in `fickle.py` use `visit_*` naming (suppresses N802)
 - **Error handling:** Malformed pickles raise `InterpretationError` (subclass of `PickleDecodeError`), not `ValueError`. The `has_interpretation_error` flag on `Pickled` signals downstream analysis to report `LIKELY_UNSAFE`.
@@ -105,7 +105,7 @@ Build payloads using fickling's opcode API (`op.Proto`, `op.ShortBinUnicode`, `o
 
 | Workflow | What it checks |
 |----------|---------------|
-| `tests.yml` | pytest across Python 3.10-3.14 |
+| `tests.yml` | pytest across Python 3.11-3.15 |
 | `lint.yml` | ruff format + ruff check + ty check |
 | `pip-audit.yml` | Dependency vulnerability scan (runs daily + on PRs) |
 | `release.yml` | PyPI publishing on tags |
