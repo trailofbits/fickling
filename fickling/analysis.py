@@ -359,7 +359,13 @@ class UnsafeImportsML(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.properties.imports:
             shortened = context.shorten_code(node)
-            all_modules = [node.module.rsplit(".", i)[0] for i in range(node.module.count(".") + 1)]
+            if isinstance(node, ImportFrom):
+                modules = [node.module] if node.module else []
+            else:
+                modules = [alias.name for alias in node.names]
+            all_modules = [
+                module.rsplit(".", i)[0] for module in modules for i in range(module.count(".") + 1)
+            ]
             for module_name in all_modules:
                 if module_name in self.UNSAFE_MODULES:
                     # Special handling for builtins - check specific function names
@@ -383,7 +389,7 @@ class UnsafeImportsML(Analysis):
                             "UnsafeImportsML",
                             trigger=shortened,
                         )
-            if node.module in self.UNSAFE_IMPORTS:
+            if isinstance(node, ImportFrom) and node.module in self.UNSAFE_IMPORTS:
                 for n in node.names:
                     if n.name in self.UNSAFE_IMPORTS[node.module]:
                         risk_info = self.UNSAFE_IMPORTS[node.module][n.name]
@@ -450,8 +456,10 @@ class OvertlyBadEvals(Analysis):
 class UnsafeImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         for node in context.pickled.unsafe_imports():
-            if node.module in BUILTIN_MODULE_NAMES and all(
-                n.name in SAFE_BUILTINS for n in node.names
+            if (
+                isinstance(node, ImportFrom)
+                and node.module in BUILTIN_MODULE_NAMES
+                and all(n.name in SAFE_BUILTINS for n in node.names)
             ):
                 continue
             shortened = context.shorten_code(node)
