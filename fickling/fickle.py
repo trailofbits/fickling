@@ -17,6 +17,7 @@ from typing import (
     BinaryIO,
     ClassVar,
     Generic,
+    Self,
     TypeVar,
     overload,
 )
@@ -26,10 +27,9 @@ from fickling.exception import ExpansionAttackError, ResourceExhaustionError, Wr
 T = TypeVar("T")
 
 if sys.version_info < (3, 12):
-    from typing_extensions import Buffer, Self
+    from typing_extensions import Buffer
 else:
     from collections.abc import Buffer
-    from typing import Self
 
 
 @dataclass(frozen=True)

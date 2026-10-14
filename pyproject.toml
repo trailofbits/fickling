@@ -16,16 +16,16 @@ classifiers = [
   "Intended Audience :: Science/Research",
   "License :: OSI Approved :: GNU Lesser General Public License v3 or later (LGPLv3+)",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Security",
   "Topic :: Software Development :: Testing",
   "Topic :: Utilities",
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
   "typing-extensions >= 4.6.0; python_version < '3.12'",
 ]
@@ -34,8 +34,7 @@ dependencies = [
 torch = [
     "torch >= 2.1.0",
     "torchvision >= 0.24.1",
-    "numpy >= 2.2.6, < 2.3; python_version == '3.10'",
-    "numpy >= 2.3.5; python_version >= '3.11'",
+    "numpy >= 2.3.5",
 ]
 lint = [
   "ruff >= 0.16.0",
@@ -68,6 +67,9 @@ Homepage = "https://pypi.org/project/fickling"
 Issues = "https://github.com/trailofbits/fickling/issues"
 Source = "https://github.com/trailofbits/fickling"
 
+[tool.uv]
+exclude-newer = "1 week"
+
 # Black configuration removed - using ruff format instead
 
 [tool.coverage.run]
@@ -78,6 +80,9 @@ omit = ["fickling/__main__.py", "fickling/cli.py"]
 # ty uses src layout detection automatically
 # Most mypy options don't have direct equivalents yet
 # See: https://docs.astral.sh/ty/configuration/
+
+[tool.ty.environment]
+python-version = "3.11"
 
 [tool.hatch.version]
 path = "fickling/__init__.py"
@@ -98,7 +103,7 @@ packages = ["fickling"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 # Only prefixes whose rules the defaults do not already cover in full are listed.
