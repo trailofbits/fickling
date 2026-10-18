@@ -2017,10 +2017,14 @@ class NewObjEx(Opcode):
         class_type = interpreter.stack.pop()
         # CPython's NEWOBJ_EX calls cls.__new__(cls, *args, **kwargs), not cls(*args, **kwargs).
         func = ast.Attribute(class_type, "__new__", ast.Load())
+        # `kwargs` is an AST expression (usually a dict display); ast.Call.keywords needs keyword nodes
+        keywords = (
+            [] if isinstance(kwargs, ast.Dict) and not kwargs.keys else [ast.keyword(None, kwargs)]
+        )
         if isinstance(args, ast.Tuple):
-            call = ast.Call(func, [class_type, *list(args.elts)], kwargs)
+            call = ast.Call(func, [class_type, *list(args.elts)], keywords)
         else:
-            call = ast.Call(func, [class_type, ast.Starred(args)], kwargs)
+            call = ast.Call(func, [class_type, ast.Starred(args)], keywords)
         # Persist the call to the AST via new_variable() so it remains visible
         # to safety analysis even if the stack value is discarded by POP.
         var_name = interpreter.new_variable(call)
@@ -2043,6 +2047,15 @@ class BinPersId(Opcode):
 
 class PersId(Opcode):
     name = "PERSID"
+
+    def run(self, interpreter: Interpreter):
+        interpreter.stack.append(
+            ast.Call(
+                ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load", ast.Load()),
+                [ast.Constant(self.arg)],
+                [],
+            )
+        )
 
 
 class NoneOpcode(Opcode):
