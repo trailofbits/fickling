@@ -67,6 +67,15 @@ Homepage = "https://pypi.org/project/fickling"
 Issues = "https://github.com/trailofbits/fickling/issues"
 Source = "https://github.com/trailofbits/fickling"
 
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.uv]
 exclude-newer = "1 week"
 
