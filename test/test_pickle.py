@@ -1,3 +1,5 @@
+import ast
+import io
 import pickle
 from ast import unparse
 from contextlib import redirect_stdout
@@ -491,3 +493,37 @@ class TestInterpreter(TestCase):
             self.assertEqual(result, real_result)
         finally:
             copyreg.remove_extension("os.path", "join", 200)
+
+
+class TestUnimplementedOpcodeRegression(TestCase):
+    """Regression tests: these four standard opcodes previously raised
+    NotImplementedError at load time, crashing the security analysis on benign
+    pickles (a float in a legacy protocol-0 file; a bytearray or out-of-band
+    buffer in a protocol-5 file)."""
+
+    def test_float_proto0(self):
+        pickled = Pickled.load(io.BytesIO(dumps(1.5, protocol=0)))
+        self.assertEqual(1.5, get_result(pickled))
+
+    def test_bytearray8_proto5(self):
+        pickled = Pickled.load(io.BytesIO(dumps(bytearray(b"hi"), protocol=5)))
+        constants = [n.value for n in ast.walk(pickled.ast) if isinstance(n, ast.Constant)]
+        self.assertIn(bytearray(b"hi"), constants)
+
+    def test_next_buffer_and_readonly_buffer_do_not_crash(self):
+        # PROTO 5, NEXT_BUFFER, READONLY_BUFFER, STOP: an out-of-band buffer's
+        # opcode sequence (the buffer contents live outside the stream).
+        stream = b"\x80\x05\x97\x98."
+        pickled = Pickled.load(io.BytesIO(stream))
+        names = [n.id for n in ast.walk(pickled.ast) if isinstance(n, ast.Name)]
+        self.assertIn("out_of_band_buffer", names)
+        check_safety(pickled)
+
+    def test_load_never_raises_notimplementederror(self):
+        for stream in (
+            dumps(1.5, protocol=0),
+            dumps(bytearray(b"hi"), protocol=5),
+            b"\x80\x05\x97\x98.",
+        ):
+            with self.subTest(stream=stream):
+                Pickled.load(io.BytesIO(stream))
