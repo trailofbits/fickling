@@ -148,6 +148,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "tempfile",
         "filecmp",
         "distutils",
+        "mailbox",  # Mailbox APIs can read/write arbitrary files
         # Shell/terminal
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
@@ -196,6 +197,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Archive manipulation (can create/extract files)
         "tarfile",
         "zipfile",
+        "lzma",
+        "compression",  # Compression file APIs, including compression.zstd (3.14+)
         # Shelve (opens database files)
         "shelve",
         # Stdlib modules with hidden subprocess/os.system calls
