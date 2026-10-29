@@ -87,6 +87,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "exec",
         "eval",
         "doctest",
+        "dataclasses",  # Internal helpers compile and execute generated code
         # Subinterpreters (execute arbitrary code in a fresh interpreter)
         "_interpreters",  # 3.13+
         "_xxsubinterpreters",  # <=3.12
@@ -151,6 +152,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
         "pipes",  # pipes.Template runs shell commands; removed in 3.13
+        "readline",  # History functions can read/write arbitrary files
+        "mailcap",  # findmatch executes shell commands; removed in 3.13
         # Virtual environments (can install packages)
         "venv",
         "ensurepip",
