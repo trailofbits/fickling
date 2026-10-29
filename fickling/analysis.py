@@ -349,10 +349,12 @@ class UnsafeImportsML(Analysis):
         "_io": {
             "FileIO": "This class can read/write arbitrary files.",
             "open": "This function can open arbitrary files.",
+            "open_code": "This function returns a readable stream for arbitrary files.",
         },
         "io": {
             "FileIO": "This class can read/write arbitrary files.",
             "open": "This function can open arbitrary files.",
+            "open_code": "This function returns a readable stream for arbitrary files.",
         },
     }
 
