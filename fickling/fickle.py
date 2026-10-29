@@ -138,6 +138,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Pickle recursion (nested pickle attacks)
         "pickle",
         "_pickle",
+        "tracemalloc",  # Snapshot.load unpickles arbitrary files
         "dill",
         "cloudpickle",
         "joblib",
