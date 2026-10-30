@@ -182,6 +182,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "glob",
         "platform",
         "linecache",
+        "traceback",  # StackSummary reads file lines through linecache
         "difflib",
         # Code compilation (writes .pyc files)
         "compileall",
