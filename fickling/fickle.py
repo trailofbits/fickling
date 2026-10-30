@@ -167,6 +167,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "lib2to3",
         # Network services (constructors bind/listen)
         "socketserver",
+        "smtpd",  # SMTPServer binds a socket; PureProxy relays messages (<=3.11)
         "xmlrpc",
         # Process/thread control
         "signal",
