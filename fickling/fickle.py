@@ -69,6 +69,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "builtins",
         # System/process execution
         "os",
+        "argparse",  # _os.system is reachable through dotted pickle globals
         "posix",
         "nt",
         "subprocess",
