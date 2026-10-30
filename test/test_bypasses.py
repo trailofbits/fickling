@@ -754,11 +754,8 @@ class TestBypasses(TestCase):
                 )
                 self.assertGreaterEqual(res.severity, Severity.LIKELY_OVERTLY_MALICIOUS)
 
-    # `_codecs.encode` and `__future__` are the only private/dunder stdlib shapes
-    # kept off NonStandardImports: numpy emits `_codecs.encode(data, 'latin1')`
-    # when reconstructing arrays, and `__future__` exposes only inert feature
-    # flags. Detection of non-allowlisted private modules is covered by
-    # test_operator_methodcaller and test_private_stdlib_interpreters_blocklisted.
+    # Known serialization helpers are exempt from the private-name rule. NumPy
+    # emits `_codecs.encode(data, 'latin1')` when reconstructing older arrays.
     def test_private_stdlib_allowlist(self):
         def import_global(module, name):
             return Pickled(
@@ -771,13 +768,32 @@ class TestBypasses(TestCase):
                 ]
             )
 
-        for module, name in (("_codecs", "encode"), ("__future__", "annotations")):
+        for module, name in (
+            ("_codecs", "encode"),
+            ("_io", "BytesIO"),
+            ("copyreg", "_reconstructor"),
+            ("__future__", "annotations"),
+        ):
             with self.subTest(allowed=f"{module}.{name}"):
                 res = check_safety(import_global(module, name))
                 self.assertNotIn(
                     "NonStandardImports", res.detailed_results().get("AnalysisResult", {})
                 )
                 self.assertEqual(res.severity, Severity.LIKELY_SAFE)
+
+        for module, name in (
+            ("argparse", "_os"),
+            ("argparse", "_os.system"),
+            ("uuid", "_get_command_stdout"),
+            ("builtins", "__import__"),
+        ):
+            with self.subTest(blocked=f"{module}.{name}"):
+                res = check_safety(import_global(module, name))
+                self.assertEqual(
+                    res.detailed_results()["AnalysisResult"].get("NonStandardImports"),
+                    f"from {module} import {name}",
+                )
+                self.assertGreater(res.severity, Severity.LIKELY_SAFE)
 
         # Anti-widening: a dotted name under an allowlisted module is not allowlisted.
         res = check_safety(import_global("__future__", "_ssl.RAND_bytes"))

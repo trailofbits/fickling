@@ -269,7 +269,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
                 # Entries written by zipfile.writestr carry permission bits
                 # without file-type bits (mode == 0o600, S_ISREG false) — skip
                 # only entries whose type bits name a non-regular type.
-                if mode & stat.S_IFMT(mode) and not stat.S_ISREG(mode):
+                if stat.S_IFMT(mode) not in (0, stat.S_IFREG):
                     continue
                 _tempfile = tempfile.NamedTemporaryFile(delete=False)
                 try:
