@@ -3,13 +3,13 @@ from __future__ import annotations
 import sys
 from argparse import ArgumentParser
 from ast import unparse
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from . import __version__, fickle, tracing
 from .analysis import Severity, check_safety
 from .constants import EXIT_CLEAN, EXIT_ERROR, EXIT_UNSAFE
 from .exception import ResourceExhaustionError
-from .loader import scan_file, scan_zip_archive
+from .loader import ScanResult, scan_file, scan_zip_archive
 
 HF_RAW_PICKLE_EXTENSIONS = frozenset({".bin", ".pkl", ".pickle"})
 HF_ZIP_PICKLE_EXTENSIONS = frozenset({".pt", ".pth"})
@@ -41,6 +41,7 @@ def _scan_huggingface(
         from huggingface_hub import HfApi, hf_hub_download
 
         from .polyglot import find_file_properties
+        from .pytorch import PyTorchModelWrapper
     except ImportError:
         sys.stderr.write(
             "Error: huggingface_hub and torch are required for --huggingface scanning.\n"
@@ -101,6 +102,29 @@ def _scan_huggingface(
                 local_path, graceful=True, json_output_path=json_output
             )
             file_results = list(member_results.values())
+            if props["is_torch_zip"] and ext in HF_ZIP_PICKLE_EXTENSIONS:
+                try:
+                    analysis = check_safety(
+                        PyTorchModelWrapper(Path(local_path)).pickled,
+                        json_output_path=json_output,
+                    )
+                    file_results.append(
+                        ScanResult(
+                            filepath=f"{filename}:data.pkl",
+                            severity=analysis.severity,
+                            results=[analysis],
+                            errors=[],
+                        )
+                    )
+                except Exception as e:  # noqa: BLE001 -- report PyTorch parser failures
+                    file_results.append(
+                        ScanResult(
+                            filepath=filename,
+                            severity=Severity.SUSPICIOUS,
+                            results=[],
+                            errors=[f"PyTorch archive error ({type(e).__name__}): {e!s}"],
+                        )
+                    )
         elif props["is_valid_pickle"] or ext in HF_RAW_PICKLE_EXTENSIONS:
             if print_results:
                 print(f"\n  Scanning: {filename}")

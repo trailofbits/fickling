@@ -175,8 +175,12 @@ def scan_zip_archive(
     """Scan a ZIP archive for malicious raw pickle content.
 
     Scans each file within the archive that has a raw pickle-related extension
-    (.pkl, .pickle, .bin). Only ZIP archives are supported;
-    for TAR or 7z archives, see fickling.polyglot.
+    (.pkl, .pickle, .bin).
+
+    This uses Python's zipfile parser, so use it for archives that will also be
+    read with zipfile. For PyTorch checkpoints, use PyTorchModelWrapper instead.
+
+    Only ZIP archives are supported; for TAR or 7z archives, see fickling.polyglot.
 
     Args:
         filepath: Path to the ZIP archive to scan
