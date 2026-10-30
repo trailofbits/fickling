@@ -282,10 +282,9 @@ class NonStandardImports(Analysis):
             (
                 context.pickled.private_stdlib_imports(),
                 (
-                    "imports a private, underscore-prefixed module of the Python "
-                    "standard library; these are internal implementation details not "
-                    "intended for direct use and never appear in legitimate pickles, "
-                    "so this is treated as unsafe"
+                    "imports a private, underscore-prefixed name from the Python "
+                    "standard library; private modules and attributes can expose "
+                    "unsafe implementation details, so this is treated as unsafe"
                 ),
             ),
         )

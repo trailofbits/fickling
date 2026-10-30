@@ -279,6 +279,7 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
 
 
 # Exact (module, name) private-stdlib imports that legitimate serializers emit.
+# The ML allowlist supplies additional exact-name exceptions at analysis time.
 PRIVATE_STDLIB_IMPORT_ALLOWLIST: frozenset[tuple[str, str]] = frozenset({("_codecs", "encode")})
 
 # Whole underscore-prefixed stdlib modules that any name may be imported from.
@@ -317,11 +318,35 @@ def _is_allowed_private_import(node: ast.Import | ast.ImportFrom) -> bool:
     # (`_codecs.encode.<x>`, `__future__._ssl.<x>`) never match.
     if not isinstance(node, ast.ImportFrom) or node.module is None or len(node.names) != 1:
         return False
+    if not is_std_module(node.module):
+        return False
     name = node.names[0].name
     # A whole-module allowlist entry permits any simple (non-dotted) name.
     if node.module in PRIVATE_STDLIB_MODULE_ALLOWLIST and "." not in name:
         return True
-    return (node.module, name) in PRIVATE_STDLIB_IMPORT_ALLOWLIST
+    if (node.module, name) in PRIVATE_STDLIB_IMPORT_ALLOWLIST:
+        return True
+    if "." in name:
+        return False
+    from fickling.ml import ML_ALLOWLIST
+
+    return name in ML_ALLOWLIST.get(node.module, {})
+
+
+def _has_private_stdlib_import(node: ast.Import | ast.ImportFrom) -> bool:
+    if _is_allowed_private_import(node):
+        return False
+    components = tuple(import_name_components(node))
+    if any(is_private_or_dunder_stdlib_module(c) for c in components):
+        return True
+    if isinstance(node, ast.ImportFrom):
+        return bool(node.module and is_std_module(node.module)) and any(
+            c.startswith("_") for c in components
+        )
+    return any(
+        is_std_module(alias.name) and any(c.startswith("_") for c in alias.name.split("."))
+        for alias in node.names
+    )
 
 
 def extract_identifier_from_ast_node(
@@ -699,18 +724,12 @@ class ASTProperties(ast.NodeVisitor):
             isinstance(node, ast.ImportFrom)
             and node.module is not None
             and is_std_module(node.module)
-            and (
-                not any(is_private_or_dunder_stdlib_module(c) for c in node.module.split("."))
-                or _is_allowed_private_import(node)
-            )
+            and not _has_private_stdlib_import(node)
         ):
             self.likely_safe_imports |= {
                 n.name
                 for n in node.names
-                if not any(
-                    c in UNSAFE_IMPORTS or is_private_or_dunder_stdlib_module(c)
-                    for c in n.name.split(".")
-                )
+                if not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
             }
 
     def visit_Import(self, node: ast.Import):
@@ -1349,9 +1368,7 @@ on the Pickled object instead"""
 
     def private_stdlib_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if _is_allowed_private_import(node):
-                continue
-            if any(is_private_or_dunder_stdlib_module(c) for c in import_name_components(node)):
+            if _has_private_stdlib_import(node):
                 yield node
 
     @property
