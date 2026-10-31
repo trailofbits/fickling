@@ -211,6 +211,54 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
     ]
 )
 
+# Exact targets for modules that also contain commonly serialized, benign objects.
+# Dotted names are resolved as attribute paths by protocol 4+ unpicklers.
+UNSAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("typing", "get_type_hints"),
+        ("typing", "evaluate_forward_ref"),  # Python 3.15+
+        ("typing", "ForwardRef.evaluate"),  # Python 3.15+
+        ("annotationlib", "ForwardRef.evaluate"),  # Python 3.15+
+        ("xml.etree.ElementTree", "parse"),
+        ("xml.etree.ElementTree", "iterparse"),
+        ("xml.etree.ElementTree", "ElementTree.parse"),
+        ("xml.etree.ElementTree", "ElementTree.write"),
+        ("xml.etree.ElementTree", "ElementTree.write_c14n"),
+    }
+    | {
+        ("configparser", f"{parser}.read")
+        for parser in ("RawConfigParser", "ConfigParser", "SafeConfigParser")
+    }
+    | {
+        ("pathlib", f"{path_class}.{method}")
+        for path_class in ("Path", "PosixPath", "WindowsPath")
+        for method in (
+            "open",
+            "read_bytes",
+            "read_text",
+            "write_bytes",
+            "write_text",
+            "touch",
+            "mkdir",
+            "unlink",
+            "rmdir",
+            "rename",
+            "replace",
+            "chmod",
+            "lchmod",
+            "symlink_to",
+            "hardlink_to",
+            "copy",  # Python 3.15+
+            "copy_into",  # Python 3.15+
+            "move",  # Python 3.15+
+            "move_into",  # Python 3.15+
+        )
+    }
+)
+UNSAFE_GLOBAL_PATHS: frozenset[str] = frozenset(
+    f"{module}.{name}" for module, name in UNSAFE_GLOBALS
+)
+
 BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(["builtins", "__builtins__", "__builtin__"])
 
 # Builtins that are safe to import - pure functions and type constructors
@@ -311,6 +359,13 @@ def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
         yield from node.module.split(".")
     for alias in node.names:
         yield from alias.name.split(".")
+
+
+def _is_unsafe_global(module: str, name: str) -> bool:
+    # A package and its submodule can be split differently across the two
+    # find_class() arguments (e.g. xml.etree + ElementTree.parse). Compare the
+    # combined path so all such spellings get the same classification.
+    return f"{module}.{name}" in UNSAFE_GLOBAL_PATHS
 
 
 def _is_allowed_private_import(node: ast.Import | ast.ImportFrom) -> bool:
@@ -725,11 +780,13 @@ class ASTProperties(ast.NodeVisitor):
             and node.module is not None
             and is_std_module(node.module)
             and not _has_private_stdlib_import(node)
+            and not any(c in UNSAFE_IMPORTS for c in node.module.split("."))
         ):
             self.likely_safe_imports |= {
                 n.name
                 for n in node.names
-                if not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
+                if not _is_unsafe_global(node.module, n.name)
+                and not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
             }
 
     def visit_Import(self, node: ast.Import):
@@ -1350,8 +1407,13 @@ on the Pickled object instead"""
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
             unsafe_module = any(c in UNSAFE_IMPORTS for c in import_name_components(node))
+            unsafe_global = (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and any(_is_unsafe_global(node.module, n.name) for n in node.names)
+            )
             imports_eval = "eval" in (n.name for n in node.names)
-            if unsafe_module or imports_eval:
+            if unsafe_module or unsafe_global or imports_eval:
                 yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
