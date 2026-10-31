@@ -952,6 +952,10 @@ class TestStdlibGadgetCoverage(TestCase):
         self.assertNotIn("Path.write_text", pickled.properties.likely_safe_imports)
         self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
 
+    def test_unsafe_module_is_blocked(self):
+        pickled = self.stack_global_call("gzip", "GzipFile")
+        self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
     def test_global_opcode_uses_exact_target_rule(self):
         pickled = Pickled(
             [

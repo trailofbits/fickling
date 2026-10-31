@@ -70,6 +70,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # System/process execution
         "os",
         "argparse",  # _os.system is reachable through dotted pickle globals
+        "optparse",  # Values.read_file executes Python source from a file
+        "tkinter",  # Tcl/Tk profile loading can execute Python and Tcl scripts
         "posix",
         "nt",
         "subprocess",
@@ -124,6 +126,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "http",
         "urllib",
         "urllib2",
+        "sax",  # XML SAX loaders can open attacker-controlled URLs
+        "xmlbuilder",  # DOM entity resolution can open attacker-controlled URLs
         "requests",
         "aiohttp",
         "asyncio",  # Can run arbitrary coroutines
@@ -148,6 +152,18 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "shutil",
         "tempfile",
         "filecmp",
+        "gzip",
+        "bz2",
+        "netrc",  # Parses credentials from attacker-chosen files
+        "zipapp",  # Copies source files to attacker-chosen destinations
+        "wave",  # Reader/writer constructors open attacker-chosen files
+        "pstats",  # Stats.dump_stats writes attacker-chosen files
+        "uu",  # Legacy encode/decode functions read and write files
+        "ElementInclude",  # XML inclusion loader reads attacker-chosen files
+        "minidom",  # XML parser reads attacker-chosen files
+        "expatbuilder",  # XML parser reads attacker-chosen files
+        "mimetypes",  # MIME table readers open attacker-chosen files
+        "shlex",  # sourcehook opens attacker-chosen files
         "distutils",
         "mailbox",  # Mailbox APIs can read/write arbitrary files
         # Shell/terminal
