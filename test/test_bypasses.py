@@ -930,3 +930,63 @@ class TestUnsafeModuleCoverage(TestCase):
                         Severity.LIKELY_SAFE,
                         f"{module}.{func} was not flagged as unsafe",
                     )
+
+
+class TestStdlibGadgetCoverage(TestCase):
+    @staticmethod
+    def stack_global_call(module: str, name: str) -> Pickled:
+        return Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode(module),
+                op.ShortBinUnicode(name),
+                op.StackGlobal(),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+
+    def test_dotted_qualname_is_blocked(self):
+        pickled = self.stack_global_call("pathlib", "Path.write_text")
+        self.assertNotIn("Path.write_text", pickled.properties.likely_safe_imports)
+        self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
+    def test_unsafe_module_is_blocked(self):
+        pickled = self.stack_global_call("gzip", "GzipFile")
+        self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
+    def test_global_opcode_uses_exact_target_rule(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.Global.create("pathlib", "Path.write_text"),
+                op.EmptyTuple(),
+                op.Reduce(),
+                op.Stop(),
+            ]
+        )
+        self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+
+    def test_split_package_global_resolves_and_is_blocked(self):
+        pickled = Pickled(
+            [
+                op.Proto.create(4),
+                op.ShortBinUnicode("xml.etree.ElementTree"),
+                op.ShortBinUnicode("Element"),
+                op.StackGlobal(),
+                op.ShortBinUnicode("xml.etree"),
+                op.ShortBinUnicode("ElementTree.parse"),
+                op.StackGlobal(),
+                op.TupleTwo(),
+                op.Stop(),
+            ]
+        )
+        self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
+        resolved = pickle.loads(pickled.dumps())
+        self.assertEqual(resolved[1].__module__, "xml.etree.ElementTree")
+        self.assertEqual(resolved[1].__name__, "parse")
+
+    def test_benign_neighbor_remains_allowed(self):
+        pickled = self.stack_global_call("pathlib", "Path")
+        self.assertEqual(check_safety(pickled).severity, Severity.LIKELY_SAFE)
