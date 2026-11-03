@@ -510,6 +510,21 @@ class TestUnimplementedOpcodeRegression(TestCase):
         constants = [n.value for n in ast.walk(pickled.ast) if isinstance(n, ast.Constant)]
         self.assertIn(bytearray(b"hi"), constants)
 
+    def test_bytearray8_construction_encodes_roundtrip(self):
+        """A bytearray must be constructible through ConstantOpcode.new(), encode
+        as BYTEARRAY8, and unpickle back to the same bytearray value.
+
+        ByteArray8 required a bytearray while its BinBytes8 parent validated bytes,
+        so this path had no satisfiable type: ConstantOpcode.new(bytearray(...))
+        failed before it could encode anything.
+        """
+        value = bytearray(b"hi")
+        opcode = fpickle.ConstantOpcode.new(value)
+
+        self.assertIsInstance(opcode, fpickle.ByteArray8)
+        stream = fpickle.Proto.create(5).encode() + opcode.encode() + fpickle.Stop().encode()
+        self.assertEqual(loads(stream), value)
+
     def test_next_buffer_and_readonly_buffer_do_not_crash(self):
         # PROTO 5, NEXT_BUFFER, READONLY_BUFFER, STOP: an out-of-band buffer's
         # opcode sequence (the buffer contents live outside the stream).

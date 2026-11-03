@@ -2348,15 +2348,19 @@ class ShortBinBytes(DynamicLength, ConstantOpcode):
     name = "SHORT_BINBYTES"
     priority = Unicode.priority + 1
     length_bytes = 1
+    # The value type is a class attribute so subclasses that push a different
+    # constant type (BYTEARRAY8) share this validation instead of contradicting it.
+    value_type: type = bytes
 
     def encode_body(self) -> bytes:
         return self.arg
 
     @classmethod
     def validate(cls, obj):
-        if not isinstance(obj, bytes):
+        if not isinstance(obj, cls.value_type):
             raise ValueError(
-                f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}"
+                f"{cls.__name__} must be instantiated with an object of type "
+                f"{cls.value_type.__name__}, not {obj!r}"
             )
         return super().validate(obj)
 
@@ -2407,17 +2411,10 @@ class BinBytes8(BinBytes):
 class ByteArray8(BinBytes8):
     name = "BYTEARRAY8"
     priority = BinBytes8.priority + 1
+    value_type = bytearray
 
     def encode_body(self) -> bytes:
         return bytes(self.arg)
-
-    @classmethod
-    def validate(cls, obj):
-        if not isinstance(obj, bytearray):
-            raise ValueError(
-                f"{cls.__name__} must be instantiated with an object of type bytearray, not {obj!r}"
-            )
-        return super().validate(obj)
 
 
 class Long1(ConstantInt):
