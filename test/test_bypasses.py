@@ -10,6 +10,37 @@ from fickling.ml import MLAllowlist
 
 
 class TestBypasses(TestCase):
+    def test_unsafe_low_level_stdlib_calls(self):
+        """Reject unsafe OS, terminal, and resource-control calls."""
+        for module, function in (
+            ("fcntl", "ioctl"),
+            ("termios", "tcsetattr"),
+            ("resource", "setrlimit"),
+            ("msvcrt", "putch"),
+        ):
+            with self.subTest(module=module, function=function):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.ShortBinUnicode(module),
+                        op.ShortBinUnicode(function),
+                        op.StackGlobal(),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+
+                result = check_safety(pickled)
+                self.assertEqual(
+                    result.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+                    f"from {module} import {function}",
+                )
+                self.assertGreater(
+                    result.severity,
+                    Severity.LIKELY_SAFE,
+                )
+
     # https://github.com/trailofbits/fickling/security/advisories/GHSA-r7v6-mfhq-g3m2
     def test_missing_pty_unsafe_imports_ghsa(self):
         pickled = Pickled(

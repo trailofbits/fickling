@@ -194,6 +194,11 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "threading",
         "_thread",
         "atexit",
+        # Low-level OS, terminal, and resource control
+        "fcntl",  # File descriptor operations and ioctl syscalls
+        "termios",  # Terminal attribute and control operations
+        "resource",  # Process resource limits
+        "msvcrt",  # Windows CRT file descriptor and console operations
         # Database/file creation
         "sqlite3",
         "_sqlite3",
