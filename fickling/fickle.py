@@ -2096,13 +2096,14 @@ class ReadOnlyBuffer(Opcode):
         )
         setattr(readonly_call, _READONLY_BUFFER_CALL, True)
         # CPython leaves an already read-only buffer unchanged, including its type.
-        interpreter.stack.append(
+        result_name = interpreter.new_variable(
             ast.IfExp(
                 ast.Attribute(ast.Name(view_name, ast.Load()), "readonly", ast.Load()),
                 ast.Name(buffer_name, ast.Load()),
                 readonly_call,
             )
         )
+        interpreter.stack.append(ast.Name(result_name, ast.Load()))
 
 
 class Tuple(StackSliceOpcode):

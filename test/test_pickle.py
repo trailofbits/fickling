@@ -520,15 +520,24 @@ def test_readonly_buffer_matches_pickle_loads(value):
     # Protocol 3 encodes bytearray through its public built-in constructor,
     # without relying on the separately implemented BYTEARRAY8 opcode.
     encoded = dumps(value, protocol=3)
-    stream = fpickle.Proto.create(5).encode() + encoded[2:-1] + pickle.READONLY_BUFFER + pickle.STOP
+    stream = (
+        fpickle.Proto.create(5).encode()
+        + encoded[2:-1]
+        + pickle.READONLY_BUFFER
+        + pickle.DUP
+        + pickle.TUPLE2
+        + pickle.STOP
+    )
     expected = loads(stream)
 
     pickled = Pickled.load(stream)
     result = get_result(pickled)
 
-    assert type(result) is type(expected)
-    assert result == expected
-    assert memoryview(result).readonly == memoryview(expected).readonly
+    for item, expected_item in zip(result, expected, strict=True):
+        assert type(item) is type(expected_item)
+        assert item == expected_item
+        assert memoryview(item).readonly == memoryview(expected_item).readonly
+    assert (result[0] is result[1]) == (expected[0] is expected[1])
     assert check_safety(pickled).severity == Severity.LIKELY_SAFE
 
 
