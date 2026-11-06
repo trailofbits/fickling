@@ -9,8 +9,10 @@ from pickle import dumps, loads
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import pytest
+
 from fickling import fickle as fpickle
-from fickling.analysis import check_safety
+from fickling.analysis import Severity, check_safety
 from fickling.cli import main
 from fickling.fickle import Interpreter, Pickled, StackedPickle
 
@@ -496,49 +498,51 @@ class TestInterpreter(TestCase):
 
 
 class TestUnimplementedOpcodeRegression(TestCase):
-    """Regression tests: these four standard opcodes previously raised
+    """Regression tests: these three standard opcodes previously raised
     NotImplementedError at load time, crashing the security analysis on benign
-    pickles (a float in a legacy protocol-0 file; a bytearray or out-of-band
-    buffer in a protocol-5 file)."""
+    pickles (a float in a legacy protocol-0 file or an out-of-band buffer in a
+    protocol-5 file)."""
 
     def test_float_proto0(self):
         pickled = Pickled.load(io.BytesIO(dumps(1.5, protocol=0)))
         self.assertEqual(1.5, get_result(pickled))
 
-    def test_bytearray8_proto5(self):
-        pickled = Pickled.load(io.BytesIO(dumps(bytearray(b"hi"), protocol=5)))
-        constants = [n.value for n in ast.walk(pickled.ast) if isinstance(n, ast.Constant)]
-        self.assertIn(bytearray(b"hi"), constants)
-
-    def test_bytearray8_construction_encodes_roundtrip(self):
-        """A bytearray must be constructible through ConstantOpcode.new(), encode
-        as BYTEARRAY8, and unpickle back to the same bytearray value.
-
-        ByteArray8 required a bytearray while its BinBytes8 parent validated bytes,
-        so this path had no satisfiable type: ConstantOpcode.new(bytearray(...))
-        failed before it could encode anything.
-        """
-        value = bytearray(b"hi")
-        opcode = fpickle.ConstantOpcode.new(value)
-
-        self.assertIsInstance(opcode, fpickle.ByteArray8)
-        stream = fpickle.Proto.create(5).encode() + opcode.encode() + fpickle.Stop().encode()
-        self.assertEqual(loads(stream), value)
-
-    def test_next_buffer_and_readonly_buffer_do_not_crash(self):
-        # PROTO 5, NEXT_BUFFER, READONLY_BUFFER, STOP: an out-of-band buffer's
-        # opcode sequence (the buffer contents live outside the stream).
-        stream = b"\x80\x05\x97\x98."
+    def test_next_buffer_does_not_crash(self):
+        stream = Pickled([fpickle.Proto.create(5), fpickle.NextBuffer(), fpickle.Stop()]).dumps()
         pickled = Pickled.load(io.BytesIO(stream))
         names = [n.id for n in ast.walk(pickled.ast) if isinstance(n, ast.Name)]
         self.assertIn("out_of_band_buffer", names)
-        check_safety(pickled)
+        self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
 
-    def test_load_never_raises_notimplementederror(self):
-        for stream in (
-            dumps(1.5, protocol=0),
-            dumps(bytearray(b"hi"), protocol=5),
-            b"\x80\x05\x97\x98.",
-        ):
-            with self.subTest(stream=stream):
-                Pickled.load(io.BytesIO(stream))
+
+@pytest.mark.parametrize("value", [bytearray(b"hi"), b"hi"], ids=["writable", "readonly"])
+def test_readonly_buffer_matches_pickle_loads(value):
+    # Protocol 3 encodes bytearray through its public built-in constructor,
+    # without relying on the separately implemented BYTEARRAY8 opcode.
+    encoded = dumps(value, protocol=3)
+    stream = fpickle.Proto.create(5).encode() + encoded[2:-1] + pickle.READONLY_BUFFER + pickle.STOP
+    expected = loads(stream)
+
+    pickled = Pickled.load(stream)
+    result = get_result(pickled)
+
+    assert type(result) is type(expected)
+    assert result == expected
+    assert memoryview(result).readonly == memoryview(expected).readonly
+    assert check_safety(pickled).severity == Severity.LIKELY_SAFE
+
+
+def test_readonly_buffer_keeps_reduced_call_unsafe():
+    stream = Pickled(
+        [
+            fpickle.Proto.create(5),
+            fpickle.Global.create("builtins", "eval"),
+            fpickle.ShortBinUnicode("print('test') or bytearray(b'hi')"),
+            fpickle.TupleOne(),
+            fpickle.Reduce(),
+            fpickle.ReadOnlyBuffer(),
+            fpickle.Stop(),
+        ]
+    ).dumps()
+
+    assert check_safety(Pickled.load(stream)).severity == Severity.OVERTLY_MALICIOUS

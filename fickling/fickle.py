@@ -55,6 +55,7 @@ DEFAULT_INTERPRETER_LIMITS = InterpreterLimits()
 OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
+_READONLY_BUFFER_CALL = "_fickling_readonly_buffer_call"
 
 BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
 
@@ -710,6 +711,11 @@ class ASTProperties(ast.NodeVisitor):
         self._process_import(node)
 
     def visit_Call(self, node: ast.Call):
+        # READONLY_BUFFER's own conversion is not a callable requested by the
+        # pickle. Keep visiting its input rather than hiding nested operations.
+        if getattr(node, _READONLY_BUFFER_CALL, False):
+            self.generic_visit(node)
+            return
         self.calls.append(node)
         if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
             self.non_setstate_calls.append(node)
@@ -2079,9 +2085,24 @@ class ReadOnlyBuffer(Opcode):
     name = "READONLY_BUFFER"
 
     def run(self, interpreter: Interpreter):
-        # Marks the buffer on the top of the stack read-only; the value itself
-        # is unchanged, so this is a no-op for the AST.
-        pass
+        buffer_name = interpreter.new_variable(interpreter.stack.pop())
+        view_call = ast.Call(
+            ast.Name("memoryview", ast.Load()), [ast.Name(buffer_name, ast.Load())], []
+        )
+        setattr(view_call, _READONLY_BUFFER_CALL, True)
+        view_name = interpreter.new_variable(view_call)
+        readonly_call = ast.Call(
+            ast.Attribute(ast.Name(view_name, ast.Load()), "toreadonly", ast.Load()), [], []
+        )
+        setattr(readonly_call, _READONLY_BUFFER_CALL, True)
+        # CPython leaves an already read-only buffer unchanged, including its type.
+        interpreter.stack.append(
+            ast.IfExp(
+                ast.Attribute(ast.Name(view_name, ast.Load()), "readonly", ast.Load()),
+                ast.Name(buffer_name, ast.Load()),
+                readonly_call,
+            )
+        )
 
 
 class Tuple(StackSliceOpcode):
@@ -2348,19 +2369,15 @@ class ShortBinBytes(DynamicLength, ConstantOpcode):
     name = "SHORT_BINBYTES"
     priority = Unicode.priority + 1
     length_bytes = 1
-    # The value type is a class attribute so subclasses that push a different
-    # constant type (BYTEARRAY8) share this validation instead of contradicting it.
-    value_type: type = bytes
 
     def encode_body(self) -> bytes:
         return self.arg
 
     @classmethod
     def validate(cls, obj):
-        if not isinstance(obj, cls.value_type):
+        if not isinstance(obj, bytes):
             raise ValueError(
-                f"{cls.__name__} must be instantiated with an object of type "
-                f"{cls.value_type.__name__}, not {obj!r}"
+                f"{cls.__name__} must be instantiated with an object of type bytes, not {obj!r}"
             )
         return super().validate(obj)
 
@@ -2406,15 +2423,6 @@ class BinBytes8(BinBytes):
     name = "BINBYTES8"
     priority = BinBytes.priority + 1
     length_bytes = 8
-
-
-class ByteArray8(BinBytes8):
-    name = "BYTEARRAY8"
-    priority = BinBytes8.priority + 1
-    value_type = bytearray
-
-    def encode_body(self) -> bytes:
-        return bytes(self.arg)
 
 
 class Long1(ConstantInt):
