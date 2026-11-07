@@ -194,11 +194,6 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "threading",
         "_thread",
         "atexit",
-        # Low-level OS, terminal, and resource control
-        "fcntl",  # File descriptor operations and ioctl syscalls
-        "termios",  # Terminal attribute and control operations
-        "resource",  # Process resource limits
-        "msvcrt",  # Windows CRT file descriptor and console operations
         # Database/file creation
         "sqlite3",
         "_sqlite3",
@@ -247,6 +242,29 @@ UNSAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
         ("xml.etree.ElementTree", "ElementTree.parse"),
         ("xml.etree.ElementTree", "ElementTree.write"),
         ("xml.etree.ElementTree", "ElementTree.write_c14n"),
+        ("fcntl", "fcntl"),
+        ("fcntl", "ioctl"),
+        ("fcntl", "flock"),
+        ("fcntl", "lockf"),
+        ("termios", "tcsetattr"),
+        ("termios", "tcsendbreak"),
+        ("termios", "tcdrain"),
+        ("termios", "tcflush"),
+        ("termios", "tcflow"),
+        ("termios", "tcsetwinsize"),
+        ("resource", "setrlimit"),
+        ("resource", "prlimit"),
+        ("msvcrt", "locking"),
+        ("msvcrt", "setmode"),
+        ("msvcrt", "open_osfhandle"),
+        ("msvcrt", "getch"),
+        ("msvcrt", "getwch"),
+        ("msvcrt", "getche"),
+        ("msvcrt", "getwche"),
+        ("msvcrt", "putch"),
+        ("msvcrt", "putwch"),
+        ("msvcrt", "ungetch"),
+        ("msvcrt", "ungetwch"),
     }
     | {
         ("configparser", f"{parser}.read")

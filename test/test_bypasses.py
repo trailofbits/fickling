@@ -41,6 +41,16 @@ class TestBypasses(TestCase):
                     Severity.LIKELY_SAFE,
                 )
 
+    def test_benign_resource_result_is_likely_safe(self):
+        try:
+            import resource
+        except ImportError:
+            self.skipTest("resource is unavailable on this platform")
+
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        pickled = Pickled.load(pickle.dumps(usage))
+        self.assertEqual(check_safety(pickled).severity, Severity.LIKELY_SAFE)
+
     # https://github.com/trailofbits/fickling/security/advisories/GHSA-r7v6-mfhq-g3m2
     def test_missing_pty_unsafe_imports_ghsa(self):
         pickled = Pickled(
