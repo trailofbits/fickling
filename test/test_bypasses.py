@@ -41,6 +41,39 @@ class TestBypasses(TestCase):
                     Severity.LIKELY_SAFE,
                 )
 
+    def test_unsafe_tty_alias_imports(self):
+        """Reject terminal-control functions imported through tty aliases."""
+        for function in (
+            "tcsetattr",
+            "tcsendbreak",
+            "tcdrain",
+            "tcflush",
+            "tcflow",
+            "tcsetwinsize",
+        ):
+            with self.subTest(function=function):
+                pickled = Pickled(
+                    [
+                        op.Proto.create(4),
+                        op.ShortBinUnicode("tty"),
+                        op.ShortBinUnicode(function),
+                        op.StackGlobal(),
+                        op.EmptyTuple(),
+                        op.Reduce(),
+                        op.Stop(),
+                    ]
+                )
+
+                result = check_safety(pickled)
+                self.assertEqual(
+                    result.detailed_results()["AnalysisResult"].get("UnsafeImports"),
+                    f"from tty import {function}",
+                )
+                self.assertGreater(
+                    result.severity,
+                    Severity.LIKELY_SAFE,
+                )
+
     def test_benign_resource_result_is_likely_safe(self):
         try:
             import resource
