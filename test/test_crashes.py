@@ -23,6 +23,7 @@ from fickling.fickle import (
     EmptySet,
     Get,
     Global,
+    Inst,
     Interpreter,
     InterpreterLimits,
     Mark,
@@ -254,6 +255,16 @@ AABfbW9kdWxlc3E2aAopUnE3WAUAAABfa2V5c3E4fXE5aANOc3VidS4="""
         # Safety check should flag it
         results = check_safety(set_cycle)
         self.assertGreater(results.severity, Severity.LIKELY_SAFE)
+
+
+class TestOpcodeEncoding(TestCase):
+    def test_inst_encode_round_trips(self):
+        """Inst.encode named an attribute the class does not define.
+
+        The property is `cls`; `run` uses it correctly, `encode` did not, so
+        encoding any INST opcode raised AttributeError.
+        """
+        self.assertEqual(Inst.create("os", "system").encode(), b"ios\nsystem\n")
 
 
 class TestInterpreterLimits(TestCase):
