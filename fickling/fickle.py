@@ -156,6 +156,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "bz2",
         "netrc",  # Parses credentials from attacker-chosen files
         "zipapp",  # Copies source files to attacker-chosen destinations
+        "aifc",  # Reader/writer constructors open attacker-chosen files
+        "sunau",  # Reader/writer constructors open attacker-chosen files
         "wave",  # Reader/writer constructors open attacker-chosen files
         "pstats",  # Stats.dump_stats writes attacker-chosen files
         "uu",  # Legacy encode/decode functions read and write files
