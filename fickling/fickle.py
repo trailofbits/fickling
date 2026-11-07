@@ -2036,26 +2036,28 @@ class BinPersId(Opcode):
 
     def run(self, interpreter: Interpreter):
         pid = interpreter.stack.pop()
-        interpreter.stack.append(
+        var_name = interpreter.new_variable(
             ast.Call(
                 ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load"),
                 [pid],
                 [],
             )
         )
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class PersId(Opcode):
     name = "PERSID"
 
     def run(self, interpreter: Interpreter):
-        interpreter.stack.append(
+        var_name = interpreter.new_variable(
             ast.Call(
                 ast.Attribute(ast.Name("UNPICKLER", ast.Load()), "persistent_load", ast.Load()),
                 [ast.Constant(self.arg)],
                 [],
             )
         )
+        interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
 
 class NoneOpcode(Opcode):

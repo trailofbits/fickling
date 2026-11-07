@@ -65,6 +65,53 @@ class TestPersIdNewObjEx(TestCase):
                     check_safety(Pickled.load(binary)).severity,
                 )
 
+    def test_persid_call_survives_pop(self):
+        # PERSID, POP, NONE, STOP: a custom unpickler still runs persistent_load, so the
+        # call must stay in the AST even though its stack value is discarded.
+        pickled = Pickled.load(b"Pabc\n0N.")
+        self.assertEqual(
+            [opcode.name for opcode in pickled],
+            ["PERSID", "POP", "NONE", "STOP"],
+        )
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("UNPICKLER.persistent_load('abc')"), 1, source)
+
+    def test_persid_call_is_not_repeated_by_memo_reuse(self):
+        # PERSID, PUT 0, POP, MARK, GET 0, GET 0, TUPLE, STOP: one load, referenced twice.
+        pickled = Pickled.load(b"Pabc\np0\n0(g0\ng0\nt.")
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("persistent_load("), 1, source)
+
+    def test_persid_valid_single_use_keeps_one_call(self):
+        # PERSID, STOP: the common benign shape still yields exactly one persistent_load call.
+        pickled = Pickled.load(b"Pabc\n.")
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("UNPICKLER.persistent_load('abc')"), 1, source)
+        self.assertIsNotNone(check_safety(pickled).severity)
+
+    def test_binpersid_call_survives_pop(self):
+        # STRING, BINPERSID, POP, NONE, STOP: same invariant as PERSID for the binary form.
+        pickled = Pickled.load(b"S'abc'\nQ0N.")
+        self.assertEqual(
+            [opcode.name for opcode in pickled],
+            ["STRING", "BINPERSID", "POP", "NONE", "STOP"],
+        )
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("UNPICKLER.persistent_load('abc')"), 1, source)
+
+    def test_binpersid_call_is_not_repeated_by_memo_reuse(self):
+        # STRING, BINPERSID, PUT 0, POP, MARK, GET 0, GET 0, TUPLE, STOP: one load, used twice.
+        pickled = Pickled.load(b"S'abc'\nQp0\n0(g0\ng0\nt.")
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("persistent_load("), 1, source)
+
+    def test_binpersid_valid_single_use_keeps_one_call(self):
+        # STRING, BINPERSID, STOP: the common benign shape still yields exactly one call.
+        pickled = Pickled.load(b"S'abc'\nQ.")
+        source = ast.unparse(pickled.ast)
+        self.assertEqual(source.count("UNPICKLER.persistent_load('abc')"), 1, source)
+        self.assertIsNotNone(check_safety(pickled).severity)
+
     def test_newobj_ex_is_analysed_and_unparses(self):
         cases = {
             "empty kwargs": [],
