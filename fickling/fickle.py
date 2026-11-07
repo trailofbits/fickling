@@ -17,6 +17,7 @@ from typing import (
     BinaryIO,
     ClassVar,
     Generic,
+    Self,
     TypeVar,
     overload,
 )
@@ -26,10 +27,9 @@ from fickling.exception import ExpansionAttackError, ResourceExhaustionError, Wr
 T = TypeVar("T")
 
 if sys.version_info < (3, 12):
-    from typing_extensions import Buffer, Self
+    from typing_extensions import Buffer
 else:
     from collections.abc import Buffer
-    from typing import Self
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,9 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "builtins",
         # System/process execution
         "os",
+        "argparse",  # _os.system is reachable through dotted pickle globals
+        "optparse",  # Values.read_file executes Python source from a file
+        "tkinter",  # Tcl/Tk profile loading can execute Python and Tcl scripts
         "posix",
         "nt",
         "subprocess",
@@ -87,6 +90,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "exec",
         "eval",
         "doctest",
+        "dataclasses",  # Internal helpers compile and execute generated code
         # Subinterpreters (execute arbitrary code in a fresh interpreter)
         "_interpreters",  # 3.13+
         "_xxsubinterpreters",  # <=3.12
@@ -122,6 +126,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "http",
         "urllib",
         "urllib2",
+        "sax",  # XML SAX loaders can open attacker-controlled URLs
+        "xmlbuilder",  # DOM entity resolution can open attacker-controlled URLs
         "requests",
         "aiohttp",
         "asyncio",  # Can run arbitrary coroutines
@@ -138,6 +144,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Pickle recursion (nested pickle attacks)
         "pickle",
         "_pickle",
+        "tracemalloc",  # Snapshot.load unpickles arbitrary files
         "dill",
         "cloudpickle",
         "joblib",
@@ -145,11 +152,28 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "shutil",
         "tempfile",
         "filecmp",
+        "gzip",
+        "bz2",
+        "netrc",  # Parses credentials from attacker-chosen files
+        "zipapp",  # Copies source files to attacker-chosen destinations
+        "aifc",  # Reader/writer constructors open attacker-chosen files
+        "sunau",  # Reader/writer constructors open attacker-chosen files
+        "wave",  # Reader/writer constructors open attacker-chosen files
+        "pstats",  # Stats.dump_stats writes attacker-chosen files
+        "uu",  # Legacy encode/decode functions read and write files
+        "ElementInclude",  # XML inclusion loader reads attacker-chosen files
+        "minidom",  # XML parser reads attacker-chosen files
+        "expatbuilder",  # XML parser reads attacker-chosen files
+        "mimetypes",  # MIME table readers open attacker-chosen files
+        "shlex",  # sourcehook opens attacker-chosen files
         "distutils",
+        "mailbox",  # Mailbox APIs can read/write arbitrary files
         # Shell/terminal
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
         "pipes",  # pipes.Template runs shell commands; removed in 3.13
+        "readline",  # History functions can read/write arbitrary files
+        "mailcap",  # findmatch executes shell commands; removed in 3.13
         # Virtual environments (can install packages)
         "venv",
         "ensurepip",
@@ -162,6 +186,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "lib2to3",
         # Network services (constructors bind/listen)
         "socketserver",
+        "smtpd",  # SMTPServer binds a socket; PureProxy relays messages (<=3.11)
         "xmlrpc",
         # Process/thread control
         "signal",
@@ -177,6 +202,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "glob",
         "platform",
         "linecache",
+        "traceback",  # StackSummary reads file lines through linecache
         "difflib",
         # Code compilation (writes .pyc files)
         "compileall",
@@ -192,6 +218,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Archive manipulation (can create/extract files)
         "tarfile",
         "zipfile",
+        "lzma",
+        "compression",  # Compression file APIs, including compression.zstd (3.14+)
         # Shelve (opens database files)
         "shelve",
         # Stdlib modules with hidden subprocess/os.system calls
@@ -199,6 +227,54 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "_osx_support",
         "_aix_support",
     ]
+)
+
+# Exact targets for modules that also contain commonly serialized, benign objects.
+# Dotted names are resolved as attribute paths by protocol 4+ unpicklers.
+UNSAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("typing", "get_type_hints"),
+        ("typing", "evaluate_forward_ref"),  # Python 3.15+
+        ("typing", "ForwardRef.evaluate"),  # Python 3.15+
+        ("annotationlib", "ForwardRef.evaluate"),  # Python 3.15+
+        ("xml.etree.ElementTree", "parse"),
+        ("xml.etree.ElementTree", "iterparse"),
+        ("xml.etree.ElementTree", "ElementTree.parse"),
+        ("xml.etree.ElementTree", "ElementTree.write"),
+        ("xml.etree.ElementTree", "ElementTree.write_c14n"),
+    }
+    | {
+        ("configparser", f"{parser}.read")
+        for parser in ("RawConfigParser", "ConfigParser", "SafeConfigParser")
+    }
+    | {
+        ("pathlib", f"{path_class}.{method}")
+        for path_class in ("Path", "PosixPath", "WindowsPath")
+        for method in (
+            "open",
+            "read_bytes",
+            "read_text",
+            "write_bytes",
+            "write_text",
+            "touch",
+            "mkdir",
+            "unlink",
+            "rmdir",
+            "rename",
+            "replace",
+            "chmod",
+            "lchmod",
+            "symlink_to",
+            "hardlink_to",
+            "copy",  # Python 3.15+
+            "copy_into",  # Python 3.15+
+            "move",  # Python 3.15+
+            "move_into",  # Python 3.15+
+        )
+    }
+)
+UNSAFE_GLOBAL_PATHS: frozenset[str] = frozenset(
+    f"{module}.{name}" for module, name in UNSAFE_GLOBALS
 )
 
 BUILTIN_MODULE_NAMES: frozenset[str] = frozenset(["builtins", "__builtins__", "__builtin__"])
@@ -269,6 +345,7 @@ SAFE_BUILTINS: frozenset[str] = frozenset(
 
 
 # Exact (module, name) private-stdlib imports that legitimate serializers emit.
+# The ML allowlist supplies additional exact-name exceptions at analysis time.
 PRIVATE_STDLIB_IMPORT_ALLOWLIST: frozenset[tuple[str, str]] = frozenset({("_codecs", "encode")})
 
 # Whole underscore-prefixed stdlib modules that any name may be imported from.
@@ -302,16 +379,47 @@ def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
         yield from alias.name.split(".")
 
 
+def _is_unsafe_global(module: str, name: str) -> bool:
+    # A package and its submodule can be split differently across the two
+    # find_class() arguments (e.g. xml.etree + ElementTree.parse). Compare the
+    # combined path so all such spellings get the same classification.
+    return f"{module}.{name}" in UNSAFE_GLOBAL_PATHS
+
+
 def _is_allowed_private_import(node: ast.Import | ast.ImportFrom) -> bool:
     # Exact-shape match only: dotted modules (`foo._codecs`) and dotted names
     # (`_codecs.encode.<x>`, `__future__._ssl.<x>`) never match.
     if not isinstance(node, ast.ImportFrom) or node.module is None or len(node.names) != 1:
         return False
+    if not is_std_module(node.module):
+        return False
     name = node.names[0].name
     # A whole-module allowlist entry permits any simple (non-dotted) name.
     if node.module in PRIVATE_STDLIB_MODULE_ALLOWLIST and "." not in name:
         return True
-    return (node.module, name) in PRIVATE_STDLIB_IMPORT_ALLOWLIST
+    if (node.module, name) in PRIVATE_STDLIB_IMPORT_ALLOWLIST:
+        return True
+    if "." in name:
+        return False
+    from fickling.ml import ML_ALLOWLIST
+
+    return name in ML_ALLOWLIST.get(node.module, {})
+
+
+def _has_private_stdlib_import(node: ast.Import | ast.ImportFrom) -> bool:
+    if _is_allowed_private_import(node):
+        return False
+    components = tuple(import_name_components(node))
+    if any(is_private_or_dunder_stdlib_module(c) for c in components):
+        return True
+    if isinstance(node, ast.ImportFrom):
+        return bool(node.module and is_std_module(node.module)) and any(
+            c.startswith("_") for c in components
+        )
+    return any(
+        is_std_module(alias.name) and any(c.startswith("_") for c in alias.name.split("."))
+        for alias in node.names
+    )
 
 
 def extract_identifier_from_ast_node(
@@ -689,18 +797,14 @@ class ASTProperties(ast.NodeVisitor):
             isinstance(node, ast.ImportFrom)
             and node.module is not None
             and is_std_module(node.module)
-            and (
-                not any(is_private_or_dunder_stdlib_module(c) for c in node.module.split("."))
-                or _is_allowed_private_import(node)
-            )
+            and not _has_private_stdlib_import(node)
+            and not any(c in UNSAFE_IMPORTS for c in node.module.split("."))
         ):
             self.likely_safe_imports |= {
                 n.name
                 for n in node.names
-                if not any(
-                    c in UNSAFE_IMPORTS or is_private_or_dunder_stdlib_module(c)
-                    for c in n.name.split(".")
-                )
+                if not _is_unsafe_global(node.module, n.name)
+                and not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
             }
 
     def visit_Import(self, node: ast.Import):
@@ -1321,8 +1425,13 @@ on the Pickled object instead"""
     def unsafe_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
             unsafe_module = any(c in UNSAFE_IMPORTS for c in import_name_components(node))
+            unsafe_global = (
+                isinstance(node, ast.ImportFrom)
+                and node.module is not None
+                and any(_is_unsafe_global(node.module, n.name) for n in node.names)
+            )
             imports_eval = "eval" in (n.name for n in node.names)
-            if unsafe_module or imports_eval:
+            if unsafe_module or unsafe_global or imports_eval:
                 yield node
 
     def non_standard_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
@@ -1339,9 +1448,7 @@ on the Pickled object instead"""
 
     def private_stdlib_imports(self) -> Iterator[ast.Import | ast.ImportFrom]:
         for node in self.properties.imports:
-            if _is_allowed_private_import(node):
-                continue
-            if any(is_private_or_dunder_stdlib_module(c) for c in import_name_components(node)):
+            if _has_private_stdlib_import(node):
                 yield node
 
     @property

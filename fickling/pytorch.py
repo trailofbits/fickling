@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 import zipfile
+from io import BytesIO
 from pathlib import Path
 
 import fickling.polyglot
@@ -114,14 +115,9 @@ class PyTorchModelWrapper:
     def pickled(self) -> Pickled:
         if self._pickled is None:
             self.validate_file_format()
-            with zipfile.ZipFile(self.path, "r") as zip_ref:
-                data_pkl_path = next(
-                    (name for name in zip_ref.namelist() if name.endswith("/data.pkl")), None
-                )
-                if data_pkl_path is None:
-                    raise ValueError("data.pkl not found in the zip archive")
-                with zip_ref.open(data_pkl_path, "r") as pickle_file:
-                    self._pickled = Pickled.load(pickle_file)
+            # Analyze the same data.pkl record that torch.load would read.
+            reader = torch._C.PyTorchFileReader(str(self.path))
+            self._pickled = Pickled.load(BytesIO(reader.get_record("data.pkl")))
         return self._pickled
 
     def inject_payload(

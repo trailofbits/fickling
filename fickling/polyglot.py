@@ -258,7 +258,7 @@ def find_file_properties_recursively(file_path, print_properties=False):
                 mode = info.external_attr >> 16
                 if info.is_dir():
                     continue
-                if mode == 0 or stat.S_ISREG(mode):
+                if stat.S_IFMT(mode) in (0, stat.S_IFREG):
                     _tempfile = tempfile.NamedTemporaryFile(delete=False)
                     try:
                         _tempfile.write(zipped_file.read(fname))

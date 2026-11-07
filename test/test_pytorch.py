@@ -1,5 +1,7 @@
+import pickle
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -49,6 +51,17 @@ class TestPyTorchModule(unittest.TestCase):
         result = PyTorchModelWrapper(self.torchscript_filename)
         pickled_portion = result.pickled
         self.assertIsInstance(pickled_portion, Pickled)
+
+    def test_duplicate_zip_members_use_pytorch_record(self):
+        archive_path = Path(self.tmpdir.name) / "duplicate.pt"
+        first_data = pickle.dumps({"copy": "first"})
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("m/data.pkl", first_data)
+            with self.assertWarnsRegex(UserWarning, "Duplicate name"):
+                archive.writestr("m/data.pkl", pickle.dumps({"copy": "last"}))
+            archive.writestr("m/version", b"3\n")
+
+        self.assertEqual(PyTorchModelWrapper(archive_path).pickled.dumps(), first_data)
 
     def test_injection_insertion(self):
         try:

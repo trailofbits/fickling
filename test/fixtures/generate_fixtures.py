@@ -1,6 +1,8 @@
 #!/usr/bin/env -S uv run --script
+# torch.jit.script() is unsupported on Python 3.14+, so generation requires <3.14.
+# Tests use the committed fixtures and can run on newer Python versions.
 # /// script
-# requires-python = ">=3.10,<3.14"
+# requires-python = ">=3.11,<3.14"
 # dependencies = ["torch>=2.10,<3", "torchvision>=0.25,<1"]
 # ///
 """Generate TorchScript fixture files for tests.

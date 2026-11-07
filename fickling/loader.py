@@ -175,8 +175,12 @@ def scan_zip_archive(
     """Scan a ZIP archive for malicious raw pickle content.
 
     Scans each file within the archive that has a raw pickle-related extension
-    (.pkl, .pickle, .bin). Only ZIP archives are supported;
-    for TAR or 7z archives, see fickling.polyglot.
+    (.pkl, .pickle, .bin).
+
+    This uses Python's zipfile parser, so use it for archives that will also be
+    read with zipfile. For PyTorch checkpoints, use PyTorchModelWrapper instead.
+
+    Only ZIP archives are supported; for TAR or 7z archives, see fickling.polyglot.
 
     Args:
         filepath: Path to the ZIP archive to scan
@@ -245,7 +249,7 @@ def _scan_bytes(
                 result = check_safety(pickled, json_output_path=json_output_path)
                 results.append(result)
                 overall_severity = max(overall_severity, result.severity)
-            except Exception as e:  # noqa: PERF203 -- each pickle is analyzed independently
+            except Exception as e:
                 if graceful:
                     errors.append(f"Analysis error ({type(e).__name__}): {e!s}")
                     overall_severity = max(overall_severity, Severity.LIKELY_UNSAFE)

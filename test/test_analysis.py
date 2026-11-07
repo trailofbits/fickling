@@ -19,3 +19,10 @@ class TestAnalysis(TestCase):
                     ]
                 )
                 self.assertEqual(check_safety(pickled).severity, Severity.LIKELY_SAFE)
+
+    # EXT opcodes generate ast.Import nodes, which have no module attribute.
+    def test_extension_opcodes_do_not_crash_analysis(self):
+        for opcode in (op.Ext1, op.Ext2, op.Ext4):
+            with self.subTest(opcode=opcode.name):
+                pickled = Pickled([op.Proto.create(2), opcode(1), op.Stop()])
+                self.assertGreater(check_safety(pickled).severity, Severity.LIKELY_SAFE)
