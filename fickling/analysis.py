@@ -24,6 +24,7 @@ from fickling.fickle import (
     Pickled,
     Proto,
     Put,
+    StackedPickle,
 )
 
 # Calls that are almost never legitimate in a pickle. These are matched against the
@@ -684,9 +685,11 @@ def check_safety(
 
 
 def is_likely_safe(filepath: str):
+    """Return whether every pickle stream in the file is rated likely safe."""
     with open(filepath, "rb") as f:
-        pickled = Pickled.load(f, fail_on_decode_error=False)
-        if pickled.has_invalid_opcode:
-            # Invalid pickle file, likely not safe
-            return False
-        return check_safety(pickled).severity == Severity.LIKELY_SAFE
+        stacked = StackedPickle.load(f, fail_on_decode_error=False)
+        return all(
+            not pickled.has_invalid_opcode
+            and check_safety(pickled).severity == Severity.LIKELY_SAFE
+            for pickled in stacked
+        )
