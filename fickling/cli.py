@@ -307,7 +307,11 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 file = sys.stdin
         else:
-            file = open(args.PICKLE_FILE, "rb")
+            try:
+                file = open(args.PICKLE_FILE, "rb")
+            except OSError as e:
+                sys.stderr.write(f"Error: cannot open {args.PICKLE_FILE}: {e.strerror or e}\n")
+                return EXIT_ERROR
         try:
             stacked_pickled = fickle.StackedPickle.load(file, fail_on_decode_error=False)
         except fickle.PickleDecodeError as e:
@@ -420,7 +424,11 @@ def main(argv: list[str] | None = None) -> int:
             if hasattr(file, "buffer") and file.buffer is not None:
                 file = file.buffer
         else:
-            file = open(args.PICKLE_FILE, "wb")
+            try:
+                file = open(args.PICKLE_FILE, "wb")
+            except OSError as e:
+                sys.stderr.write(f"Error: cannot open {args.PICKLE_FILE}: {e.strerror or e}\n")
+                return EXIT_ERROR
         try:
             pickled.dump(file)
         finally:
