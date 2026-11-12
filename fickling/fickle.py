@@ -55,6 +55,7 @@ DEFAULT_INTERPRETER_LIMITS = InterpreterLimits()
 OpcodeSequence = MutableSequence["Opcode"]
 GenericSequence = Sequence[T]
 make_constant = ast.Constant
+_READONLY_BUFFER_CALL = "_fickling_readonly_buffer_call"
 
 BUILTIN_STDLIB_MODULE_NAMES: frozenset[str] = sys.stdlib_module_names
 
@@ -814,6 +815,11 @@ class ASTProperties(ast.NodeVisitor):
         self._process_import(node)
 
     def visit_Call(self, node: ast.Call):
+        # READONLY_BUFFER's own conversion is not a callable requested by the
+        # pickle. Keep visiting its input rather than hiding nested operations.
+        if getattr(node, _READONLY_BUFFER_CALL, False):
+            self.generic_visit(node)
+            return
         self.calls.append(node)
         if not isinstance(node.func, ast.Attribute) or node.func.attr != "__setstate__":
             self.non_setstate_calls.append(node)
@@ -2173,6 +2179,40 @@ class NewFalse(Opcode):
         interpreter.stack.append(make_constant(False))
 
 
+class NextBuffer(Opcode):
+    name = "NEXT_BUFFER"
+
+    def run(self, interpreter: Interpreter):
+        # The buffer contents are out-of-band: they are not part of the pickle
+        # stream, so the analysis models them as an opaque value.
+        interpreter.stack.append(ast.Name("out_of_band_buffer", ast.Load()))
+
+
+class ReadOnlyBuffer(Opcode):
+    name = "READONLY_BUFFER"
+
+    def run(self, interpreter: Interpreter):
+        buffer_name = interpreter.new_variable(interpreter.stack.pop())
+        view_call = ast.Call(
+            ast.Name("memoryview", ast.Load()), [ast.Name(buffer_name, ast.Load())], []
+        )
+        setattr(view_call, _READONLY_BUFFER_CALL, True)
+        view_name = interpreter.new_variable(view_call)
+        readonly_call = ast.Call(
+            ast.Attribute(ast.Name(view_name, ast.Load()), "toreadonly", ast.Load()), [], []
+        )
+        setattr(readonly_call, _READONLY_BUFFER_CALL, True)
+        # CPython leaves an already read-only buffer unchanged, including its type.
+        result_name = interpreter.new_variable(
+            ast.IfExp(
+                ast.Attribute(ast.Name(view_name, ast.Load()), "readonly", ast.Load()),
+                ast.Name(buffer_name, ast.Load()),
+                readonly_call,
+            )
+        )
+        interpreter.stack.append(ast.Name(result_name, ast.Load()))
+
+
 class Tuple(StackSliceOpcode):
     name = "TUPLE"
 
@@ -2523,6 +2563,20 @@ class Int(ConstantOpcode):
 class Long(Int):
     name = "LONG"
     priority = Int.priority + 1
+
+
+class Float(ConstantOpcode):
+    name = "FLOAT"
+    priority = Long.priority + 1
+
+    def encode_body(self) -> bytes:
+        return f"{self.arg}\n".encode()
+
+    @classmethod
+    def validate(cls, obj):
+        if not isinstance(obj, float):
+            raise ValueError(f"{cls.__name__} expects a float, but received {obj!r}")
+        return obj
 
 
 class Dict(Opcode):
