@@ -1,10 +1,14 @@
+import contextlib
+import io
 import random
+import shutil
 import string
 import tarfile
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import py7zr
@@ -217,3 +221,54 @@ class TestPolyglotModule(unittest.TestCase):
         )
         formats = polyglot.identify_pytorch_file_format(self.standard_torchscript_polyglot_name)
         self.assertTrue({"PyTorch v1.3", "TorchScript v1.4"}.issubset(formats))
+
+
+class TestExtractionLimits(unittest.TestCase):
+    """The recursive property scanner must bound member extraction: a
+    compressed-expansion bomb (tiny zip, huge decompressed output) previously
+    streamed to disk without limit, exhausting storage during scanning."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_zip_member_extraction_is_capped(self):
+        bomb_path = self.tmpdir / "bomb.zip"
+        with zipfile.ZipFile(bomb_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("payload.bin", b"\x00" * (4 * 1024 * 1024))
+        with (
+            mock.patch.object(polyglot, "MAX_MEMBER_EXTRACTION_SIZE", 1024),
+            self.assertRaises(polyglot.ResourceExhaustionError),
+        ):
+            polyglot.find_file_properties_recursively(bomb_path)
+
+    def test_tar_member_extraction_is_capped(self):
+        tar_path = self.tmpdir / "wide.tar"
+        with tarfile.open(tar_path, "w") as tf:
+            info = tarfile.TarInfo("payload.bin")
+            info.size = 4 * 1024 * 1024
+            tf.addfile(info, io.BytesIO(b"\x00" * (4 * 1024 * 1024)))
+        with (
+            mock.patch.object(polyglot, "MAX_MEMBER_EXTRACTION_SIZE", 1024),
+            self.assertRaises(polyglot.ResourceExhaustionError),
+        ):
+            polyglot.find_file_properties_recursively(tar_path)
+
+    def test_small_members_still_scan(self):
+        zip_path = self.tmpdir / "small.zip"
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("tiny.bin", b"\x00" * 512)
+        properties = polyglot.find_file_properties_recursively(zip_path)
+        self.assertFalse(properties["children"]["tiny.bin"]["is_standard_zip"])
+
+    def test_check_if_legacy_format_does_not_print(self):
+        tar_path = self.tmpdir / "plain.tar"
+        with tarfile.open(tar_path, "w") as tf:
+            info = tarfile.TarInfo("anything.bin")
+            info.size = 4
+            tf.addfile(info, io.BytesIO(b"\x00" * 4))
+        with contextlib.redirect_stdout(io.StringIO()) as captured:
+            polyglot.check_if_legacy_format(tar_path)
+        self.assertNotIn("check_if_legacy_format", captured.getvalue())
