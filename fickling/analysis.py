@@ -15,6 +15,7 @@ from fickling.fickle import (
     BinGet,
     BinPut,
     Dup,
+    EmptyPickleError,
     Get,
     InterpretationError,
     Interpreter,
@@ -684,9 +685,13 @@ def check_safety(
 
 
 def is_likely_safe(filepath: str):
+    """Return whether every pickle stream in the file is rated likely safe."""
     with open(filepath, "rb") as f:
         pickled = Pickled.load(f, fail_on_decode_error=False)
-        if pickled.has_invalid_opcode:
-            # Invalid pickle file, likely not safe
-            return False
-        return check_safety(pickled).severity == Severity.LIKELY_SAFE
+        while True:
+            if pickled.has_invalid_opcode or check_safety(pickled).severity != Severity.LIKELY_SAFE:
+                return False
+            try:
+                pickled = Pickled.load(f, fail_on_decode_error=False)
+            except EmptyPickleError:
+                return True
