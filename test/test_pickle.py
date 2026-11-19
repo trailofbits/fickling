@@ -1,3 +1,5 @@
+import ast
+import io
 import pickle
 from ast import unparse
 from contextlib import redirect_stdout
@@ -7,8 +9,10 @@ from pickle import dumps, loads
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import pytest
+
 from fickling import fickle as fpickle
-from fickling.analysis import check_safety
+from fickling.analysis import Severity, check_safety
 from fickling.cli import main
 from fickling.fickle import Interpreter, Pickled, StackedPickle
 
@@ -491,3 +495,63 @@ class TestInterpreter(TestCase):
             self.assertEqual(result, real_result)
         finally:
             copyreg.remove_extension("os.path", "join", 200)
+
+
+class TestUnimplementedOpcodeRegression(TestCase):
+    """Regression tests: these three standard opcodes previously raised
+    NotImplementedError at load time, crashing the security analysis on benign
+    pickles (a float in a legacy protocol-0 file or an out-of-band buffer in a
+    protocol-5 file)."""
+
+    def test_float_proto0(self):
+        pickled = Pickled.load(io.BytesIO(dumps(1.5, protocol=0)))
+        self.assertEqual(1.5, get_result(pickled))
+
+    def test_next_buffer_does_not_crash(self):
+        stream = Pickled([fpickle.Proto.create(5), fpickle.NextBuffer(), fpickle.Stop()]).dumps()
+        pickled = Pickled.load(io.BytesIO(stream))
+        names = [n.id for n in ast.walk(pickled.ast) if isinstance(n, ast.Name)]
+        self.assertIn("out_of_band_buffer", names)
+        self.assertEqual(check_safety(pickled).to_dict()["severity"], "LIKELY_SAFE")
+
+
+@pytest.mark.parametrize("value", [bytearray(b"hi"), b"hi"], ids=["writable", "readonly"])
+def test_readonly_buffer_matches_pickle_loads(value):
+    # Protocol 3 encodes bytearray through its public built-in constructor,
+    # without relying on the separately implemented BYTEARRAY8 opcode.
+    encoded = dumps(value, protocol=3)
+    stream = (
+        fpickle.Proto.create(5).encode()
+        + encoded[2:-1]
+        + pickle.READONLY_BUFFER
+        + pickle.DUP
+        + pickle.TUPLE2
+        + pickle.STOP
+    )
+    expected = loads(stream)
+
+    pickled = Pickled.load(stream)
+    result = get_result(pickled)
+
+    for item, expected_item in zip(result, expected, strict=True):
+        assert type(item) is type(expected_item)
+        assert item == expected_item
+        assert memoryview(item).readonly == memoryview(expected_item).readonly
+    assert (result[0] is result[1]) == (expected[0] is expected[1])
+    assert check_safety(pickled).severity == Severity.LIKELY_SAFE
+
+
+def test_readonly_buffer_keeps_reduced_call_unsafe():
+    stream = Pickled(
+        [
+            fpickle.Proto.create(5),
+            fpickle.Global.create("builtins", "eval"),
+            fpickle.ShortBinUnicode("print('test') or bytearray(b'hi')"),
+            fpickle.TupleOne(),
+            fpickle.Reduce(),
+            fpickle.ReadOnlyBuffer(),
+            fpickle.Stop(),
+        ]
+    ).dumps()
+
+    assert check_safety(Pickled.load(stream)).severity == Severity.OVERTLY_MALICIOUS
