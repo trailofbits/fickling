@@ -269,6 +269,18 @@ class ResourceExhaustionAnalysis(Analysis):
             )
 
 
+class DottedGlobals(Analysis):
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        for node in context.pickled.properties.dotted_globals:
+            shortened = context.shorten_code(node)
+            yield AnalysisResult(
+                Severity.POSSIBLY_UNSAFE,
+                f"Fickling cannot verify the target of the dotted attribute in `{shortened}`.",
+                "DottedGlobals",
+                trigger=shortened,
+            )
+
+
 class NonStandardImports(Analysis):
     def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
         sources = (
