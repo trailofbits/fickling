@@ -773,6 +773,7 @@ class StackSliceOpcode(Opcode):
 class ASTProperties(ast.NodeVisitor):
     def __init__(self):
         self.imports: list[ast.Import | ast.ImportFrom] = []
+        self.dotted_globals: list[ast.ImportFrom] = []
         self.calls: list[ast.Call] = []
         self.non_setstate_calls: list[ast.Call] = []
         self.likely_safe_imports: set[str] = set()
@@ -792,18 +793,21 @@ class ASTProperties(ast.NodeVisitor):
 
     def _process_import(self, node: ast.Import | ast.ImportFrom):
         self.imports.append(node)
+        if not isinstance(node, ast.ImportFrom) or node.module is None:
+            return
+        # A dot in the global's name can traverse a re-exported object, even in the stdlib.
+        if any("." in n.name for n in node.names):
+            self.dotted_globals.append(node)
+            return
         if (
-            isinstance(node, ast.ImportFrom)
-            and node.module is not None
-            and is_std_module(node.module)
+            is_std_module(node.module)
             and not _has_private_stdlib_import(node)
             and not any(c in UNSAFE_IMPORTS for c in node.module.split("."))
         ):
             self.likely_safe_imports |= {
                 n.name
                 for n in node.names
-                if not _is_unsafe_global(node.module, n.name)
-                and not any(c in UNSAFE_IMPORTS for c in n.name.split("."))
+                if not _is_unsafe_global(node.module, n.name) and n.name not in UNSAFE_IMPORTS
             }
 
     def visit_Import(self, node: ast.Import):

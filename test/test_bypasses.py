@@ -952,6 +952,29 @@ class TestStdlibGadgetCoverage(TestCase):
         self.assertNotIn("Path.write_text", pickled.properties.likely_safe_imports)
         self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
 
+    def test_dotted_attribute_flagged_without_call(self):
+        name = "message.EmailMessage"
+        for opcode, reference in (
+            ("GLOBAL", [op.Global.create("email", name)]),
+            (
+                "STACK_GLOBAL",
+                [op.ShortBinUnicode("email"), op.ShortBinUnicode(name), op.StackGlobal()],
+            ),
+        ):
+            with self.subTest(opcode=opcode):
+                pickled = Pickled([op.Proto.create(4), *reference, op.Stop()])
+                result = check_safety(pickled)
+                self.assertEqual(result.severity, Severity.POSSIBLY_UNSAFE)
+                self.assertEqual(
+                    result.detailed_results()["AnalysisResult"]["DottedGlobals"],
+                    "from email import message.EmailMessage",
+                )
+                self.assertNotIn(name, pickled.properties.likely_safe_imports)
+
+    def test_simple_attribute_in_dotted_module_remains_allowed(self):
+        pickled = self.stack_global_call("email.message", "EmailMessage")
+        self.assertEqual(check_safety(pickled).severity, Severity.LIKELY_SAFE)
+
     def test_unsafe_module_is_blocked(self):
         pickled = self.stack_global_call("gzip", "GzipFile")
         self.assertGreaterEqual(check_safety(pickled).severity, Severity.LIKELY_OVERTLY_MALICIOUS)
