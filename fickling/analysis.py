@@ -328,14 +328,13 @@ class UnsafeImportsML(Analysis):
         },
         "torch.storage": {
             "_load_from_bytes": (
-                "This function calls `torch.load()` which is unsafe as using a string argument "
-                "would allow to load and execute arbitrary code hosted on the internet. However, "
-                "in this case, the argument is explicitly converted to `io.bytesIO` and hence "
-                "treated as a bytestream and not as a remote URL. However, a malicious file can "
+                "This function calls `torch.load()` which can load and execute arbitrary code "
+                "from an untrusted file. In this case, the argument is explicitly converted to "
+                "`io.BytesIO` and hence treated as a bytestream. A malicious file can "
                 "supply a pickle opcode bytestring as argument to this function to cause the "
                 "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary "
-                "code through nested pickle calls. So this import is safe only if restrictions on "
-                "pickle (such as Fickling's hooks) have been set properly"
+                "code through nested pickle calls. Fickling's ML hook applies its allowlist "
+                "to those nested calls."
             ),
         },
         "torch.utils._config_module": {

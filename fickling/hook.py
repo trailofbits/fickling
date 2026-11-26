@@ -69,20 +69,22 @@ def always_check_safety():
     run_hook()
 
 
-def activate_safe_ml_environment(also_allow=None):
+def activate_safe_ml_environment(also_allow=None, *, allow_nested_unpicklers: bool = True):
     """Enforce using the ML whitelist unpickler"""
 
-    def new_load(file, *args, **kwargs):
-        return FicklingMLUnpickler(file, also_allow=also_allow, **kwargs).load(*args)
-
-    def new_loads(data, *args, **kwargs):
-        return FicklingMLUnpickler(io.BytesIO(data), also_allow=also_allow, **kwargs).load(*args)
-
     class SafeMLUnpickler(FicklingMLUnpickler):
-        """Unpickler with pre-configured also_allow list"""
+        """Unpickler with pre-configured also_allow list and nested unpickler policy"""
+
+        _allow_nested_unpicklers = allow_nested_unpicklers
 
         def __init__(self, file, *args, **kwargs):
             super().__init__(file, *args, also_allow=also_allow, **kwargs)
+
+    def new_load(file, *args, **kwargs):
+        return SafeMLUnpickler(file, **kwargs).load(*args)
+
+    def new_loads(data, *args, **kwargs):
+        return new_load(io.BytesIO(data), *args, **kwargs)
 
     _patch_entry_points(new_load, new_loads, SafeMLUnpickler)
 
