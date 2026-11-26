@@ -77,6 +77,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "nt",
         "winreg",  # Can read and modify the Windows registry
         "_winreg",  # Python 2 name for winreg in legacy pickles
+        "msvcrt",  # Provides Windows file descriptor and console operations
         "subprocess",
         "sys",
         "pty",
@@ -154,6 +155,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "cloudpickle",
         "joblib",
         # File system operations
+        "fcntl",  # Controls file descriptors and devices on Unix
         "shutil",
         "tempfile",
         "filecmp",
@@ -174,6 +176,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "distutils",
         "mailbox",  # Mailbox APIs can read/write arbitrary files
         # Shell/terminal
+        "termios",  # Changes Unix terminal settings
+        "tty",  # Changes Unix terminal modes
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
         "pipes",  # pipes.Template runs shell commands; removed in 3.13
@@ -194,6 +198,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "smtpd",  # SMTPServer binds a socket; PureProxy relays messages (<=3.11)
         "xmlrpc",
         # Process/thread control
+        "resource",  # Changes process resource limits
         "signal",
         "_signal",
         "threading",
