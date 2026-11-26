@@ -7,6 +7,7 @@ import torch
 
 from fickling import hook
 from fickling.exception import UnsafeFileError
+from fickling.ml import FicklingMLUnpickler
 
 
 # Simple payload for tests
@@ -38,6 +39,36 @@ class Bypass:
 
     def __reduce__(self):
         return (torch.storage._load_from_bytes, (self.data,))
+
+
+class TestNestedUnpicklers(unittest.TestCase):
+    def test_standalone_rejects_nested_unpickler(self):
+        data = pickle.dumps(torch.storage._load_from_bytes)
+        with self.assertRaises(UnsafeFileError):
+            FicklingMLUnpickler(io.BytesIO(data)).load()
+
+    def test_hook_nested_unpickler_option(self):
+        helper = torch.storage._load_from_bytes
+        data = pickle.dumps(helper)
+        self.addCleanup(hook.restore_entry_points, hook.snapshot_entry_points())
+        loaders = {
+            "load": lambda: pickle.load(io.BytesIO(data)),
+            "loads": lambda: pickle.loads(data),
+            "Unpickler": lambda: pickle.Unpickler(io.BytesIO(data)).load(),
+        }
+
+        hook.activate_safe_ml_environment()
+        for name, load in loaders.items():
+            with self.subTest(entry_point=name, policy="default"):
+                self.assertIs(load(), helper)
+
+        hook.activate_safe_ml_environment(allow_nested_unpicklers=False)
+        for name, load in loaders.items():
+            with (
+                self.subTest(entry_point=name, policy="disabled"),
+                self.assertRaises(UnsafeFileError),
+            ):
+                load()
 
 
 class TestUnpickler(unittest.TestCase):

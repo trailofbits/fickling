@@ -37,9 +37,8 @@ MAIN_IMPORT_MSG = (
 )
 
 # Allowlist for imports that can be considered safe when scanning a file
-# without actually loading it. This typically excludes imports that could
-# lead to pickle-inside-pickle calls because scanning-only scan not analyze
-# nested pickle payloads
+# without actually loading it. This excludes imports that could lead to
+# pickle-inside-pickle calls because static scans cannot analyze nested pickle payloads.
 ML_ALLOWLIST = {
     "numpy": {
         "dtype": "A static object that isn't callable.",
@@ -84,14 +83,6 @@ ML_ALLOWLIST = {
         "The returned type is expected to be a `torch.Tensor` but could be something else. `__setstate__` is finally called on the "
         "returned object using the last argument. This function thus doesn't do anything that couldn't be already achieved using the "
         "REDUCE and BUILD opcodes directly.",
-    },
-    "torch.storage": {
-        "_load_from_bytes": "First, this function calls `torch.load()` which is unsafe as using a string argument would "
-        "allow to load and execute arbitrary code hosted on the internet. However, in this case, the "
-        "argument is explicitly converted to `io.bytesIO` and hence treated as a bytestream and not as "
-        "a remote URL. Second, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
-        "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
-        "However, this import can be considered safe when used with the Fickling unpickler because it also catches nested pickle-inside-pickle payloads.",
     },
     "torch._utils": {
         "_rebuild_tensor": f"Builds a `torch.Tensor` object. {CALLABLE_NEW_SAFE_MSG}",
@@ -288,6 +279,19 @@ ML_ALLOWLIST = {
 }
 
 
+# The ML hook can also allow helpers whose nested pickle loads it intercepts.
+ML_NESTED_UNPICKLERS = {
+    "torch.storage": {
+        "_load_from_bytes": "First, this function calls `torch.load()` which can load and execute arbitrary code "
+        "from an untrusted file. However, in this case, the argument is explicitly converted to "
+        "`io.BytesIO` and hence treated as a bytestream. "
+        "Second, a malicious file can supply a pickle opcode bytestring as argument to this function to cause the "
+        "underlying `torch.load()` call to unpickle that bytestring and execute arbitrary code through nested pickle calls. "
+        "Fickling's ML hook allows this import by default because it also checks nested pickle-inside-pickle payloads.",
+    },
+}
+
+
 class MLAllowlist(Analysis, register=False):
     def __init__(self):
         super().__init__()
@@ -336,8 +340,13 @@ class MLAllowlist(Analysis, register=False):
 
 
 class FicklingMLUnpickler(pickle.Unpickler):
+    _allow_nested_unpicklers = False
+
     def __init__(self, *args, also_allow: list[str] | None = None, **kwargs):
-        self.allowlist = dict(ML_ALLOWLIST)
+        self.allowlist = {module: names.copy() for module, names in ML_ALLOWLIST.items()}
+        if self._allow_nested_unpicklers:
+            for module, names in ML_NESTED_UNPICKLERS.items():
+                self.allowlist.setdefault(module, {}).update(names)
         super().__init__(*args, **kwargs)
         # Add additional allowed imports
         if also_allow:

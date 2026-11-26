@@ -60,6 +60,10 @@ import fickling
 fickling.hook.activate_safe_ml_environment()
 ```
 
+The hook allows nested unpicklers such as `torch.storage._load_from_bytes` by default so it can
+load pickled tensor storage. Pass `allow_nested_unpicklers=False` to disable that category.
+A standalone `FicklingMLUnpickler` rejects these helpers by default.
+
 To remove the protection:
 
 ```python
