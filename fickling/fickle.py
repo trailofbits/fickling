@@ -135,6 +135,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "aiohttp",
         "asyncio",  # Can run arbitrary coroutines
         "webbrowser",  # Can open arbitrary URLs
+        "antigravity",  # Opens a fixed XKCD URL on import
         "smtplib",
         "imaplib",
         "ftplib",
