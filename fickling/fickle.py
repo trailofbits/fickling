@@ -74,6 +74,8 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "tkinter",  # Tcl/Tk profile loading can execute Python and Tcl scripts
         "posix",
         "nt",
+        "winreg",  # Can read and modify the Windows registry
+        "_winreg",  # Python 2 name for winreg in legacy pickles
         "subprocess",
         "sys",
         "pty",
