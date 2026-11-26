@@ -200,9 +200,11 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "_thread",
         "atexit",
         # Database/file creation
+        "dbm",  # Database backends can open, create, or replace files
         "sqlite3",
         "_sqlite3",
         # File reading/enumeration
+        "tokenize",  # tokenize.open reads a file to detect its encoding
         "fileinput",
         "glob",
         "platform",
