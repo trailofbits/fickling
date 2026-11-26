@@ -48,7 +48,7 @@ fickling/
 
 ## Contributing
 
-1. Branch from `master`
+1. Branch from the repository's default branch
 2. Make changes
 3. Run `make test lint`
 4. Create pull request

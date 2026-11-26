@@ -251,7 +251,7 @@ Your file is most likely of this format:  PyTorch v1.3
 ['PyTorch v1.3']
 ```
 
-Check out [our examples](https://github.com/trailofbits/fickling/tree/master/example)
+Check out [our examples](https://github.com/trailofbits/fickling/tree/HEAD/example)
 to learn more about using fickling!
 
 ## More information

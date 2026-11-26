@@ -6,9 +6,8 @@ We only accept vulnerability reports through
 [GitHub Security Advisories](https://github.com/trailofbits/fickling/security/advisories/new).
 We publish the original report after a fix is released.
 
-Before submitting a report, verify that the issue is reproducible on the current
-`master` branch. Do not check only the latest release or tag, because `master`
-may already contain a fix.
+Before submitting a report, reproduce the issue on the default branch. It may already
+contain a fix for an issue that affects a release or tag.
 
 ## What to include
 
