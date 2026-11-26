@@ -2,9 +2,9 @@ name: Scan dependencies for vulnerabilities with pip-audit
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "main" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "main" ]
   schedule:
     - cron: "0 12 * * *"
 

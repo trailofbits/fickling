@@ -1,4 +1,4 @@
-fickling @ git+https://github.com/trailofbits/fickling.git@master
+fickling @ git+https://github.com/trailofbits/fickling.git
 huggingface_hub==2.4.0
 model_unpickler==0.1
 modelscan==0.8.8
