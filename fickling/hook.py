@@ -1,6 +1,9 @@
 import _pickle
 import io
 import pickle
+import sys
+import warnings
+from types import ModuleType
 
 from fickling import loader
 from fickling.ml import FicklingMLUnpickler
@@ -26,6 +29,56 @@ def restore_entry_points(snapshot):
 
 # Captured before patching, for remove_hook().
 _originals = snapshot_entry_points()
+
+
+class StalePickleReferenceWarning(UserWarning):
+    """A module holds a pre-hook reference to a pickle entry point, so the hook cannot see it"""
+
+
+# These re-read _Unpickler from pickle's globals at call time, so a stale reference to one still
+# reaches the patched unpickler and is not worth reporting.
+_INDIRECT_TARGETS = frozenset({(pickle, "_load"), (pickle, "_loads")})
+
+# _originals keeps these objects alive for identity checks during the sweep.
+_ORIGINAL_IDS = {
+    id(original) for module, attr, original in _originals if (module, attr) not in _INDIRECT_TARGETS
+}
+
+_MAX_REPORTED_REFERENCES = 10
+
+
+def _find_stale_references():
+    """Find `module.attr` bindings still pointing at an unpatched pickle entry point"""
+    stale = []
+    # Snapshot both levels: a concurrent import would resize them mid-iteration.
+    for name, module in list(sys.modules.items()):
+        # fickling keeps its own references to the originals on purpose.
+        if name == "fickling" or name.startswith("fickling."):
+            continue
+        # Module subclasses can initialize a lazy module even when reading __dict__.
+        if type(module) is not ModuleType:
+            continue
+        for attr, value in list(vars(module).items()):
+            # The hook will replace its own target bindings immediately after the scan.
+            if id(value) in _ORIGINAL_IDS and (module, attr) not in _ALL_TARGETS:
+                stale.append(f"{name}.{attr}")
+    return sorted(stale)
+
+
+def _warn_stale_references():
+    """Warn about module globals that the hook will leave pointing to the original functions."""
+    stale = _find_stale_references()
+    if not stale:
+        return
+    listed = ", ".join(stale[:_MAX_REPORTED_REFERENCES])
+    if len(stale) > _MAX_REPORTED_REFERENCES:
+        listed += f", and {len(stale) - _MAX_REPORTED_REFERENCES} more"
+    warnings.warn(
+        f"fickling's hook cannot intercept these references: {listed}. "
+        "Install the hook before importing libraries that use pickle.",
+        StalePickleReferenceWarning,
+        stacklevel=3,
+    )
 
 
 def _patch_entry_points(load, loads, unpickler):
@@ -57,19 +110,19 @@ class FicklingSafetyUnpickler:
         return loader.load(self._file, *self._args, **self._kwargs)
 
 
-def run_hook():
+def run_hook(*, warn_on_stale_references: bool = False):
     """Replace pickle's load functions and Unpickler by fickling's safe versions"""
+    if warn_on_stale_references:
+        _warn_stale_references()
     _patch_entry_points(loader.load, loader.loads, FicklingSafetyUnpickler)
 
 
-def always_check_safety():
-    """
-    Alias for run_hook()
-    """
-    run_hook()
+always_check_safety = run_hook
 
 
-def activate_safe_ml_environment(also_allow=None, *, allow_nested_unpicklers: bool = True):
+def activate_safe_ml_environment(
+    also_allow=None, *, allow_nested_unpicklers: bool = True, warn_on_stale_references: bool = False
+):
     """Enforce using the ML whitelist unpickler"""
 
     class SafeMLUnpickler(FicklingMLUnpickler):
@@ -86,6 +139,8 @@ def activate_safe_ml_environment(also_allow=None, *, allow_nested_unpicklers: bo
     def new_loads(data, *args, **kwargs):
         return new_load(io.BytesIO(data), *args, **kwargs)
 
+    if warn_on_stale_references:
+        _warn_stale_references()
     _patch_entry_points(new_load, new_loads, SafeMLUnpickler)
 
 
