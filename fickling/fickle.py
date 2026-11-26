@@ -128,6 +128,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "http",
         "urllib",
         "urllib2",
+        "xml",  # XML APIs can read and write files or open URLs
         "sax",  # XML SAX loaders can open attacker-controlled URLs
         "xmlbuilder",  # DOM entity resolution can open attacker-controlled URLs
         "requests",
@@ -239,11 +240,6 @@ UNSAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
         ("typing", "evaluate_forward_ref"),  # Python 3.15+
         ("typing", "ForwardRef.evaluate"),  # Python 3.15+
         ("annotationlib", "ForwardRef.evaluate"),  # Python 3.15+
-        ("xml.etree.ElementTree", "parse"),
-        ("xml.etree.ElementTree", "iterparse"),
-        ("xml.etree.ElementTree", "ElementTree.parse"),
-        ("xml.etree.ElementTree", "ElementTree.write"),
-        ("xml.etree.ElementTree", "ElementTree.write_c14n"),
     }
     | {
         ("configparser", f"{parser}.read")
@@ -383,7 +379,7 @@ def import_name_components(node: ast.Import | ast.ImportFrom) -> Iterator[str]:
 
 def _is_unsafe_global(module: str, name: str) -> bool:
     # A package and its submodule can be split differently across the two
-    # find_class() arguments (e.g. xml.etree + ElementTree.parse). Compare the
+    # find_class() arguments (e.g. pkg + submodule.func). Compare the
     # combined path so all such spellings get the same classification.
     return f"{module}.{name}" in UNSAFE_GLOBAL_PATHS
 
