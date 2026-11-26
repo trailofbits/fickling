@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from ast import Import, ImportFrom, unparse
+from ast import Constant, Import, ImportFrom, unparse
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from enum import Enum
@@ -279,6 +279,44 @@ class DottedGlobals(Analysis):
                 "DottedGlobals",
                 trigger=shortened,
             )
+
+
+class CallbackArguments(Analysis):
+    # Each entry maps a callback position to the globals allowed in that position.
+    CALLBACKS: ClassVar[dict[tuple[str, str], dict[int, frozenset[tuple[str, str]]]]] = {
+        ("itertools", "starmap"): {0: frozenset()},
+        ("collections", "defaultdict"): {
+            0: frozenset(
+                (module, factory)
+                for module in ("builtins", "__builtin__")
+                for factory in ("list", "int", "set")
+            )
+            | {("__builtin__", "long")}  # Legacy spelling emitted for int in protocols 0-2.
+        },
+    }
+
+    def analyze(self, context: AnalysisContext) -> Iterator[AnalysisResult]:
+        pickled = context.pickled
+        for call in pickled.properties.calls:
+            caller = pickled.global_origin(call.func)
+            if caller is None or caller not in self.CALLBACKS:
+                continue
+            for index, allowed in self.CALLBACKS[caller].items():
+                if index >= len(call.args):
+                    continue
+                arg = call.args[index]
+                if isinstance(arg, Constant) and arg.value is None:
+                    continue
+                origin = pickled.global_origin(arg)
+                if origin is not None and origin in allowed:
+                    continue
+                callback = ".".join(origin) if origin else context.shorten_code(arg)
+                yield AnalysisResult(
+                    Severity.POSSIBLY_UNSAFE,
+                    f"`{'.'.join(caller)}` can invoke the supplied callback `{callback}`.",
+                    "CallbackArguments",
+                    trigger=context.shorten_code(call),
+                )
 
 
 class NonStandardImports(Analysis):

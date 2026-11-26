@@ -7,6 +7,7 @@ import re
 import struct
 import sys
 from abc import ABC, abstractmethod
+from ast import expr
 from collections.abc import Iterable, Iterator, MutableSequence, Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -237,6 +238,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
 # Dotted names are resolved as attribute paths by protocol 4+ unpicklers.
 UNSAFE_GLOBALS: frozenset[tuple[str, str]] = frozenset(
     {
+        ("codecs", "open"),
         ("typing", "get_type_hints"),
         ("typing", "evaluate_forward_ref"),  # Python 3.15+
         ("typing", "ForwardRef.evaluate"),  # Python 3.15+
@@ -873,6 +875,7 @@ class Pickled(OpcodeSequence):
         self._opcodes: list[Opcode] = list(opcodes)
         self._ast: ast.Module | None = None
         self._properties: ASTProperties | None = None
+        self._global_origins: dict[expr, tuple[str, str]] = {}
         # Whether the pickled sequence was interrupted because of
         # an invalid opcode
         self._has_invalid_opcode: bool = has_invalid_opcode
@@ -1398,6 +1401,11 @@ class Pickled(OpcodeSequence):
             self._properties.visit(self.ast)
         return self._properties
 
+    def global_origin(self, node: expr) -> tuple[str, str] | None:
+        """Return the pickle global that produced this AST node, if known."""
+        _ = self.ast
+        return self._global_origins.get(node)
+
     @property
     def has_import(self) -> bool:
         """Checks whether unpickling would cause an import to be run"""
@@ -1459,6 +1467,7 @@ on the Pickled object instead"""
         if self._ast is None:
             try:
                 interpreter = Interpreter(self)
+                self._global_origins = interpreter.global_origins
                 self._ast = interpreter.to_ast()
                 self._has_cycles = interpreter._has_cycle
             except InterpretationError as e:
@@ -1565,6 +1574,7 @@ class Interpreter:
     ):
         self.pickled: Pickled = pickled
         self.memory: dict[int, ast.expr] = {}
+        self.global_origins: dict[expr, tuple[str, str]] = {}
         self.stack: Stack[ast.expr | MarkObject] = Stack()
         self.module_body: ModuleBody = ModuleBody(self)
         self.result_variable: str = result_variable
@@ -1680,6 +1690,13 @@ class Interpreter:
         """Track a PUT operation for DoS protection."""
         self._put_count += 1
 
+    def import_global(self, module: str, name: str) -> ast.Name:
+        self.module_body.append(ast.ImportFrom(module=module, names=[ast.alias(name)], level=0))
+        ref = ast.Name(name, ast.Load())
+        # A memoized reference keeps its origin even if a later import has the same name.
+        self.global_origins[ref] = (module, name)
+        return ref
+
     def new_variable(self, value: ast.expr, name: str | None = None) -> str:
         if name is None:
             name = f"_var{self._var_counter}"
@@ -1732,10 +1749,7 @@ class Global(Opcode):
         return attribute
 
     def run(self, interpreter: Interpreter):
-        module, attr = self.module, self.attr
-        alias = ast.alias(attr)
-        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
-        interpreter.stack.append(ast.Name(attr, ast.Load()))
+        interpreter.stack.append(interpreter.import_global(self.module, self.attr))
 
     def encode(self) -> bytes:
         return f"c{self.module}\n{self.attr}\n".encode()
@@ -1787,9 +1801,7 @@ class StackGlobal(NoOp):
                 f"Module: {module!r}, Attr: {attr!r}"
             )
 
-        alias = ast.alias(attr)
-        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
-        interpreter.stack.append(ast.Name(attr, ast.Load()))
+        interpreter.stack.append(interpreter.import_global(module, attr))
 
 
 class Ext1(Opcode):
@@ -1869,11 +1881,8 @@ class Inst(StackSliceOpcode):
         return classname
 
     def run(self, interpreter: Interpreter, stack_slice: List[ast.expr]):
-        module, classname = self.module, self.cls
-        alias = ast.alias(classname)
-        interpreter.module_body.append(ast.ImportFrom(module=module, names=[alias], level=0))
-        args = ast.Tuple(list(stack_slice))
-        call = ast.Call(ast.Name(classname, ast.Load()), list(args.elts), [])
+        cls = interpreter.import_global(self.module, self.cls)
+        call = ast.Call(cls, stack_slice, [])
         var_name = interpreter.new_variable(call)
         interpreter.stack.append(ast.Name(var_name, ast.Load()))
 
