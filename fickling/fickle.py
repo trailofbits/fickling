@@ -178,6 +178,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         # Shell/terminal
         "termios",  # Changes Unix terminal settings
         "tty",  # Changes Unix terminal modes
+        "curses",  # Changes terminal settings and writes escape sequences
         "pydoc",  # Can run code via pydoc.pager
         "pexpect",
         "pipes",  # pipes.Template runs shell commands; removed in 3.13
@@ -197,6 +198,7 @@ UNSAFE_IMPORTS: frozenset[str] = frozenset(
         "socketserver",
         "smtpd",  # SMTPServer binds a socket; PureProxy relays messages (<=3.11)
         "xmlrpc",
+        "wsgiref",  # simple_server constructors bind and listen on a socket
         # Process/thread control
         "resource",  # Changes process resource limits
         "signal",
