@@ -7,7 +7,7 @@ import torch
 
 from fickling import hook
 from fickling.exception import UnsafeFileError
-from fickling.ml import FicklingMLUnpickler
+from fickling.ml import ML_ALLOWLIST, FicklingMLUnpickler
 
 
 # Simple payload for tests
@@ -110,3 +110,21 @@ class TestUnpickler(unittest.TestCase):
         """This checks whether allowing additional imports works in the custom Unpickler"""
         a = pickle.load(io.BytesIO(self.allowed_unsafe_bytes))
         self.assertIsInstance(a, numpy.dtype)
+
+
+class TestMLUnpicklerAllowlistIsolation(unittest.TestCase):
+    def test_also_allow_does_not_mutate_global_allowlist(self):
+        """Regression test for #355: `also_allow` must not leak into ML_ALLOWLIST."""
+        before = {module: dict(names) for module, names in ML_ALLOWLIST.items()}
+        FicklingMLUnpickler(io.BytesIO(b""), also_allow=["collections.Counter"])
+        self.assertEqual(ML_ALLOWLIST, before)
+        self.assertNotIn("Counter", ML_ALLOWLIST.get("collections", {}))
+
+def test_also_allow_is_isolated_between_unpicklers(self):
+    """An `also_allow` entry on one unpickler must not be visible to another."""
+    first = FicklingMLUnpickler(io.BytesIO(b""), also_allow=["collections.Counter"])
+    self.assertIn("Counter", first.allowlist.get("collections", {}))
+    self.assertIsNot(first.allowlist["collections"], ML_ALLOWLIST["collections"])
+    second = FicklingMLUnpickler(io.BytesIO(b""))
+    self.assertNotIn("Counter", second.allowlist.get("collections", {}))
+    self.assertNotIn("Counter", ML_ALLOWLIST.get("collections", {}))

@@ -1,4 +1,5 @@
 import ast
+import copy
 import pickle
 from collections.abc import Iterator
 
@@ -343,7 +344,12 @@ class FicklingMLUnpickler(pickle.Unpickler):
     _allow_nested_unpicklers = False
 
     def __init__(self, *args, also_allow: list[str] | None = None, **kwargs):
-        self.allowlist = {module: names.copy() for module, names in ML_ALLOWLIST.items()}
+        # Deep-copy the allowlist so `also_allow` (and the nested-unpickler
+        # additions below) only ever mutate this instance's copy. A shallow
+        # copy would share the per-module dicts with the global ML_ALLOWLIST,
+        # so allowing an extra import on one unpickler would silently allow
+        # it for every later unpickler and for the scanner too.
+        self.allowlist = copy.deepcopy(ML_ALLOWLIST)
         if self._allow_nested_unpicklers:
             for module, names in ML_NESTED_UNPICKLERS.items():
                 self.allowlist.setdefault(module, {}).update(names)
